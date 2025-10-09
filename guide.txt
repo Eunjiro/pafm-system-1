@@ -1,0 +1,1182 @@
+MODULE 1: DEATH REGISTRATION 
+A. REGULAR DEATH REGISTRATION
+CITIZEN / FUNERAL HOME / RELATIVE
+Submit Online Death Registration
+Upload:
+
+
+Municipal Form 103 (Death Certificate Form)
+Valid ID of informant
+Swab Test Result (if Covid-related)
+
+
+Fill:
+
+
+Deceased Details
+Informant Details
+
+
+Submit → Status: Pending Verification
+Receive Order of Payment (₱50)
+Upload Proof of Payment / Enter OR Number
+Wait for Status Update → “For Pickup”
+Pickup physical copy at Civil Registry Office
+
+
+EMPLOYEE (Civil Registry Staff)
+View & Validate Submissions
+Check uploaded files
+Approve or return for correction
+Generate Order of Payment
+Confirm payment
+Tag record as “Registered – For Pickup”
+Print and prepare physical certificate for release
+
+
+
+ADMIN
+Override approvals/rejections
+Edit registration entries
+Manage staff accounts
+Access audit logs
+
+
+B. DELAYED DEATH REGISTRATION
+CITIZEN
+Select “Delayed Registration”
+Upload:
+
+
+Form 103
+Affidavit of Delayed Registration
+Burial/Cremation Certificate
+Funeral Service Certificate
+PSA Certificate of No Record
+Swab result (if needed)
+Valid ID
+
+
+Submit → Pending Review
+Receive Order of Payment (₱150)
+Upload proof of payment
+Status: For Processing (11 working days)
+After approval → “For Pickup”
+Claim physical copy at Civil Registry
+EMPLOYEE
+Review documents
+Verify PSA No Record
+Approve/Reject
+Generate Order of Payment
+Confirm payment
+Start 11-day processing timeline
+Mark as “For Pickup”
+Notify user for claiming
+
+
+
+ADMIN
+Override decisions
+Modify documents/fees
+Manage processing timelines
+
+
+
+MODULE 2: PERMIT REQUESTS 
+2.1 BURIAL PERMIT
+CITIZEN / FAMILY / FUNERAL HOME
+Select “Burial Permit Request”
+Upload:
+
+
+Certified Copy of Death Certificate
+Transfer/Entrance Permit (if from another LGU)
+Affidavit of Undertaking (if Bagbag/Novaliches)
+Burial Form (QCHD)
+Valid ID
+
+
+Submit → Pending Review
+Receive Order of Payment (₱100–₱1500 based on case)
+Upload proof of payment / OR No.
+Wait for update: “For Pickup”
+Claim physical Burial Permit (serves as OR)
+
+
+EMPLOYEE
+Validate documents
+Approve or return for correction
+Generate Order of Payment
+Burial Permit: ₱100
+Entrance Permit: ₱100
+Niche Fees:
+Child: ₱750
+Adult: ₱1500
+
+
+Confirm payment via proof/OR
+Mark as “For Pickup”
+Print and prepare document
+
+
+ADMIN
+Override approvals or fees
+Edit issued permits if needed
+View and audit all transactions
+
+
+
+2.2 EXHUMATION PERMIT
+CITIZEN / FAMILY / AUTHORIZED REP
+Select “Exhumation Permit Request”
+Upload:
+
+
+Exhumation Letter (QC Health Dept)
+Certified Death Certificate
+Valid ID
+
+
+Submit → Pending Review
+Receive Order of Payment (₱100)
+Upload proof of payment
+Status: “For Pickup”
+Claim permit at office
+
+
+EMPLOYEE
+Validate documents
+Issue payment order
+Confirm proof
+Tag as “Issued – For Pickup”
+
+
+ADMIN
+Override/correct records
+Monitor all exhumation activities
+
+
+
+2.3 CREMATION PERMIT
+CITIZEN / FAMILY / FUNERAL HOME
+Select “Cremation Permit Request”
+Upload:
+
+
+Death Certificate
+Cremation Form (QCHD)
+Transfer/Entrance Permit (if applicable)
+Valid ID
+
+
+Submit → Pending
+Receive Payment Order (₱100–₱200)
+Submit proof/OR
+Status: “For Pickup”
+Claim hardcopy permit
+
+
+EMPLOYEE
+Review & approve/reject
+Generate payment order
+Confirm OR/proof
+Mark as “For Pickup”
+
+
+ADMIN
+Override or adjust fees
+Manage account logs
+
+
+
+MODULE 3: DEATH CERTIFICATE REQUEST & ISSUANCE 
+CITIZEN / REQUESTOR
+Select “Request Death Certificate”
+Input:
+
+
+Full name of deceased
+Date & place of death
+Relationship
+Purpose
+
+
+Upload:
+Valid ID
+Authorization letter (if not next of kin)
+Choose: Pickup Only
+Submit → Pending Review
+Receive Order of Payment
+Pay online/upload proof
+Track status:
+Processing → Ready for Pickup
+Go to office to claim printed certificate
+
+
+EMPLOYEE
+View pending requests
+Validate identity and death record
+Approve, reject, or ask for more docs
+Generate Order of Payment:
+Certified Copy: ₱50
+Additional Copies: +₱50 each
+Confirm payment
+Print certificate
+Mark as “Ready for Pickup”
+Notify requester with claim schedule
+
+
+ADMIN
+Override approval/rejection
+Adjust or waive fees
+Edit existing record
+Monitor logs
+
+
+
+MODULE 4: CEMETERY PLOT & AI MAPPING
+4.1 GRAVE PLOT DIGITAL MAPPING
+Users: Citizen, Employee, Admin
+ Function: View and navigate available, occupied, or reserved plots.
+CITIZEN
+Access interactive cemetery map
+Search by:
+Deceased name
+Section / Block / Lot number
+Status (Vacant / Occupied / Reserved)
+View plot details:
+Status
+Date of burial
+Owner/Reserved info
+Permit reference
+AI Grave Locator: Searches and highlights location on map
+
+
+EMPLOYEE
+View all plots with status overlays
+Edit/update plot attributes (size, type, coordinates)
+Approve citizen plot reservations
+
+ADMIN
+Create/edit/delete plot records
+Upload GIS map layers
+Configure AI mapping parameters
+Override assignments/status
+
+
+4.2 PLOT STATUS MANAGEMENT
+Statuses:
+Vacant
+Reserved
+Occupied
+Unavailable / Blocked
+EMPLOYEE ACTIONS:
+Update plot status after burial/assignment
+Mark reserved plots after approval
+Tag plots as occupied once a burial record is confirmed
+ADMIN ACTIONS:
+Force status override
+Release mistakenly reserved plots
+Archive historical data
+
+
+4.3 PLOT ASSIGNMENT (Linked to Permits)
+This connects Burial / Exhumation / Cremation Permits to actual plots.
+EMPLOYEE FLOW:
+Receive approved burial permit
+Select vacant plot OR confirm pre-reserved plot
+Assign deceased to plot
+System updates:
+Plot status = Occupied
+Links record to permit and deceased profile
+
+
+ADMIN:
+Modify plot assignment
+Relocate burials (exhumation/reassignment)
+Manage illegal/duplicate reservations
+
+
+
+
+REQUIREMENTS
+
+MODULE 1: DEATH REGISTRATION
+A. REGULAR DEATH REGISTRATION
+Required:
+Form 103 (Death Certificate Form)
+Valid ID of informant
+Conditional:
+Covid Swab Test Result → if cause of death is Covid-related
+Optional:
+Any additional supporting docs (if manually allowed by UI)
+
+
+B. DELAYED DEATH REGISTRATION
+Required:
+Form 103
+Affidavit of Delayed Registration
+PSA Certificate of No Record (Death)
+Valid ID of informant/requester
+Conditional:
+ (Only if applicable — system should prompt based on case selection)
+Burial/Cremation Certificate → if already buried/cremated
+Funeral Service Certificate → if funeral home handled it
+Covid Swab Result → if Covid-related
+Optional:
+Supporting files (photos, extra docs if staff requests)
+
+
+
+MODULE 2: PERMIT REQUESTS
+2.1 BURIAL PERMIT
+Required:
+Certified Copy of Death Certificate
+Valid ID of informant/applicant
+Conditional:
+Transfer/Entrance Permit → if deceased is from outside QC
+Affidavit of Undertaking → if burial is in Bagbag or Novaliches
+Burial Form (QCHD-issued) → if required by funeral home or locality
+Optional:
+Supporting attachments
+2.2 EXHUMATION PERMIT
+Required:
+Exhumation Letter (from QC Health Dept)
+Certified Copy of Death Certificate
+Valid ID of applicant
+Conditional:
+None officially, unless city changes rules
+Optional:
+Supporting documents
+
+
+2.3 CREMATION PERMIT
+Required:
+Certified Copy of Death Certificate
+Valid ID
+Cremation Form (QCHD-issued)
+
+
+Conditional:
+Transfer/Entrance Permit → if deceased is from another city
+Optional:
+Additional supporting documents
+
+
+
+MODULE 3: DEATH CERTIFICATE REQUEST & ISSUANCE
+ONLINE REQUEST
+Required:
+Valid ID → if requester is the next of kin
+Conditional:
+Authorization Letter → if requester is NOT next of kin
+Supporting ID of family member → if requesting for someone else
+Optional:
+Any additional attachments
+
+
+MODULE 4: CEMETERY PLOT & AI MAPPING
+PLOT ASSIGNMENT / RESERVATION
+Required:
+Burial/Cremation Permit
+Death Certificate
+Valid ID
+
+
+Conditional:
+Transfer/Entrance Permit → if burial from outside QC
+Affidavit of Undertaking → for restricted cemeteries
+Optional:
+Grave ownership documents (depends on policy)
+
+
+
+
+DATABASE (not final)
+-- ===========================
+-- Core / Utility Types (using CHECK constraints instead of ENUM)
+-- ===========================
+
+-- Roles
+CREATE TABLE roles_allowed (role VARCHAR(50) PRIMARY KEY);
+INSERT INTO roles_allowed(role) VALUES ('citizen'), ('employee'), ('admin');
+
+-- Registration types
+CREATE TABLE registration_types (t VARCHAR(50) PRIMARY KEY);
+INSERT INTO registration_types(t) VALUES ('regular'), ('delayed');
+
+-- Status constraints will be enforced via CHECK on each table.
+
+-- ===========================
+-- USERS
+-- One table for all users (citizen, employee, admin)
+-- ===========================
+CREATE TABLE users (
+  user_id SERIAL PRIMARY KEY,
+  role VARCHAR(50) NOT NULL,
+  full_name_first VARCHAR(150) NOT NULL,
+  full_name_middle VARCHAR(150),
+  full_name_last VARCHAR(150) NOT NULL,
+  name_suffix VARCHAR(50),
+  email VARCHAR(255) UNIQUE,
+  password_hash VARCHAR(512), -- nullable if SSO/external auth
+  contact_no VARCHAR(50),
+  address TEXT,
+  organization VARCHAR(255), -- optional (e.g., funeral home)
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  CONSTRAINT chk_users_role CHECK (role IN ('citizen','employee','admin'))
+);
+
+
+
+CREATE INDEX idx_users_role ON users(role);
+
+-- ===========================
+-- DOCUMENT STORAGE (single table)
+-- documents.file_path should point to S3 or server path
+-- ===========================
+CREATE TABLE documents (
+  document_id SERIAL PRIMARY KEY,
+  uploaded_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+  file_name VARCHAR(512) NOT NULL,
+  file_path TEXT NOT NULL,
+  mime_type VARCHAR(100),
+  file_size_bytes BIGINT,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_documents_uploaded_by ON documents(uploaded_by);
+
+-- ===========================
+-- PAYMENTS (single table for all modules)
+-- module_ref identifies the module (e.g., 'death_registration','permit','certificate_request')
+-- module_id is the record id in the referenced table
+-- ===========================
+CREATE TABLE payments (
+  payment_id SERIAL PRIMARY KEY,
+  module_ref VARCHAR(100) NOT NULL, -- e.g., 'death_registration','permit','certificate_request'
+  module_id INTEGER NOT NULL,       -- id in the referenced module table
+  amount NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+  currency VARCHAR(10) NOT NULL DEFAULT 'PHP',
+  payment_status VARCHAR(50) NOT NULL DEFAULT 'unpaid',
+  payment_method VARCHAR(50), -- 'cash','gcash','bank','card' etc.
+  or_number VARCHAR(100),
+  proof_document_id INTEGER REFERENCES documents(document_id) ON DELETE SET NULL,
+  paid_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+  paid_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  CONSTRAINT chk_payment_status CHECK (payment_status IN ('unpaid','pending','paid','waived','refunded'))
+);
+
+CREATE INDEX idx_payments_mod ON payments(module_ref, module_id);
+
+-- ===========================
+-- AUDIT LOGS (central table)
+-- records actions across modules
+-- ===========================
+CREATE TABLE audit_logs (
+  log_id SERIAL PRIMARY KEY,
+  actor_user_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+  action VARCHAR(200) NOT NULL, -- e.g., 'approve_registration', 'issue_permit'
+  module_name VARCHAR(100),     -- e.g., 'death_registration','permit','certificate_request','plots'
+  reference_id INTEGER,         -- id in the module (application-level reference)
+  details TEXT,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_audit_actor ON audit_logs(actor_user_id);
+CREATE INDEX idx_audit_module ON audit_logs(module_name, reference_id);
+
+-- ===========================
+-- NOTIFICATIONS (central)
+-- store notifications that app can present / send
+-- ===========================
+CREATE TABLE notifications (
+  notification_id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users(user_id) ON DELETE CASCADE,
+  title VARCHAR(255) NOT NULL,
+  message TEXT NOT NULL,
+  is_read BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_notifications_user ON notifications(user_id);
+
+-- ===========================
+-- DECEASED RECORDS (main searchable data)
+-- ===========================
+CREATE TABLE deceased_records (
+  deceased_id SERIAL PRIMARY KEY,
+  first_name VARCHAR(150) NOT NULL,
+  middle_name VARCHAR(150),
+  last_name VARCHAR(150) NOT NULL,
+  suffix VARCHAR(50),
+  sex VARCHAR(20),
+  date_of_birth DATE,
+  date_of_death TIMESTAMP WITH TIME ZONE,
+  age INTEGER,
+  place_of_death TEXT,
+  residence_address TEXT,
+  citizenship VARCHAR(100),
+  civil_status VARCHAR(50),
+  occupation VARCHAR(200),
+  cause_of_death TEXT,
+  covid_related BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_deceased_name ON deceased_records(last_name, first_name);
+
+-- ===========================
+-- DEATH REGISTRATIONS (single table for regular + delayed)
+-- registration_type distinguishes regular/delayed
+-- pickup-only output
+-- ===========================
+CREATE TABLE death_registrations (
+  registration_id SERIAL PRIMARY KEY,
+  registration_type VARCHAR(50) NOT NULL, -- 'regular' or 'delayed'
+  deceased_id INTEGER REFERENCES deceased_records(deceased_id) ON DELETE SET NULL,
+  submitted_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+  informant_name VARCHAR(255),
+  informant_relationship VARCHAR(100),
+  informant_contact VARCHAR(100),
+  status VARCHAR(50) NOT NULL DEFAULT 'submitted',
+  amount_due NUMERIC(12,2) DEFAULT 0.00,
+  payment_id INTEGER REFERENCES payments(payment_id) ON DELETE SET NULL,
+  payment_order_no VARCHAR(100),
+  or_number VARCHAR(100),
+  processing_due_at TIMESTAMP WITH TIME ZONE, -- used for delayed (11 working days)
+  registered_at TIMESTAMP WITH TIME ZONE,
+  registered_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+  pickup_required BOOLEAN NOT NULL DEFAULT TRUE, -- all are pickup-only
+  pickup_status VARCHAR(50) DEFAULT 'not_ready', -- 'not_ready', 'ready_for_pickup', 'claimed'
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  remarks TEXT,
+  CONSTRAINT chk_registration_type CHECK (registration_type IN ('regular','delayed')),
+  CONSTRAINT chk_registration_status CHECK (status IN (
+    'draft','submitted','pending_verification','for_payment','paid','processing','registered','for_pickup','claimed','returned','rejected','expired'
+  )),
+  CONSTRAINT chk_pickup_status CHECK (pickup_status IN ('not_ready','ready_for_pickup','claimed'))
+);
+
+CREATE INDEX idx_deathreg_status ON death_registrations(status);
+CREATE INDEX idx_deathreg_submitted_by ON death_registrations(submitted_by);
+
+-- Map documents uploaded related to death_registrations
+CREATE TABLE death_registration_documents (
+  id SERIAL PRIMARY KEY,
+  registration_id INTEGER REFERENCES death_registrations(registration_id) ON DELETE CASCADE,
+  document_id INTEGER REFERENCES documents(document_id) ON DELETE CASCADE,
+  doc_type VARCHAR(100) NOT NULL, -- e.g., 'form_103','id','covid_swab','affidavit_delayed','psa_no_record','burial_cert','funeral_cert'
+  uploaded_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_deathreg_docs_reg ON death_registration_documents(registration_id);
+
+-- ===========================
+-- PERMIT REQUESTS
+-- burial, exhumation, cremation - pickup-only issuance
+-- ===========================
+CREATE TABLE permit_requests (
+  permit_id SERIAL PRIMARY KEY,
+  permit_type VARCHAR(50) NOT NULL, -- 'burial','exhumation','cremation'
+  citizen_user_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+  death_id INTEGER REFERENCES deceased_records(deceased_id) ON DELETE SET NULL,
+  status VARCHAR(50) NOT NULL DEFAULT 'submitted',
+  amount_due NUMERIC(12,2) DEFAULT 0.00,
+  payment_id INTEGER REFERENCES payments(payment_id) ON DELETE SET NULL,
+  payment_order_no VARCHAR(100),
+  or_number VARCHAR(100),
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  issued_at TIMESTAMP WITH TIME ZONE,
+  issued_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+  pickup_required BOOLEAN NOT NULL DEFAULT TRUE,
+  pickup_status VARCHAR(50) DEFAULT 'not_ready', -- 'not_ready','ready_for_pickup','claimed'
+  remarks TEXT,
+  CONSTRAINT chk_permit_type CHECK (permit_type IN ('burial','exhumation','cremation')),
+  CONSTRAINT chk_permit_status CHECK (status IN (
+    'draft','submitted','pending_verification','for_payment','paid','issued','for_pickup','claimed','rejected','cancelled'
+  )),
+  CONSTRAINT chk_permit_pickup_status CHECK (pickup_status IN ('not_ready','ready_for_pickup','claimed'))
+);
+
+CREATE INDEX idx_permit_by_type_status ON permit_requests(permit_type, status);
+
+-- permit documents
+CREATE TABLE permit_documents (
+  id SERIAL PRIMARY KEY,
+  permit_id INTEGER REFERENCES permit_requests(permit_id) ON DELETE CASCADE,
+  document_id INTEGER REFERENCES documents(document_id) ON DELETE CASCADE,
+  doc_type VARCHAR(100) NOT NULL, -- e.g., 'death_cert','transfer_permit','affidavit_undertaking','burial_form_qchd','exhumation_letter','cremation_form_qchd'
+  uploaded_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_permit_docs_pid ON permit_documents(permit_id);
+
+-- ===========================
+-- CERTIFICATE REQUESTS (death certificate copies)
+-- pickup-only claim
+-- ===========================
+CREATE TABLE certificate_requests (
+  cert_request_id SERIAL PRIMARY KEY,
+  cert_request_type VARCHAR(50) NOT NULL, -- 'death','birth','marriage','cnr'
+  death_id INTEGER REFERENCES deceased_records(deceased_id) ON DELETE SET NULL,
+  requester_user_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+  relationship_to_deceased VARCHAR(100),
+  purpose TEXT,
+  copies INTEGER DEFAULT 1,
+  status VARCHAR(50) NOT NULL DEFAULT 'submitted',
+  amount_due NUMERIC(12,2) DEFAULT 0.00,
+  payment_id INTEGER REFERENCES payments(payment_id) ON DELETE SET NULL,
+  payment_order_no VARCHAR(100),
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  processed_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+  pickup_required BOOLEAN NOT NULL DEFAULT TRUE,
+  pickup_status VARCHAR(50) DEFAULT 'not_ready', -- 'not_ready','ready_for_pickup','claimed'
+  remarks TEXT,
+  CONSTRAINT chk_cert_request_type CHECK (cert_request_type IN ('death','birth','marriage','cnr')),
+  CONSTRAINT chk_cert_status CHECK (status IN ('submitted','for_payment','paid','processing','ready_for_pickup','claimed','rejected'))
+);
+
+CREATE INDEX idx_certreq_status ON certificate_requests(status);
+
+CREATE TABLE certificate_request_documents (
+  id SERIAL PRIMARY KEY,
+  cert_request_id INTEGER REFERENCES certificate_requests(cert_request_id) ON DELETE CASCADE,
+  document_id INTEGER REFERENCES documents(document_id) ON DELETE CASCADE,
+  doc_type VARCHAR(100) NOT NULL, -- 'id','authorization_letter'
+  uploaded_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_certreq_docs ON certificate_request_documents(cert_request_id);
+
+-- ===========================
+-- DOCUMENT TYPES & REQUIREMENTS (master list + requirement rules)
+-- document_requirements.condition_rule is a textual expression for app evaluation
+-- ===========================
+CREATE TABLE document_types (
+  doc_type VARCHAR(100) PRIMARY KEY,
+  label VARCHAR(255) NOT NULL,
+  description TEXT
+);
+
+-- seed common document types (developer can add more)
+INSERT INTO document_types(doc_type,label,description) VALUES
+('form_103','Municipal Form No. 103 (Death Certificate)','Completed Municipal Form No. 103 (Death Certificate)'),
+('id','Valid ID','Valid government-issued ID of applicant/informant'),
+('covid_swab','COVID Swab Result','COVID swab test result (if applicable)'),
+('affidavit_delayed','Affidavit of Delayed Registration','Affidavit for delayed registration (back of Form 103)'),
+('psa_no_record','PSA Certificate of No Record','Certificate of No Record (Death) from PSA'),
+('burial_cert','Burial/Cremation Certificate','Proof of burial/cremation'),
+('funeral_service_cert','Funeral Service Certificate','Certificate issued by funeral service provider'),
+('transfer_permit','Transfer/Entrance Permit','Transfer or entrance permit from other LGU'),
+('affidavit_undertaking','Affidavit of Undertaking','Affidavit for special cemeteries'),
+('burial_form_qchd','Burial Form (QCHD)','Burial form from QCHD'),
+('exhumation_letter','Exhumation Letter (QCHD)','QCHD letter for exhumation'),
+('cremation_form_qchd','Cremation Form (QCHD)','Form for cremation from QCHD'),
+('authorization_letter','Authorization Letter','Authorization for representative');
+
+CREATE TABLE document_requirements (
+  id SERIAL PRIMARY KEY,
+  module_name VARCHAR(100) NOT NULL,  -- e.g., 'death_registration','permit','certificate_request'
+  submodule VARCHAR(100) NOT NULL,    -- e.g., 'regular','delayed','burial','exhumation','cremation','online_request'
+  doc_type VARCHAR(100) REFERENCES document_types(doc_type) ON DELETE CASCADE,
+  requirement_level VARCHAR(50) NOT NULL, -- 'required','conditional','optional'
+  condition_rule TEXT, -- app evaluates; example: "cause_of_death = 'covid'"
+  notes TEXT
+);
+
+-- Example inserts (seed)
+INSERT INTO document_requirements(module_name,submodule,doc_type,requirement_level,condition_rule,notes) VALUES
+('death_registration','regular','form_103','required',NULL,'Municipal Form 103 (4 copies)'),
+('death_registration','regular','id','required',NULL,'Informant valid ID'),
+('death_registration','regular','covid_swab','conditional','cause_of_death = ''covid''','If cause of death is COVID'),
+('death_registration','delayed','form_103','required',NULL,NULL),
+('death_registration','delayed','affidavit_delayed','required',NULL,'Affidavit for delayed registration'),
+('death_registration','delayed','psa_no_record','required',NULL,'PSA certificate of no record'),
+('death_registration','delayed','burial_cert','conditional','buried = true OR cremated = true','If already buried/cremated'),
+('permit','burial','death_cert','required',NULL,'Certified copy of death certificate'),
+('permit','burial','transfer_permit','conditional','origin != ''QC''','If deceased from other LGU'),
+('permit','burial','affidavit_undertaking','conditional','cemetery IN (''Bagbag'',''Novaliches'')','Special cemeteries');
+
+CREATE INDEX idx_docreq_module ON document_requirements(module_name, submodule);
+
+-- ===========================
+-- CEMETERY PLOTS & ASSIGNMENTS
+-- one table for plots with lat/lon; app can use geom if PostGIS enabled
+-- ===========================
+CREATE TABLE cemetery_plots (
+  plot_id SERIAL PRIMARY KEY,
+  cemetery_name VARCHAR(255) DEFAULT 'Quezon City Public Cemetery',
+  section VARCHAR(50),
+  block VARCHAR(50),
+  lot VARCHAR(50),
+  plot_code VARCHAR(150) UNIQUE, -- e.g., "SEC-A-BLK-12-LOT-05"
+  size VARCHAR(50),
+  latitude NUMERIC(10,7),
+  longitude NUMERIC(10,7),
+  status VARCHAR(50) NOT NULL DEFAULT 'vacant',
+  reserved_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+  reserved_until TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  CONSTRAINT chk_plot_status CHECK (status IN ('vacant','reserved','occupied','blocked'))
+);
+
+CREATE INDEX idx_plots_status ON cemetery_plots(status);
+CREATE INDEX idx_plots_coords ON cemetery_plots(latitude, longitude);
+
+-- Plot assignments linking permit + deceased to plot
+CREATE TABLE plot_assignments (
+  assignment_id SERIAL PRIMARY KEY,
+  plot_id INTEGER REFERENCES cemetery_plots(plot_id) ON DELETE CASCADE,
+  deceased_id INTEGER REFERENCES deceased_records(deceased_id) ON DELETE SET NULL,
+  permit_id INTEGER REFERENCES permit_requests(permit_id) ON DELETE SET NULL,
+  assigned_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+  assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  status VARCHAR(50) DEFAULT 'assigned', -- 'assigned','occupied','exhumed','reassigned'
+  notes TEXT,
+  CONSTRAINT chk_plot_assign_status CHECK (status IN ('assigned','occupied','exhumed','reassigned'))
+);
+
+CREATE INDEX idx_plot_assign_plot ON plot_assignments(plot_id);
+
+-- ===========================
+-- STATUS LOGS (optional small history)
+-- stores changes to statuses for key modules
+-- ===========================
+CREATE TABLE status_logs (
+  status_log_id SERIAL PRIMARY KEY,
+  module_name VARCHAR(100) NOT NULL, -- e.g., 'death_registration','permit','certificate_request'
+  reference_id INTEGER NOT NULL,     -- id in the module table
+  previous_status VARCHAR(100),
+  new_status VARCHAR(100),
+  changed_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+  change_notes TEXT,
+  changed_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_status_logs_module ON status_logs(module_name, reference_id);
+
+-- ===========================
+-- OPTIONAL: archived scanned/administrative copies (stored internally)
+-- This is for staff/archiving only, not public download.
+-- ===========================
+CREATE TABLE internal_archives (
+  archive_id SERIAL PRIMARY KEY,
+  module_name VARCHAR(100) NOT NULL,
+  reference_id INTEGER NOT NULL,
+  document_id INTEGER REFERENCES documents(document_id) ON DELETE SET NULL,
+  archived_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+  archived_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  notes TEXT
+);
+
+-- ===========================
+-- Helpful views (example) - staff queue
+-- ===========================
+CREATE VIEW vw_staff_queue AS
+SELECT 'death_registration' AS module, registration_id AS id, status, submitted_by AS user_id, created_at
+FROM death_registrations WHERE status IN ('submitted','pending_verification','for_payment')
+UNION
+SELECT 'permit' AS module, permit_id AS id, status, citizen_user_id AS user_id, created_at
+FROM permit_requests WHERE status IN ('submitted','pending_verification','for_payment')
+UNION
+SELECT 'certificate_request' AS module, cert_request_id AS id, status, requester_user_id AS user_id, created_at
+FROM certificate_requests WHERE status IN ('submitted','for_payment');
+
+-- ===========================
+-- IMPLEMENTATION NOTES (for developers)
+-- ===========================
+-- 1) Document requirement rules (document_requirements.condition_rule) must be evaluated by backend logic.
+--    Example rule strings: "cause_of_death = 'covid'", "origin != 'QC'", "buried = true".
+--    The backend should parse and evaluate these using the relevant module data.
+-- 2) For Delayed registration, backend should set processing_due_at = now() + 11 working days, and change status to 'registered' once staff verifies and the period completed if required.
+-- 3) Pickup flow:
+--    - When staff sets status to 'for_pickup', set pickup_status='ready_for_pickup' and create a notification record.
+--    - When citizens arrive and staff hand over the printed document, update pickup_status='claimed' and optionally insert into audit_logs and status_logs.
+-- 4) Payments: create a payments record with module_ref and module_id when payment order generated; update payment_status to 'paid' once OR/proof uploaded and verified. Backend must update the linked module (death_registrations/permit_requests/certificate_requests) status accordingly.
+-- 5) If PostGIS is to be used, add a GEOMETRY geometry column to cemetery_plots (geom) and populate from latitude/longitude or polygon shapefiles.
+-- 6) Add application-level RBAC: citizens can create requests and view their own records; employees can review/approve; admins can override and manage users and settings.
+-- 7) Add indexes as needed for search performance (names, dates). Consider a full-text index for cause_of_death or notes.
+
+
+
+
+Database Documentation
+
+1. Users Table
+Purpose: Store all system users (citizens, employees, admins) and their roles.
+Column
+Type
+Description
+Constraints
+user_id
+SERIAL
+Primary key, unique identifier for each user
+PRIMARY KEY
+full_name
+VARCHAR(150)
+Full legal name
+NOT NULL
+email
+VARCHAR(100)
+Login and communication email
+UNIQUE, NOT NULL
+password_hash
+VARCHAR(255)
+Hashed password for security
+NOT NULL
+role
+ENUM('citizen','employee','admin')
+User role for access control
+NOT NULL
+phone_number
+VARCHAR(20)
+Optional contact number
+NULLABLE
+created_at
+TIMESTAMP
+When user account was created
+DEFAULT NOW()
+updated_at
+TIMESTAMP
+Last account update
+DEFAULT NOW()
+
+
+
+
+2. Deceased Table
+Purpose: Store deceased individual information for death registration and plot assignment.
+Column
+Type
+Description
+Constraints
+deceased_id
+SERIAL
+Primary key
+PRIMARY KEY
+full_name
+VARCHAR(150)
+Full name of deceased
+NOT NULL
+date_of_birth
+DATE
+Date of birth
+NULLABLE
+date_of_death
+DATE
+Date of death
+NOT NULL
+place_of_death
+VARCHAR(200)
+Hospital, home, or location
+NULLABLE
+gender
+VARCHAR(20)
+Gender
+NULLABLE
+cause_of_death
+TEXT
+Optional cause of death
+NULLABLE
+burial_type
+ENUM('burial','cremation','exhumation')
+Type of final disposition
+NULLABLE
+registration_type
+ENUM('regular','delayed')
+Type of death registration
+NULLABLE
+registration_status
+ENUM('pending_verification','pending_payment','for_processing','for_pickup','approved','rejected')
+Current status
+DEFAULT 'pending_verification'
+plot_id
+INT
+Foreign key linking to cemetery_plot if assigned
+REFERENCES cemetery_plot(plot_id)
+created_at
+TIMESTAMP
+Record creation date
+DEFAULT NOW()
+updated_at
+TIMESTAMP
+Record last update
+DEFAULT NOW()
+
+
+3. Documents Table
+Purpose: Store uploaded files for registrations, permits, and certificate requests.
+Column
+Type
+Description
+Constraints
+document_id
+SERIAL
+Primary key
+PRIMARY KEY
+deceased_id
+INT
+Links to the deceased
+REFERENCES deceased(deceased_id)
+user_id
+INT
+Uploading citizen
+REFERENCES users(user_id)
+document_type
+VARCHAR(100)
+e.g., Form 103, Swab Result, Affidavit, Burial Form
+NOT NULL
+file_path
+VARCHAR(255)
+File storage path / URL
+NOT NULL
+uploaded_at
+TIMESTAMP
+Timestamp of upload
+DEFAULT NOW()
+required
+BOOLEAN
+True if mandatory for the request
+DEFAULT TRUE
+
+Notes: Optional documents are marked required = FALSE.
+
+
+
+4. Payment Table
+Purpose: Track all fees, proof of payment, and OR numbers.
+Column
+Type
+Description
+Constraints
+payment_id
+SERIAL
+Primary key
+PRIMARY KEY
+user_id
+INT
+Paying citizen
+REFERENCES users(user_id)
+request_type
+ENUM('death_registration','burial_permit','exhumation_permit','cremation_permit','death_certificate')
+Type of transaction
+NOT NULL
+amount
+NUMERIC(10,2)
+Amount in PHP
+NOT NULL
+or_number
+VARCHAR(50)
+Official Receipt Number
+NULLABLE
+proof_file
+VARCHAR(255)
+File path of uploaded proof
+NULLABLE
+status
+ENUM('pending','confirmed','failed')
+Payment confirmation status
+DEFAULT 'pending'
+created_at
+TIMESTAMP
+Payment creation timestamp
+DEFAULT NOW()
+updated_at
+TIMESTAMP
+Last payment update
+DEFAULT NOW()
+
+
+5. Death Certificate Request Table
+Purpose: Track death certificate requests, including online and delayed requests.
+Column
+Type
+Description
+Constraints
+request_id
+SERIAL
+Primary key
+PRIMARY KEY
+deceased_id
+INT
+Links to deceased
+REFERENCES deceased(deceased_id)
+user_id
+INT
+Citizen or requestor
+REFERENCES users(user_id)
+purpose
+TEXT
+Reason for request (insurance, legal, etc.)
+NULLABLE
+status
+ENUM('pending_review','for_payment','processing','ready_for_pickup','rejected')
+Current request status
+DEFAULT 'pending_review'
+copies
+INT
+Number of copies requested
+DEFAULT 1
+pickup_date
+DATE
+Scheduled pickup date
+NULLABLE
+created_at
+TIMESTAMP
+Request creation date
+DEFAULT NOW()
+updated_at
+TIMESTAMP
+Last update
+DEFAULT NOW()
+
+
+6. Permit Table
+Purpose: Manage burial, cremation, and exhumation permits.
+Column
+Type
+Description
+Constraints
+permit_id
+SERIAL
+Primary key
+PRIMARY KEY
+deceased_id
+INT
+Linked deceased
+REFERENCES deceased(deceased_id)
+user_id
+INT
+Requesting citizen
+REFERENCES users(user_id)
+permit_type
+ENUM('burial','exhumation','cremation')
+Permit category
+NOT NULL
+status
+ENUM('pending_review','for_payment','for_pickup','issued','rejected')
+Permit status
+DEFAULT 'pending_review'
+fee_amount
+NUMERIC(10,2)
+Fee charged
+NULLABLE
+or_number
+VARCHAR(50)
+Official Receipt Number
+NULLABLE
+created_at
+TIMESTAMP
+Creation date
+DEFAULT NOW()
+updated_at
+TIMESTAMP
+Last update
+DEFAULT NOW()
+
+
+
+
+
+
+
+7. Cemetery Plot Table
+Purpose: Store cemetery plots, status, and location for AI mapping.
+Column
+Type
+Description
+Constraints
+plot_id
+SERIAL
+Primary key
+PRIMARY KEY
+section
+VARCHAR(50)
+Cemetery section
+NOT NULL
+block
+VARCHAR(50)
+Block/area within section
+NOT NULL
+lot_number
+VARCHAR(50)
+Unique lot number
+NOT NULL
+size
+VARCHAR(50)
+Plot size/type
+NULLABLE
+coordinates
+POINT
+Latitude/Longitude of plot
+NOT NULL
+status
+ENUM('vacant','reserved','occupied','unavailable')
+Current plot status
+DEFAULT 'vacant'
+assigned_to
+INT
+Links to deceased assigned
+REFERENCES deceased(deceased_id)
+permit_id
+INT
+If assigned via permit
+REFERENCES permit(permit_id)
+created_at
+TIMESTAMP
+Creation date
+DEFAULT NOW()
+updated_at
+TIMESTAMP
+Last update
+DEFAULT NOW()
+
+
+
+
+8. Audit / Logs Table
+Purpose: Track all system changes for compliance.
+Column
+Type
+Description
+Constraints
+log_id
+SERIAL
+Primary key
+PRIMARY KEY
+user_id
+INT
+User performing action
+REFERENCES users(user_id)
+action_type
+VARCHAR(100)
+e.g., 'approve_registration', 'upload_document'
+NOT NULL
+target_table
+VARCHAR(50)
+Table affected
+NOT NULL
+target_id
+INT
+Primary key of affected record
+NULLABLE
+description
+TEXT
+Optional detail
+NULLABLE
+created_at
+TIMESTAMP
+Action timestamp
+DEFAULT NOW()
+
+
