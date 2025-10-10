@@ -5,14 +5,30 @@ import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 
 interface DeathRegistration {
-  id: string
-  registrationType: 'regular' | 'delayed'
-  deceasedName: string
-  informantName: string
-  submittedDate: string
-  status: 'submitted' | 'pending_verification' | 'for_payment' | 'paid' | 'registered' | 'for_pickup' | 'claimed'
-  amount: number
+  id: number
+  registrationType: 'REGULAR' | 'DELAYED'
+  status: 'PENDING_VERIFICATION' | 'PROCESSING' | 'REGISTERED' | 'FOR_PICKUP' | 'CLAIMED' | 'REJECTED'
   orNumber?: string
+  amountDue?: number
+  createdAt: string
+  updatedAt: string
+  deceased?: {
+    id: number
+    firstName: string
+    middleName?: string
+    lastName: string
+    suffix?: string
+    dateOfBirth?: string
+    dateOfDeath?: string
+    age?: number
+  }
+  submitter?: {
+    id: number
+    fullNameFirst: string
+    fullNameMiddle?: string
+    fullNameLast: string
+    email: string
+  }
 }
 
 export default function PendingDeathRegistrations() {
@@ -30,53 +46,36 @@ export default function PendingDeathRegistrations() {
       return
     }
 
-    // Mock data - replace with actual API call
-    const mockRegistrations: DeathRegistration[] = [
-      {
-        id: "DR-2025-001",
-        registrationType: "regular",
-        deceasedName: "Juan Dela Cruz",
-        informantName: "Maria Dela Cruz",
-        submittedDate: "2025-10-05",
-        status: "pending_verification",
-        amount: 50
-      },
-      {
-        id: "DR-2025-002",
-        registrationType: "delayed",
-        deceasedName: "Jose Santos",
-        informantName: "Ana Santos",
-        submittedDate: "2025-10-04",
-        status: "for_payment",
-        amount: 150
-      },
-      {
-        id: "DR-2025-003",
-        registrationType: "regular",
-        deceasedName: "Pedro Garcia",
-        informantName: "Carmen Garcia",
-        submittedDate: "2025-10-03",
-        status: "paid",
-        amount: 50,
-        orNumber: "OR-2025-123"
-      }
-    ]
-
-    setTimeout(() => {
-      setRegistrations(mockRegistrations)
-      setLoading(false)
-    }, 1000)
+    fetchRegistrations()
   }, [session, status, router])
+
+  const fetchRegistrations = async () => {
+    try {
+      setLoading(true)
+      const response = await fetch('/api/death-registrations')
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch registrations')
+      }
+      
+      const data = await response.json()
+      setRegistrations(data.registrations || [])
+    } catch (error) {
+      console.error('Error fetching registrations:', error)
+      setRegistrations([])
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const getStatusBadge = (status: DeathRegistration['status']) => {
     const styles = {
-      submitted: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Submitted' },
-      pending_verification: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Pending Verification' },
-      for_payment: { bg: 'bg-orange-100', text: 'text-orange-800', label: 'For Payment' },
-      paid: { bg: 'bg-green-100', text: 'text-green-800', label: 'Paid' },
-      registered: { bg: 'bg-purple-100', text: 'text-purple-800', label: 'Registered' },
-      for_pickup: { bg: 'bg-indigo-100', text: 'text-indigo-800', label: 'For Pickup' },
-      claimed: { bg: 'bg-gray-100', text: 'text-gray-800', label: 'Claimed' }
+      PENDING_VERIFICATION: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Pending Verification' },
+      PROCESSING: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Processing' },
+      REGISTERED: { bg: 'bg-green-100', text: 'text-green-800', label: 'Registered' },
+      FOR_PICKUP: { bg: 'bg-indigo-100', text: 'text-indigo-800', label: 'For Pickup' },
+      CLAIMED: { bg: 'bg-gray-100', text: 'text-gray-800', label: 'Claimed' },
+      REJECTED: { bg: 'bg-red-100', text: 'text-red-800', label: 'Rejected' }
     }
 
     const style = styles[status]
@@ -87,20 +86,145 @@ export default function PendingDeathRegistrations() {
     )
   }
 
-  const handleApprove = (id: string) => {
-    setRegistrations(prev => 
-      prev.map(reg => 
-        reg.id === id 
-          ? { ...reg, status: reg.status === 'pending_verification' ? 'for_payment' as const : reg.status }
-          : reg
+  const handleApprove = async (id: number) => {
+    try {
+      const response = await fetch(`/api/death-registrations/${id}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: 'PROCESSING' }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to approve registration')
+      }
+
+      setRegistrations(prev => 
+        prev.map(reg => 
+          reg.id === id 
+            ? { ...reg, status: 'PROCESSING' as const }
+            : reg
+        )
       )
-    )
+    } catch (error) {
+      console.error('Error approving registration:', error)
+      alert('Failed to approve registration')
+    }
   }
 
-  const handleReject = (id: string) => {
-    // Handle rejection logic
-    console.log('Rejecting registration:', id)
+  const handleReject = async (id: number) => {
+    try {
+      const response = await fetch(`/api/death-registrations/${id}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: 'REJECTED', remarks: 'Rejected by admin' }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to reject registration')
+      }
+
+      setRegistrations(prev => 
+        prev.map(reg => 
+          reg.id === id 
+            ? { ...reg, status: 'REJECTED' as const }
+            : reg
+        )
+      )
+    } catch (error) {
+      console.error('Error rejecting registration:', error)
+      alert('Failed to reject registration')
+    }
   }
+
+  const handleMarkAsRegistered = async (id: number) => {
+    try {
+      const response = await fetch(`/api/death-registrations/${id}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: 'REGISTERED' }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to mark as registered')
+      }
+
+      setRegistrations(prev => 
+        prev.map(reg => 
+          reg.id === id 
+            ? { ...reg, status: 'REGISTERED' as const }
+            : reg
+        )
+      )
+    } catch (error) {
+      console.error('Error marking as registered:', error)
+      alert('Failed to mark as registered')
+    }
+  }
+
+  const handleMarkForPickup = async (id: number) => {
+    try {
+      const response = await fetch(`/api/death-registrations/${id}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: 'FOR_PICKUP' }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to mark for pickup')
+      }
+
+      setRegistrations(prev => 
+        prev.map(reg => 
+          reg.id === id 
+            ? { ...reg, status: 'FOR_PICKUP' as const }
+            : reg
+        )
+      )
+    } catch (error) {
+      console.error('Error marking for pickup:', error)
+      alert('Failed to mark for pickup')
+    }
+  }
+
+  const handleMarkAsClaimed = async (id: number) => {
+    try {
+      const response = await fetch(`/api/death-registrations/${id}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: 'CLAIMED' }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to mark as claimed')
+      }
+
+      setRegistrations(prev => 
+        prev.map(reg => 
+          reg.id === id 
+            ? { ...reg, status: 'CLAIMED' as const }
+            : reg
+        )
+      )
+    } catch (error) {
+      console.error('Error marking as claimed:', error)
+      alert('Failed to mark as claimed')
+    }
+  }
+
+  const filteredRegistrations = registrations.filter(registration => {
+    if (selectedFilter === 'all') return true
+    return registration.status === selectedFilter
+  })
 
   if (status === "loading" || loading) {
     return (
@@ -123,9 +247,10 @@ export default function PendingDeathRegistrations() {
               className="px-3 py-2 border border-gray-300 rounded-md text-sm"
             >
               <option value="all">All Statuses</option>
-              <option value="pending_verification">Pending Verification</option>
-              <option value="for_payment">For Payment</option>
-              <option value="paid">Paid</option>
+              <option value="SUBMITTED">Submitted</option>
+              <option value="VERIFIED">Verified</option>
+              <option value="FOR_PAYMENT">For Payment</option>
+              <option value="PAID">Paid</option>
             </select>
             <button
               className="text-white px-4 py-2 rounded-md transition-colors hover:opacity-90"
@@ -174,7 +299,7 @@ export default function PendingDeathRegistrations() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {registrations.map((registration) => (
+                  {filteredRegistrations.map((registration) => (
                     <tr key={registration.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         {registration.id}
@@ -183,19 +308,25 @@ export default function PendingDeathRegistrations() {
                         <span className="capitalize">{registration.registrationType}</span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {registration.deceasedName}
+                        {registration.deceased ? 
+                          `${registration.deceased.firstName} ${registration.deceased.middleName || ''} ${registration.deceased.lastName}`.trim() 
+                          : 'N/A'
+                        }
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {registration.informantName}
+                        {registration.submitter ? 
+                          `${registration.submitter.fullNameFirst} ${registration.submitter.fullNameMiddle || ''} ${registration.submitter.fullNameLast}`.trim()
+                          : 'N/A'
+                        }
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {registration.submittedDate}
+                        {new Date(registration.createdAt).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {getStatusBadge(registration.status)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        ₱{registration.amount}
+                        ₱{registration.amountDue || 0}
                         {registration.orNumber && (
                           <div className="text-xs text-gray-500">{registration.orNumber}</div>
                         )}
@@ -209,7 +340,9 @@ export default function PendingDeathRegistrations() {
                           >
                             View
                           </button>
-                          {registration.status === 'pending_verification' && (
+                          
+                          {/* Actions based on status */}
+                          {registration.status === 'PENDING_VERIFICATION' && (
                             <>
                               <button
                                 onClick={() => handleApprove(registration.id)}
@@ -221,11 +354,62 @@ export default function PendingDeathRegistrations() {
                               <button
                                 onClick={() => handleReject(registration.id)}
                                 className="text-white px-3 py-1 rounded text-xs hover:opacity-80"
-                                style={{backgroundColor: '#FDA811'}}
+                                style={{backgroundColor: '#F44336'}}
                               >
                                 Reject
                               </button>
                             </>
+                          )}
+                          
+                          {registration.status === 'PROCESSING' && (
+                            <>
+                              <button
+                                onClick={() => handleMarkForPickup(registration.id)}
+                                className="text-white px-3 py-1 rounded text-xs hover:opacity-80"
+                                style={{backgroundColor: '#FF9800'}}
+                              >
+                                Ready for Pickup
+                              </button>
+                              <button
+                                onClick={() => handleReject(registration.id)}
+                                className="text-white px-3 py-1 rounded text-xs hover:opacity-80"
+                                style={{backgroundColor: '#F44336'}}
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
+                          
+                          {registration.status === 'REGISTERED' && (
+                            <button
+                              onClick={() => handleMarkForPickup(registration.id)}
+                              className="text-white px-3 py-1 rounded text-xs hover:opacity-80"
+                              style={{backgroundColor: '#FF9800'}}
+                            >
+                              Ready for Pickup
+                            </button>
+                          )}
+                          
+                          {registration.status === 'FOR_PICKUP' && (
+                            <button
+                              onClick={() => handleMarkAsClaimed(registration.id)}
+                              className="text-white px-3 py-1 rounded text-xs hover:opacity-80"
+                              style={{backgroundColor: '#607D8B'}}
+                            >
+                              Mark as Claimed
+                            </button>
+                          )}
+                          
+                          {registration.status === 'CLAIMED' && (
+                            <span className="text-green-600 text-xs font-medium">
+                              ✓ Completed
+                            </span>
+                          )}
+                          
+                          {registration.status === 'REJECTED' && (
+                            <span className="text-red-600 text-xs font-medium">
+                              ✗ Rejected
+                            </span>
                           )}
                         </div>
                       </td>
@@ -237,7 +421,7 @@ export default function PendingDeathRegistrations() {
 
             <div className="px-6 py-3 border-t border-gray-200 flex items-center justify-between">
               <div className="text-sm text-gray-700">
-                Showing {registrations.length} registration(s)
+                Showing {filteredRegistrations.length} of {registrations.length} registration(s)
               </div>
               <div className="flex space-x-2">
                 <button className="px-3 py-1 border border-gray-300 rounded text-sm text-gray-600 hover:bg-gray-50">

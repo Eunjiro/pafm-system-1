@@ -5,10 +5,70 @@ import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import Link from "next/link"
 
+interface DeceasedData {
+  firstName: string
+  middleName?: string
+  lastName: string
+  dateOfDeath?: string
+}
+
+interface PaymentData {
+  id: number
+  amount: number
+  orNumber?: string
+  paymentStatus: string
+}
+
+interface Application {
+  id: number
+  registrationType: string
+  status: string
+  amountDue: number | string
+  informantName: string
+  createdAt: string
+  deceased: DeceasedData
+  payment?: PaymentData
+}
+
+interface ApplicationCounts {
+  total: number
+  PENDING_VERIFICATION: number
+  PROCESSING: number
+  REGISTERED: number
+  FOR_PICKUP: number
+  CLAIMED: number
+  REJECTED: number
+}
+
+interface ApplicationsResponse {
+  registrations: Application[]
+  pagination: {
+    page: number
+    limit: number
+    total: number
+    totalPages: number
+  }
+  counts: ApplicationCounts
+}
+
 export default function CitizenApplications() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const [showProfileDropdown, setShowProfileDropdown] = useState(false)
+  const [allApplications, setAllApplications] = useState<Application[]>([])
+  const [applications, setApplications] = useState<Application[]>([])
+  const [counts, setCounts] = useState<ApplicationCounts>({
+    total: 0,
+    PENDING_VERIFICATION: 0,
+    PROCESSING: 0,
+    REGISTERED: 0,
+    FOR_PICKUP: 0,
+    CLAIMED: 0,
+    REJECTED: 0
+  })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string>("")
+  const [activeFilter, setActiveFilter] = useState<string>("")
 
   useEffect(() => {
     if (status === "loading") return
@@ -22,7 +82,110 @@ export default function CitizenApplications() {
       router.push('/unauthorized')
       return
     }
+
+    // Fetch applications when session is ready
+    fetchApplications()
   }, [session, status, router])
+
+  // Filter applications on the frontend when activeFilter changes
+  useEffect(() => {
+    if (activeFilter === "") {
+      setApplications(allApplications)
+    } else {
+      const filtered = allApplications.filter(app => app.status === activeFilter)
+      setApplications(filtered)
+    }
+  }, [activeFilter, allApplications])
+
+  const fetchApplications = async () => {
+    setLoading(true)
+    setError("")
+
+    try {
+      const response = await fetch('/api/citizen/applications')
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to fetch applications')
+      }
+
+      const data: ApplicationsResponse = await response.json()
+      setAllApplications(data.registrations)
+      setApplications(data.registrations) // Initially show all
+      setCounts(data.counts)
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'An error occurred')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'PENDING_VERIFICATION':
+        return 'bg-yellow-100 text-yellow-800'
+      case 'PROCESSING':
+        return 'bg-blue-100 text-blue-800'
+      case 'REGISTERED':
+      case 'FOR_PICKUP':
+        return 'bg-green-100 text-green-800'
+      case 'CLAIMED':
+        return 'bg-gray-100 text-gray-800'
+      case 'REJECTED':
+        return 'bg-red-100 text-red-800'
+      default:
+        return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'PENDING_VERIFICATION':
+        return (
+          <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        )
+      case 'PROCESSING':
+        return (
+          <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        )
+      case 'REGISTERED':
+      case 'FOR_PICKUP':
+      case 'CLAIMED':
+        return (
+          <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+        )
+      case 'REJECTED':
+        return (
+          <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        )
+      default:
+        return (
+          <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        )
+    }
+  }
+
+  const formatStatus = (status: string) => {
+    return status.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase())
+  }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    })
+  }
 
   if (status === "loading") {
     return (
@@ -124,20 +287,75 @@ export default function CitizenApplications() {
           <div className="mb-6">
             <div className="border-b border-gray-200">
               <nav className="-mb-px flex space-x-8">
-                <button className="whitespace-nowrap border-b-2 border-green-500 py-2 px-1 text-sm font-medium text-green-600">
-                  All Applications
+                <button 
+                  onClick={() => setActiveFilter("")}
+                  className={`whitespace-nowrap border-b-2 py-2 px-1 text-sm font-medium ${
+                    activeFilter === "" 
+                      ? "border-green-500 text-green-600" 
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  }`}
+                >
+                  All Applications ({counts.total})
                 </button>
-                <button className="whitespace-nowrap border-b-2 border-transparent py-2 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
-                  Pending
+                <button 
+                  onClick={() => setActiveFilter("PENDING_VERIFICATION")}
+                  className={`whitespace-nowrap border-b-2 py-2 px-1 text-sm font-medium ${
+                    activeFilter === "PENDING_VERIFICATION" 
+                      ? "border-green-500 text-green-600" 
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  }`}
+                >
+                  Pending ({counts.PENDING_VERIFICATION})
                 </button>
-                <button className="whitespace-nowrap border-b-2 border-transparent py-2 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
-                  Processing
+                <button 
+                  onClick={() => setActiveFilter("PROCESSING")}
+                  className={`whitespace-nowrap border-b-2 py-2 px-1 text-sm font-medium ${
+                    activeFilter === "PROCESSING" 
+                      ? "border-green-500 text-green-600" 
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  }`}
+                >
+                  Processing ({counts.PROCESSING})
                 </button>
-                <button className="whitespace-nowrap border-b-2 border-transparent py-2 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
-                  Ready for Pickup
+                <button 
+                  onClick={() => setActiveFilter("REGISTERED")}
+                  className={`whitespace-nowrap border-b-2 py-2 px-1 text-sm font-medium ${
+                    activeFilter === "REGISTERED" 
+                      ? "border-green-500 text-green-600" 
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  }`}
+                >
+                  Registered ({counts.REGISTERED})
                 </button>
-                <button className="whitespace-nowrap border-b-2 border-transparent py-2 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
-                  Completed
+                <button 
+                  onClick={() => setActiveFilter("FOR_PICKUP")}
+                  className={`whitespace-nowrap border-b-2 py-2 px-1 text-sm font-medium ${
+                    activeFilter === "FOR_PICKUP" 
+                      ? "border-green-500 text-green-600" 
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  }`}
+                >
+                  Ready for Pickup ({counts.FOR_PICKUP})
+                </button>
+                <button 
+                  onClick={() => setActiveFilter("CLAIMED")}
+                  className={`whitespace-nowrap border-b-2 py-2 px-1 text-sm font-medium ${
+                    activeFilter === "CLAIMED" 
+                      ? "border-green-500 text-green-600" 
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  }`}
+                >
+                  Completed ({counts.CLAIMED})
+                </button>
+                <button 
+                  onClick={() => setActiveFilter("REJECTED")}
+                  className={`whitespace-nowrap border-b-2 py-2 px-1 text-sm font-medium ${
+                    activeFilter === "REJECTED" 
+                      ? "border-green-500 text-green-600" 
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  }`}
+                >
+                  Rejected ({counts.REJECTED})
                 </button>
               </nav>
             </div>
@@ -154,7 +372,7 @@ export default function CitizenApplications() {
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Total Applications</p>
-                  <p className="text-2xl font-bold text-gray-900">5</p>
+                  <p className="text-2xl font-bold text-gray-900">{counts.total}</p>
                 </div>
               </div>
             </div>
@@ -168,7 +386,7 @@ export default function CitizenApplications() {
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Pending</p>
-                  <p className="text-2xl font-bold text-gray-900">2</p>
+                  <p className="text-2xl font-bold text-gray-900">{counts.PENDING_VERIFICATION}</p>
                 </div>
               </div>
             </div>
@@ -182,7 +400,7 @@ export default function CitizenApplications() {
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Processing</p>
-                  <p className="text-2xl font-bold text-gray-900">1</p>
+                  <p className="text-2xl font-bold text-gray-900">{counts.PROCESSING}</p>
                 </div>
               </div>
             </div>
@@ -196,7 +414,7 @@ export default function CitizenApplications() {
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Ready</p>
-                  <p className="text-2xl font-bold text-gray-900">2</p>
+                  <p className="text-2xl font-bold text-gray-900">{counts.FOR_PICKUP + counts.CLAIMED}</p>
                 </div>
               </div>
             </div>
@@ -205,136 +423,116 @@ export default function CitizenApplications() {
           {/* Applications List */}
           <div className="bg-white shadow rounded-lg">
             <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-medium text-gray-900">Recent Applications</h3>
+              <h3 className="text-lg font-medium text-gray-900">
+                {activeFilter ? `${formatStatus(activeFilter)} Applications` : 'Recent Applications'}
+              </h3>
             </div>
             <div className="px-6 py-4">
-              <div className="space-y-4">
-                {/* Application 1 */}
-                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
-                      <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              {error && (
+                <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-4">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <svg className="h-5 w-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     </div>
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-900">Death Registration - Regular</h4>
-                      <p className="text-sm text-gray-500">Application #DR-2024-001</p>
-                      <p className="text-xs text-gray-400">Submitted on Oct 3, 2024</p>
+                    <div className="ml-3">
+                      <p className="text-sm text-red-700">{error}</p>
                     </div>
-                  </div>
-                  <div className="flex items-center space-x-4">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                      Pending Verification
-                    </span>
-                    <button className="text-blue-600 hover:text-blue-900 text-sm font-medium">
-                      View Details
-                    </button>
                   </div>
                 </div>
+              )}
 
-                {/* Application 2 */}
-                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                      <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
+              {loading ? (
+                <div className="space-y-4">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg animate-pulse">
+                      <div className="flex items-center space-x-4">
+                        <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
+                        <div>
+                          <div className="h-4 bg-gray-200 rounded w-48 mb-2"></div>
+                          <div className="h-3 bg-gray-200 rounded w-32 mb-1"></div>
+                          <div className="h-3 bg-gray-200 rounded w-24"></div>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-4">
+                        <div className="h-6 bg-gray-200 rounded w-24"></div>
+                        <div className="h-8 bg-gray-200 rounded w-20"></div>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-900">Burial Permit Request</h4>
-                      <p className="text-sm text-gray-500">Application #BP-2024-005</p>
-                      <p className="text-xs text-gray-400">Submitted on Oct 1, 2024</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-4">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                      Ready for Pickup
-                    </span>
-                    <button className="text-blue-600 hover:text-blue-900 text-sm font-medium">
-                      View Details
-                    </button>
+                  ))}
+                </div>
+              ) : applications.length === 0 ? (
+                <div className="text-center py-8">
+                  <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <h3 className="mt-2 text-sm font-medium text-gray-900">No applications found</h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    {activeFilter ? `No applications with status "${formatStatus(activeFilter)}" found.` : 'You haven\'t submitted any applications yet.'}
+                  </p>
+                  <div className="mt-6">
+                    <Link href="/citizen/services" className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700">
+                      Start New Application
+                    </Link>
                   </div>
                 </div>
-
-                {/* Application 3 */}
-                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                      <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
+              ) : (
+                <div className="space-y-4">
+                  {applications.map((application) => (
+                    <div key={application.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center space-x-4">
+                        <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                          {getStatusIcon(application.status)}
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-900">
+                            Death Registration - {application.registrationType}
+                          </h4>
+                          <p className="text-sm text-gray-500">
+                            Application #DR-{application.id.toString().padStart(3, '0')}
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            For: {application.deceased.firstName} {application.deceased.middleName} {application.deceased.lastName}
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            Submitted on {formatDate(application.createdAt)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-4">
+                        <div className="text-right">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(application.status)}`}>
+                            {formatStatus(application.status)}
+                          </span>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Fee upon pickup: ₱{typeof application.amountDue === 'number' 
+                              ? application.amountDue.toFixed(2) 
+                              : parseFloat(application.amountDue || '0').toFixed(2)}
+                          </p>
+                        </div>
+                        <Link 
+                          href={`/citizen/applications/${application.id}`}
+                          className="text-blue-600 hover:text-blue-900 text-sm font-medium px-3 py-1 border border-blue-300 rounded hover:bg-blue-50 transition-colors"
+                        >
+                          View Details
+                        </Link>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-900">Death Certificate Request</h4>
-                      <p className="text-sm text-gray-500">Application #DC-2024-012</p>
-                      <p className="text-xs text-gray-400">Submitted on Sep 28, 2024</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-4">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                      Processing
-                    </span>
-                    <button className="text-blue-600 hover:text-blue-900 text-sm font-medium">
-                      View Details
-                    </button>
-                  </div>
+                  ))}
                 </div>
+              )}
 
-                {/* Application 4 */}
-                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                      <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-900">Cremation Permit Request</h4>
-                      <p className="text-sm text-gray-500">Application #CP-2024-003</p>
-                      <p className="text-xs text-gray-400">Submitted on Sep 25, 2024</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-4">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                      Ready for Pickup
-                    </span>
-                    <button className="text-blue-600 hover:text-blue-900 text-sm font-medium">
-                      View Details
-                    </button>
-                  </div>
+              {applications.length > 0 && (
+                <div className="mt-6 text-center">
+                  <button 
+                    onClick={fetchApplications}
+                    className="text-blue-600 hover:text-blue-900 text-sm font-medium"
+                  >
+                    Refresh Applications
+                  </button>
                 </div>
-
-                {/* Application 5 */}
-                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                      <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-900">Death Registration - Delayed</h4>
-                      <p className="text-sm text-gray-500">Application #DR-2024-002</p>
-                      <p className="text-xs text-gray-400">Submitted on Sep 20, 2024</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-4">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                      Completed
-                    </span>
-                    <button className="text-blue-600 hover:text-blue-900 text-sm font-medium">
-                      View Details
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-6 text-center">
-                <button className="text-blue-600 hover:text-blue-900 text-sm font-medium">
-                  Load More Applications →
-                </button>
-              </div>
+              )}
             </div>
           </div>
         </div>

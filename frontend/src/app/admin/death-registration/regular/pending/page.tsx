@@ -3,14 +3,13 @@
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
-import Link from "next/link"
 
-interface RegularRegistration {
+interface DeathRegistration {
   id: number
-  registrationType: string
+  registrationType: 'REGULAR' | 'DELAYED'
   status: 'SUBMITTED' | 'VERIFIED' | 'FOR_PAYMENT' | 'PAID' | 'REGISTERED' | 'FOR_PICKUP' | 'CLAIMED'
-  amountDue: number
   orNumber?: string
+  amountDue?: number
   createdAt: string
   updatedAt: string
   deceased?: {
@@ -30,18 +29,14 @@ interface RegularRegistration {
     fullNameLast: string
     email: string
   }
-  informantName?: string
-  informantRelationship?: string
-  informantContact?: string
 }
 
-export default function RegularDeathRegistrations() {
+export default function PendingDeathRegistrations() {
   const { data: session, status } = useSession()
   const router = useRouter()
-  const [registrations, setRegistrations] = useState<RegularRegistration[]>([])
+  const [registrations, setRegistrations] = useState<DeathRegistration[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedFilter, setSelectedFilter] = useState<string>('all')
-
 
   useEffect(() => {
     if (status === "loading") return
@@ -52,18 +47,13 @@ export default function RegularDeathRegistrations() {
     }
 
     fetchRegistrations()
-  }, [session, status, router, selectedFilter])
+  }, [session, status, router])
 
   const fetchRegistrations = async () => {
-    setLoading(true)
     try {
-      const queryParams = new URLSearchParams()
-      if (selectedFilter !== 'all') {
-        queryParams.set('status', selectedFilter.toUpperCase())
-      }
-      queryParams.set('type', 'REGULAR')
+      setLoading(true)
+      const response = await fetch('/api/death-registrations')
       
-      const response = await fetch(`/api/death-registrations?${queryParams}`)
       if (!response.ok) {
         throw new Error('Failed to fetch registrations')
       }
@@ -78,7 +68,7 @@ export default function RegularDeathRegistrations() {
     }
   }
 
-  const getStatusBadge = (status: RegularRegistration['status']) => {
+  const getStatusBadge = (status: DeathRegistration['status']) => {
     const styles = {
       SUBMITTED: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Submitted' },
       VERIFIED: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Verified' },
@@ -97,44 +87,64 @@ export default function RegularDeathRegistrations() {
     )
   }
 
-  const handleMarkClaimed = async (id: number) => {
+  const handleApprove = async (id: number) => {
     try {
       const response = await fetch(`/api/death-registrations/${id}/status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ status: 'CLAIMED' }),
+        body: JSON.stringify({ status: 'FOR_PAYMENT' }),
       })
 
       if (!response.ok) {
-        throw new Error('Failed to update status')
+        throw new Error('Failed to approve registration')
       }
 
       setRegistrations(prev => 
         prev.map(reg => 
           reg.id === id 
-            ? { ...reg, status: 'CLAIMED' as const }
+            ? { ...reg, status: 'FOR_PAYMENT' as const }
             : reg
         )
       )
     } catch (error) {
-      console.error('Error updating status:', error)
-      alert('Failed to mark as claimed')
+      console.error('Error approving registration:', error)
+      alert('Failed to approve registration')
     }
   }
 
-  const calculateAge = (birthDate: string, deathDate: string) => {
-    const birth = new Date(birthDate)
-    const death = new Date(deathDate)
-    const age = death.getFullYear() - birth.getFullYear()
-    const monthDiff = death.getMonth() - birth.getMonth()
-    
-    if (monthDiff < 0 || (monthDiff === 0 && death.getDate() < birth.getDate())) {
-      return age - 1
+  const handleReject = async (id: number) => {
+    try {
+      const response = await fetch(`/api/death-registrations/${id}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: 'SUBMITTED', remarks: 'Rejected by admin' }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to reject registration')
+      }
+
+      setRegistrations(prev => 
+        prev.map(reg => 
+          reg.id === id 
+            ? { ...reg, status: 'SUBMITTED' as const }
+            : reg
+        )
+      )
+    } catch (error) {
+      console.error('Error rejecting registration:', error)
+      alert('Failed to reject registration')
     }
-    return age
   }
+
+  const filteredRegistrations = registrations.filter(registration => {
+    if (selectedFilter === 'all') return true
+    return registration.status === selectedFilter
+  })
 
   if (status === "loading" || loading) {
     return (
@@ -157,26 +167,25 @@ export default function RegularDeathRegistrations() {
               className="px-3 py-2 border border-gray-300 rounded-md text-sm"
             >
               <option value="all">All Statuses</option>
-              <option value="paid">Paid</option>
-              <option value="registered">Registered</option>
-              <option value="for_pickup">For Pickup</option>
-              <option value="claimed">Claimed</option>
+              <option value="SUBMITTED">Submitted</option>
+              <option value="VERIFIED">Verified</option>
+              <option value="FOR_PAYMENT">For Payment</option>
+              <option value="PAID">Paid</option>
             </select>
-            <Link
-              href="/admin/death-registration/regular/new"
+            <button
               className="text-white px-4 py-2 rounded-md transition-colors hover:opacity-90"
               style={{backgroundColor: '#4CAF50'}}
             >
-              New Registration
-            </Link>
+              Export Report
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Registrations Table */}
+      {/* Registration Queue */}
           <div className="bg-white rounded-lg shadow-md">
             <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-medium text-gray-900">Regular Registrations</h3>
+              <h3 className="text-lg font-medium text-gray-900">Registration Queue</h3>
             </div>
             
             <div className="overflow-x-auto">
@@ -187,22 +196,22 @@ export default function RegularDeathRegistrations() {
                       Registration ID
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Type
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Deceased Name
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Age at Death
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Death Date
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Informant
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Submitted
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Status
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      OR Number
+                      Amount
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Actions
@@ -210,10 +219,13 @@ export default function RegularDeathRegistrations() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {registrations.map((registration) => (
+                  {filteredRegistrations.map((registration) => (
                     <tr key={registration.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         {registration.id}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <span className="capitalize">{registration.registrationType}</span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {registration.deceased ? 
@@ -222,22 +234,22 @@ export default function RegularDeathRegistrations() {
                         }
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {registration.deceased?.age || 'N/A'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {registration.deceased?.dateOfDeath || 'N/A'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {registration.submitter ? 
                           `${registration.submitter.fullNameFirst} ${registration.submitter.fullNameMiddle || ''} ${registration.submitter.fullNameLast}`.trim()
                           : 'N/A'
                         }
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {new Date(registration.createdAt).toLocaleDateString()}
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {getStatusBadge(registration.status)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {registration.orNumber || '-'}
+                        ₱{registration.amountDue || 0}
+                        {registration.orNumber && (
+                          <div className="text-xs text-gray-500">{registration.orNumber}</div>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex space-x-2">
@@ -248,22 +260,24 @@ export default function RegularDeathRegistrations() {
                           >
                             View
                           </button>
-                          {registration.status === 'FOR_PICKUP' && (
-                            <button
-                              onClick={() => handleMarkClaimed(registration.id)}
-                              className="text-white px-3 py-1 rounded text-xs hover:opacity-80"
-                              style={{backgroundColor: '#4CAF50'}}
-                            >
-                              Mark Claimed
-                            </button>
+                          {registration.status === 'SUBMITTED' && (
+                            <>
+                              <button
+                                onClick={() => handleApprove(registration.id)}
+                                className="text-white px-3 py-1 rounded text-xs hover:opacity-80"
+                                style={{backgroundColor: '#4CAF50'}}
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => handleReject(registration.id)}
+                                className="text-white px-3 py-1 rounded text-xs hover:opacity-80"
+                                style={{backgroundColor: '#FDA811'}}
+                              >
+                                Reject
+                              </button>
+                            </>
                           )}
-                          <button
-                            onClick={() => console.log('Print certificate for', registration.id)}
-                            className="text-white px-3 py-1 rounded text-xs hover:opacity-80"
-                            style={{backgroundColor: '#FDA811'}}
-                          >
-                            Print
-                          </button>
                         </div>
                       </td>
                     </tr>
@@ -274,7 +288,7 @@ export default function RegularDeathRegistrations() {
 
             <div className="px-6 py-3 border-t border-gray-200 flex items-center justify-between">
               <div className="text-sm text-gray-700">
-                Showing {registrations.length} registration(s)
+                Showing {filteredRegistrations.length} of {registrations.length} registration(s)
               </div>
               <div className="flex space-x-2">
                 <button className="px-3 py-1 border border-gray-300 rounded text-sm text-gray-600 hover:bg-gray-50">
