@@ -123,11 +123,221 @@ async function main() {
         causeOfDeath: 'Execution',
         covidRelated: false,
       },
+      {
+        firstName: 'Maria',
+        lastName: 'Clara',
+        middleName: 'Santos',
+        sex: 'Female',
+        dateOfBirth: new Date('1985-03-15'),
+        dateOfDeath: new Date('2024-10-08'),
+        age: 39,
+        placeOfDeath: 'Quezon City General Hospital',
+        residenceAddress: '456 Sampaguita Street, Quezon City',
+        citizenship: 'Filipino',
+        civilStatus: 'Married',
+        occupation: 'Teacher',
+        causeOfDeath: 'Heart Disease',
+        covidRelated: false,
+      },
+      {
+        firstName: 'Roberto',
+        lastName: 'Santos',
+        middleName: 'Garcia',
+        sex: 'Male',
+        dateOfBirth: new Date('1945-12-25'),
+        dateOfDeath: new Date('2024-10-09'),
+        age: 78,
+        placeOfDeath: 'St. Luke\'s Medical Center',
+        residenceAddress: '789 Rose Street, Quezon City',
+        citizenship: 'Filipino',
+        civilStatus: 'Widowed',
+        occupation: 'Retired Engineer',
+        causeOfDeath: 'Pneumonia',
+        covidRelated: true,
+      },
+      {
+        firstName: 'Ana',
+        lastName: 'Dela Cruz',
+        middleName: 'Morales',
+        sex: 'Female',
+        dateOfBirth: new Date('1992-07-20'),
+        dateOfDeath: new Date('2024-10-10'),
+        age: 32,
+        placeOfDeath: 'Philippine Heart Center',
+        residenceAddress: '321 Lily Avenue, Quezon City',
+        citizenship: 'Filipino',
+        civilStatus: 'Single',
+        occupation: 'Nurse',
+        causeOfDeath: 'Cardiac Arrest',
+        covidRelated: false,
+      },
     ];
 
+    const createdDeceased = [];
     for (const deceased of deceasedRecords) {
-      await prisma.deceasedRecord.create({
+      const created = await prisma.deceasedRecord.create({
         data: deceased,
+      });
+      createdDeceased.push(created);
+    }
+
+    // Create sample death registrations with different statuses
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const lastWeek = new Date(today);
+    lastWeek.setDate(lastWeek.getDate() - 7);
+
+    const deathRegistrations = [
+      {
+        registrationType: 'REGULAR',
+        deceasedId: createdDeceased[2].id, // Maria Clara
+        submittedBy: citizen.id,
+        informantName: 'Juan Santos (Husband)',
+        informantRelationship: 'Spouse',
+        informantContact: '+63-917-555-0123',
+        status: 'SUBMITTED',
+        amountDue: 500.00,
+        pickupRequired: true,
+        pickupStatus: 'NOT_READY',
+        createdAt: today,
+        remarks: 'Regular death registration - documents complete'
+      },
+      {
+        registrationType: 'REGULAR',
+        deceasedId: createdDeceased[3].id, // Roberto Santos
+        submittedBy: citizen.id,
+        informantName: 'Carmen Santos (Daughter)',
+        informantRelationship: 'Child',
+        informantContact: '+63-918-555-0124',
+        status: 'PROCESSING',
+        amountDue: 500.00,
+        pickupRequired: true,
+        pickupStatus: 'NOT_READY',
+        createdAt: yesterday,
+        remarks: 'Under review - pending medical certificate verification'
+      },
+      {
+        registrationType: 'DELAYED',
+        deceasedId: createdDeceased[4].id, // Ana Dela Cruz
+        submittedBy: citizen.id,
+        informantName: 'Pedro Dela Cruz (Father)',
+        informantRelationship: 'Parent',
+        informantContact: '+63-919-555-0125',
+        status: 'PROCESSING',
+        amountDue: 1000.00,
+        pickupRequired: true,
+        pickupStatus: 'NOT_READY',
+        createdAt: lastWeek,
+        remarks: 'Delayed registration - additional documents required'
+      },
+      {
+        registrationType: 'REGULAR',
+        deceasedId: createdDeceased[0].id, // Jose Rizal (historical)
+        submittedBy: employee.id,
+        informantName: 'Historical Registry Office',
+        informantRelationship: 'Government Office',
+        informantContact: '+63-912-345-6789',
+        status: 'REGISTERED',
+        amountDue: 0.00,
+        pickupRequired: false,
+        pickupStatus: 'CLAIMED',
+        registeredAt: today,
+        registeredBy: employee.id,
+        createdAt: lastWeek,
+        remarks: 'Historical record - digitization project'
+      },
+      {
+        registrationType: 'REGULAR',
+        deceasedId: createdDeceased[1].id, // Andres Bonifacio (historical)
+        submittedBy: employee.id,
+        informantName: 'Historical Registry Office',
+        informantRelationship: 'Government Office',
+        informantContact: '+63-912-345-6789',
+        status: 'FOR_PICKUP',
+        amountDue: 0.00,
+        pickupRequired: true,
+        pickupStatus: 'READY_FOR_PICKUP',
+        registeredAt: yesterday,
+        registeredBy: employee.id,
+        createdAt: lastWeek,
+        remarks: 'Historical record - ready for archival'
+      },
+      // Additional registrations for better statistics
+      {
+        registrationType: 'REGULAR',
+        submittedBy: citizen.id,
+        informantName: 'Sample Informant 1',
+        informantRelationship: 'Relative',
+        informantContact: '+63-920-555-0126',
+        status: 'SUBMITTED',
+        amountDue: 500.00,
+        pickupRequired: true,
+        pickupStatus: 'NOT_READY',
+        createdAt: today,
+        remarks: 'Pending initial review'
+      },
+      {
+        registrationType: 'REGULAR',
+        submittedBy: citizen.id,
+        informantName: 'Sample Informant 2',
+        informantRelationship: 'Relative',
+        informantContact: '+63-921-555-0127',
+        status: 'SUBMITTED',
+        amountDue: 500.00,
+        pickupRequired: true,
+        pickupStatus: 'NOT_READY',
+        createdAt: today,
+        remarks: 'Awaiting document verification'
+      },
+      {
+        registrationType: 'DELAYED',
+        submittedBy: citizen.id,
+        informantName: 'Sample Informant 3',
+        informantRelationship: 'Relative',
+        informantContact: '+63-922-555-0128',
+        status: 'PROCESSING',
+        amountDue: 1000.00,
+        pickupRequired: true,
+        pickupStatus: 'NOT_READY',
+        createdAt: yesterday,
+        remarks: 'Delayed registration under review'
+      },
+      {
+        registrationType: 'REGULAR',
+        submittedBy: citizen.id,
+        informantName: 'Sample Informant 4',
+        informantRelationship: 'Relative',
+        informantContact: '+63-923-555-0129',
+        status: 'REGISTERED',
+        amountDue: 500.00,
+        pickupRequired: false,
+        pickupStatus: 'CLAIMED',
+        registeredAt: today,
+        registeredBy: employee.id,
+        createdAt: lastWeek,
+        remarks: 'Completed - certificate issued'
+      },
+      {
+        registrationType: 'REGULAR',
+        submittedBy: citizen.id,
+        informantName: 'Sample Informant 5',
+        informantRelationship: 'Relative',
+        informantContact: '+63-924-555-0130',
+        status: 'FOR_PICKUP',
+        amountDue: 500.00,
+        pickupRequired: true,
+        pickupStatus: 'READY_FOR_PICKUP',
+        registeredAt: yesterday,
+        registeredBy: employee.id,
+        createdAt: lastWeek,
+        remarks: 'Ready for pickup - certificate available'
+      }
+    ];
+
+    for (const registration of deathRegistrations) {
+      await prisma.deathRegistration.create({
+        data: registration,
       });
     }
 
@@ -145,6 +355,7 @@ async function main() {
     console.log('\n📊 Created:');
     console.log(`👤 Users: ${await prisma.user.count()}`);
     console.log(`⚰️  Deceased Records: ${await prisma.deceasedRecord.count()}`);
+    console.log(`📋 Death Registrations: ${await prisma.deathRegistration.count()}`);
     console.log(`🏞️  Cemetery Plots: ${await prisma.cemeteryPlot.count()}`);
     console.log('\n🔐 Sample Login Credentials:');
     console.log('Admin: admin@cemetery.qc.gov.ph / admin123');

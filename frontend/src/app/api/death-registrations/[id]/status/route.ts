@@ -17,6 +17,8 @@ export async function PUT(
 
     const body = await request.json()
     
+    console.log(`Updating registration ${params.id} status to:`, body)
+    
     const response = await fetch(`${BACKEND_URL}/api/death-registrations/${params.id}/status`, {
       method: 'PUT',
       headers: {
@@ -26,10 +28,13 @@ export async function PUT(
       body: JSON.stringify(body),
     })
 
+    console.log(`Backend response status: ${response.status}`)
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
+      console.error('Backend error:', errorData)
       return NextResponse.json(
-        { error: errorData.error || 'Failed to update status' },
+        { error: errorData.error || `Backend error: ${response.status} ${response.statusText}` },
         { status: response.status }
       )
     }

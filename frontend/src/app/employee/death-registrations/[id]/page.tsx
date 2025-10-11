@@ -1,6 +1,6 @@
 "use client"
 
-import { useSession } from "next-auth/react"
+import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { useState, useEffect, use } from "react"
 import Link from "next/link"
@@ -8,7 +8,7 @@ import Link from "next/link"
 interface DeathRegistration {
   id: number
   registrationType: 'REGULAR' | 'DELAYED'
-  status: 'SUBMITTED' | 'VERIFIED' | 'FOR_PAYMENT' | 'PAID' | 'REGISTERED' | 'FOR_PICKUP' | 'CLAIMED'
+  status: string // Made more flexible to handle all possible status values
   orNumber?: string
   amountDue?: number
   remarks?: string
@@ -57,6 +57,26 @@ export default function DeathRegistrationDetail({ params }: { params: Promise<{ 
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState<string>("")
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false)
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const dropdown = document.getElementById('profile-dropdown')
+      const button = document.getElementById('profile-button')
+      
+      if (dropdown && button && 
+          !dropdown.contains(event.target as Node) && 
+          !button.contains(event.target as Node)) {
+        setShowProfileDropdown(false)
+      }
+    }
+
+    if (showProfileDropdown) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showProfileDropdown])
 
   useEffect(() => {
     if (status === "loading") return
@@ -72,34 +92,62 @@ export default function DeathRegistrationDetail({ params }: { params: Promise<{ 
   const fetchRegistration = async () => {
     try {
       setLoading(true)
+      setError("")
+      
+      console.log(`Fetching registration details for ID: ${unwrappedParams.id}`)
+      
       const response = await fetch(`/api/death-registrations/${unwrappedParams.id}`)
       
+      console.log('Fetch response status:', response.status)
+      
       if (!response.ok) {
-        throw new Error('Failed to fetch registration')
+        if (response.status === 404) {
+          throw new Error('Registration not found')
+        } else if (response.status === 401) {
+          throw new Error('Authentication required. Please sign in again.')
+        } else if (response.status === 403) {
+          throw new Error('You do not have permission to view this registration.')
+        } else {
+          throw new Error(`Failed to fetch registration (${response.status})`)
+        }
       }
       
       const data = await response.json()
+      console.log('Registration data received:', data)
       setRegistration(data)
     } catch (error) {
       console.error('Error fetching registration:', error)
-      setError('Failed to load registration details')
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load registration details'
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }
   }
 
-  const getStatusBadge = (status: DeathRegistration['status']) => {
-    const styles = {
-      SUBMITTED: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Pending Verification' },
+  const getStatusBadge = (status: string) => {
+    const styles: Record<string, { bg: string; text: string; label: string }> = {
+      DRAFT: { bg: 'bg-gray-100', text: 'text-gray-800', label: 'Draft' },
+      SUBMITTED: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Submitted' },
+      PENDING_VERIFICATION: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Pending Verification' },
       VERIFIED: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Verified' },
       FOR_PAYMENT: { bg: 'bg-orange-100', text: 'text-orange-800', label: 'For Payment' },
       PAID: { bg: 'bg-green-100', text: 'text-green-800', label: 'Paid' },
+      PROCESSING: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Processing' },
       REGISTERED: { bg: 'bg-purple-100', text: 'text-purple-800', label: 'Registered' },
       FOR_PICKUP: { bg: 'bg-indigo-100', text: 'text-indigo-800', label: 'For Pickup' },
-      CLAIMED: { bg: 'bg-gray-100', text: 'text-gray-800', label: 'Claimed' }
+      CLAIMED: { bg: 'bg-gray-100', text: 'text-gray-800', label: 'Claimed' },
+      RETURNED: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Returned' },
+      REJECTED: { bg: 'bg-red-100', text: 'text-red-800', label: 'Rejected' },
+      EXPIRED: { bg: 'bg-gray-100', text: 'text-gray-800', label: 'Expired' }
     }
     
-    const style = styles[status]
+    // Fallback for unknown status values
+    const style = styles[status] || { 
+      bg: 'bg-gray-100', 
+      text: 'text-gray-800', 
+      label: status || 'Unknown' 
+    }
+    
     return (
       <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${style.bg} ${style.text}`}>
         {style.label}
@@ -110,32 +158,69 @@ export default function DeathRegistrationDetail({ params }: { params: Promise<{ 
   const handleStatusUpdate = async (newStatus: string, additionalData?: any) => {
     setProcessing(true)
     try {
+      console.log(`Updating registration ${unwrappedParams.id} status to ${newStatus}...`)
+      
+      const requestBody = { 
+        status: newStatus,
+        ...additionalData
+      }
+      
+      console.log('Request body:', requestBody)
+      
       const response = await fetch(`/api/death-registrations/${unwrappedParams.id}/status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          status: newStatus,
-          ...additionalData
-        }),
+        body: JSON.stringify(requestBody),
       })
 
+      console.log('Response status:', response.status)
+
       if (!response.ok) {
-        throw new Error('Failed to update status')
+        const errorText = await response.text()
+        console.error('Raw error response:', errorText)
+        
+        let errorData: any = {}
+        try {
+          errorData = JSON.parse(errorText)
+        } catch (parseError) {
+          console.error('Failed to parse error response as JSON:', parseError)
+          errorData = { error: errorText || `HTTP ${response.status}: ${response.statusText}` }
+        }
+        
+        const errorMessage = errorData.error || `HTTP ${response.status}: ${response.statusText}`
+        console.error('Status update failed:', errorMessage, errorData)
+        
+        // Provide more specific error messages based on status codes
+        if (response.status === 401) {
+          throw new Error('Authentication failed. Please sign in again.')
+        } else if (response.status === 403) {
+          throw new Error('You do not have permission to update this registration.')
+        } else if (response.status === 404) {
+          throw new Error('Registration not found. It may have been deleted.')
+        } else if (response.status === 500) {
+          throw new Error(`Server error: ${errorMessage}. Please try again or contact support.`)
+        } else {
+          throw new Error(`Failed to update status: ${errorMessage}`)
+        }
       }
 
+      const result = await response.json()
+      console.log('Registration updated successfully:', result)
+      
       await fetchRegistration() // Refresh data
     } catch (error) {
       console.error('Error updating status:', error)
-      alert('Failed to update status')
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+      alert(`Failed to update status: ${errorMessage}`)
     } finally {
       setProcessing(false)
     }
   }
 
   const handleApprove = () => {
-    handleStatusUpdate('FOR_PAYMENT', {
+    handleStatusUpdate('PROCESSING', {
       remarks: 'Documents verified and approved by employee'
     })
   }
@@ -144,7 +229,7 @@ export default function DeathRegistrationDetail({ params }: { params: Promise<{ 
     const reason = prompt('Please provide a reason for rejection:')
     if (!reason) return
     
-    handleStatusUpdate('SUBMITTED', {
+    handleStatusUpdate('REJECTED', {
       remarks: `Rejected: ${reason}`
     })
   }
@@ -153,9 +238,17 @@ export default function DeathRegistrationDetail({ params }: { params: Promise<{ 
     const orNumber = prompt('Please enter the OR Number:')
     if (!orNumber) return
     
-    handleStatusUpdate('REGISTERED', {
+    handleStatusUpdate('PAID', {
       orNumber: orNumber,
-      remarks: 'Payment confirmed and registration completed'
+      remarks: 'Payment confirmed and OR number recorded'
+    })
+  }
+
+  const handleCompleteRegistration = () => {
+    handleStatusUpdate('REGISTERED', {
+      remarks: 'Death registration completed and officially recorded',
+      registeredAt: new Date().toISOString(),
+      registeredBy: session?.user?.id || 1
     })
   }
 
@@ -190,7 +283,7 @@ export default function DeathRegistrationDetail({ params }: { params: Promise<{ 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow">
+      <header className="bg-white shadow relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div className="flex items-center space-x-4">
@@ -199,14 +292,99 @@ export default function DeathRegistrationDetail({ params }: { params: Promise<{ 
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </Link>
-              <h1 className="text-2xl font-bold text-gray-900">Death Registration #{registration.id}</h1>
-              {getStatusBadge(registration.status)}
+              <Link href="/employee" className="flex items-center">
+                <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center mr-3">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <span className="text-xl font-bold text-gray-900">PAFM System</span>
+              </Link>
+              <div className="flex items-center space-x-2">
+                <h1 className="text-2xl font-bold text-gray-900">Death Registration #{registration.id}</h1>
+                {getStatusBadge(registration.status)}
+              </div>
             </div>
             <div className="flex items-center space-x-4">
               <span className="text-gray-700">Welcome, {session?.user?.name}</span>
               <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
                 {session?.user?.role}
               </span>
+              {/* Admin/Employee Dashboard Links */}
+              {(session?.user?.role === 'ADMIN' || session?.user?.role === 'EMPLOYEE') && (
+                <div className="flex space-x-2">
+                  {session?.user?.role === 'ADMIN' && (
+                    <Link
+                      href="/admin"
+                      className="text-red-600 hover:text-red-900 text-sm font-medium"
+                    >
+                      Admin Dashboard
+                    </Link>
+                  )}
+                  <Link
+                    href="/employee"
+                    className="text-blue-600 hover:text-blue-900 text-sm font-medium"
+                  >
+                    Employee Dashboard
+                  </Link>
+                </div>
+              )}
+              {/* Profile Dropdown */}
+              <div className="relative">
+                <button
+                  id="profile-button"
+                  onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+                  className="flex items-center p-2 rounded-full hover:bg-gray-100 transition-colors"
+                >
+                  <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </div>
+                </button>
+                
+                {showProfileDropdown && (
+                  <div id="profile-dropdown" className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
+                    <Link href="/employee/profile" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                      <div className="flex items-center">
+                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        Profile
+                      </div>
+                    </Link>
+                    <Link href="/employee/settings" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                      <div className="flex items-center">
+                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        Settings
+                      </div>
+                    </Link>
+                    <Link href="/employee/death-registrations" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                      <div className="flex items-center">
+                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Death Registrations
+                      </div>
+                    </Link>
+                    <hr className="my-1" />
+                    <button
+                      onClick={() => signOut({ callbackUrl: 'http://localhost:3000' })}
+                      className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+                    >
+                      <div className="flex items-center">
+                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                        </svg>
+                        Sign Out
+                      </div>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -344,7 +522,7 @@ export default function DeathRegistrationDetail({ params }: { params: Promise<{ 
               <div className="bg-white shadow rounded-lg p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Actions</h3>
                 <div className="space-y-3">
-                  {registration.status === 'SUBMITTED' && (
+                  {(registration.status === 'SUBMITTED' || registration.status === 'PENDING_VERIFICATION') && (
                     <>
                       <button
                         onClick={handleApprove}
@@ -363,13 +541,23 @@ export default function DeathRegistrationDetail({ params }: { params: Promise<{ 
                     </>
                   )}
 
-                  {registration.status === 'PAID' && (
+                  {registration.status === 'PROCESSING' && (
                     <button
                       onClick={handleConfirmPayment}
                       disabled={processing}
+                      className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {processing ? 'Processing...' : 'Confirm Payment'}
+                    </button>
+                  )}
+
+                  {registration.status === 'PAID' && (
+                    <button
+                      onClick={handleCompleteRegistration}
+                      disabled={processing}
                       className="w-full bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {processing ? 'Processing...' : 'Confirm Payment & Register'}
+                      {processing ? 'Processing...' : 'Complete Registration'}
                     </button>
                   )}
 

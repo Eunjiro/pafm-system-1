@@ -23,11 +23,16 @@ const prisma = new PrismaClient();
 app.use(helmet());
 app.use(compression());
 
-// Rate limiting
+// Rate limiting - More reasonable limits for development and testing
 const limiter = rateLimit({
-  windowMs: process.env.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000, // 15 minutes
-  max: process.env.RATE_LIMIT_MAX_REQUESTS || 100,
-  message: 'Too many requests from this IP, please try again later.',
+  windowMs: process.env.RATE_LIMIT_WINDOW_MS || 5 * 60 * 1000, // 5 minutes (shorter window)
+  max: process.env.RATE_LIMIT_MAX_REQUESTS || 300, // 300 requests per 5 minutes (much more reasonable)
+  message: { 
+    error: 'Too many requests from this IP, please try again later.',
+    retryAfter: Math.ceil((process.env.RATE_LIMIT_WINDOW_MS || 5 * 60 * 1000) / 1000)
+  },
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
 });
 app.use(limiter);
 

@@ -4,12 +4,44 @@ import { authOptions } from '../auth/[...nextauth]/route'
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3001'
 
+// Simple in-memory rate limiting
+const requestCounts = new Map<string, { count: number; resetTime: number }>()
+const RATE_LIMIT = 60 // requests per window (much more reasonable)
+const WINDOW_MS = 60000 // 1 minute window
+
+function isRateLimited(clientId: string): boolean {
+  const now = Date.now()
+  const record = requestCounts.get(clientId)
+  
+  if (!record || now > record.resetTime) {
+    requestCounts.set(clientId, { count: 1, resetTime: now + WINDOW_MS })
+    return false
+  }
+  
+  if (record.count >= RATE_LIMIT) {
+    return true
+  }
+  
+  record.count++
+  return false
+}
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
     
     if (!session || !['ADMIN', 'EMPLOYEE'].includes(session.user?.role || '')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Rate limiting check
+    const clientId = session.user?.email || 'anonymous'
+    if (isRateLimited(clientId)) {
+      console.log(`Rate limited death registrations for user: ${clientId}`)
+      return NextResponse.json(
+        { error: 'Too many requests. Please wait before trying again.' },
+        { status: 429 }
+      )
     }
 
     const url = new URL(request.url)
@@ -36,8 +68,34 @@ export async function GET(request: NextRequest) {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         console.error('Backend error response:', errorData)
+        
+        // Handle specific backend error cases
+        if (response.status === 429) {
+          return NextResponse.json(
+            { 
+              error: 'Backend service is busy. Please wait a moment and try again.',
+              retryAfter: response.headers.get('Retry-After') || '30',
+              type: 'BACKEND_RATE_LIMITED'
+            },
+            { status: 429 }
+          )
+        }
+        
+        if (response.status === 503) {
+          return NextResponse.json(
+            { 
+              error: 'Backend service is temporarily unavailable. Please try again later.',
+              type: 'BACKEND_UNAVAILABLE'
+            },
+            { status: 503 }
+          )
+        }
+        
         return NextResponse.json(
-          { error: errorData.error || `Backend error: ${response.status}` },
+          { 
+            error: errorData.error || `Backend service error (${response.status}). Please try again.`,
+            status: response.status
+          },
           { status: response.status }
         )
       }

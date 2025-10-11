@@ -391,6 +391,31 @@ router.post('/', requireEmployee, async (req, res) => {
 router.put('/:id/status', requireEmployee, async (req, res) => {
   try {
     const { status, orNumber, registeredBy, remarks } = req.body;
+    const registrationId = parseInt(req.params.id);
+    
+    console.log(`Updating registration ${registrationId} status to:`, { status, orNumber, registeredBy, remarks });
+    
+    // Validate the registration exists first
+    const existingRegistration = await prisma.deathRegistration.findUnique({
+      where: { id: registrationId }
+    });
+    
+    if (!existingRegistration) {
+      return res.status(404).json({ error: 'Death registration not found' });
+    }
+    
+    // Validate status value
+    const validStatuses = [
+      'DRAFT', 'SUBMITTED', 'PENDING_VERIFICATION', 'FOR_PAYMENT', 
+      'PAID', 'PROCESSING', 'REGISTERED', 'FOR_PICKUP', 'CLAIMED', 
+      'RETURNED', 'REJECTED', 'EXPIRED'
+    ];
+    
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ 
+        error: `Invalid status value: ${status}. Must be one of: ${validStatuses.join(', ')}` 
+      });
+    }
     
     const updateData = {
       status,
@@ -403,11 +428,13 @@ router.put('/:id/status', requireEmployee, async (req, res) => {
     
     if (status === 'REGISTERED') {
       updateData.registeredAt = new Date();
-      updateData.pickupStatus = 'READY';
+      updateData.pickupStatus = 'READY_FOR_PICKUP';
     }
 
+    console.log('Update data:', updateData);
+
     const registration = await prisma.deathRegistration.update({
-      where: { id: parseInt(req.params.id) },
+      where: { id: registrationId },
       data: updateData,
       include: {
         deceased: true,
@@ -423,10 +450,38 @@ router.put('/:id/status', requireEmployee, async (req, res) => {
       }
     });
 
+    console.log('Registration updated successfully:', registration.id, registration.status);
     res.json(registration);
   } catch (error) {
     console.error('Error updating death registration status:', error);
-    res.status(500).json({ error: 'Failed to update status' });
+    
+    // Provide more specific error messages
+    if (error.code === 'P2002') {
+      return res.status(400).json({ 
+        error: 'Unique constraint violation',
+        details: error.meta?.target ? `Duplicate value for: ${error.meta.target.join(', ')}` : 'Duplicate value detected'
+      });
+    }
+    
+    if (error.code === 'P2025') {
+      return res.status(404).json({ 
+        error: 'Record not found',
+        details: 'The death registration you are trying to update does not exist'
+      });
+    }
+    
+    if (error.code === 'P2003') {
+      return res.status(400).json({ 
+        error: 'Foreign key constraint violation',
+        details: 'Referenced record does not exist'
+      });
+    }
+    
+    res.status(500).json({ 
+      error: 'Failed to update status',
+      details: error.message || 'An unexpected error occurred while updating the registration status',
+      code: error.code || 'UNKNOWN_ERROR'
+    });
   }
 });
 
