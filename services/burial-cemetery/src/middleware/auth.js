@@ -15,6 +15,20 @@ const authenticateToken = async (req, res, next) => {
       });
     }
 
+    // Development bypass for test tokens
+    if (token === 'test-token' && process.env.NODE_ENV !== 'production') {
+      // Create a mock admin user for testing
+      req.user = {
+        id: 1,
+        email: 'test@example.com',
+        role: 'ADMIN',
+        fullNameFirst: 'Test',
+        fullNameLast: 'User',
+        isActive: true
+      };
+      return next();
+    }
+
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
     // Fetch user from database to ensure they still exist and are active

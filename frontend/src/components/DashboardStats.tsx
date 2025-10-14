@@ -27,65 +27,23 @@ export default function DashboardStats({ className = "" }: DashboardStatsProps) 
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Simulate API call to fetch dashboard statistics
+    // Fetch dashboard statistics from backend
     const fetchStats = async () => {
-      // Mock data - replace with actual API call
-      const mockStats: StatCard[] = [
-        {
-          title: "Total Death Registrations",
-          value: "1,247",
-          change: "+12%",
-          changeType: "increase",
-          icon: MdLocalHospital,
-          color: "#4CAF50"
-        },
-        {
-          title: "Pending Verifications",
-          value: "23",
-          change: "-8%",
-          changeType: "decrease",
-          icon: FiClock,
-          color: "#FDA811"
-        },
-        {
-          title: "Active Permits",
-          value: "456",
-          change: "+5%",
-          changeType: "increase",
-          icon: MdAssignment,
-          color: "#4A90E2"
-        },
-        {
-          title: "Available Plots",
-          value: "89",
-          change: "-2%",
-          changeType: "decrease",
-          icon: FiMapPin,
-          color: "#9C27B0"
-        },
-        {
-          title: "Revenue This Month",
-          value: "₱124,500",
-          change: "+18%",
-          changeType: "increase",
-          icon: FaPesoSign,
-          color: "#4CAF50"
-        },
-        {
-          title: "Certificate Requests",
-          value: "67",
-          change: "+3%",
-          changeType: "increase",
-          icon: FiFileText,
-          color: "#FF9800"
+      try {
+        const response = await fetch('/api/dashboard-stats')
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch dashboard stats')
         }
-      ]
-
-      // Simulate loading delay
-      setTimeout(() => {
-        setStats(mockStats)
+        
+        const data = await response.json()
+        setStats(data.stats || [])
+      } catch (error) {
+        console.error('Error fetching dashboard stats:', error)
+        setStats([])
+      } finally {
         setLoading(false)
-      }, 1000)
+      }
     }
 
     fetchStats()

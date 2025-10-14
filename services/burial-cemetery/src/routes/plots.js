@@ -5,16 +5,826 @@ const { requireCitizen, requireEmployee } = require('../middleware/auth');
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// TODO: Implement cemetery plot management endpoints
-// - GET / - List all plots with filtering
-// - GET /:id - Get specific plot details
-// - PUT /:id - Update plot information (employee/admin only)
-// - POST /:id/assign - Assign plot to deceased (employee/admin only)
-// - GET /search - Search plots by criteria
-// - GET /map - Get plot coordinates for mapping
-
+// GET / - List all plots with filtering
 router.get('/', requireCitizen, async (req, res) => {
-  res.json({ message: 'Cemetery plots endpoint - Coming soon' });
+  try {
+    const { 
+      section, 
+      block, 
+      status, 
+      search, 
+      page = 1, 
+      limit = 50 
+    } = req.query;
+
+    const where = {};
+    
+    if (section) {
+      where.section = section;
+    }
+    
+    if (block) {
+      where.block = block;
+    }
+    
+    if (status) {
+      where.status = status;
+    }
+
+    if (search) {
+      where.OR = [
+        { lot: { contains: search, mode: 'insensitive' } },
+        { plotCode: { contains: search, mode: 'insensitive' } },
+        { section: { contains: search, mode: 'insensitive' } },
+        { block: { contains: search, mode: 'insensitive' } }
+      ];
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const take = Math.min(parseInt(limit), 10000); // Allow up to 10,000 records max
+
+    const [plots, total] = await Promise.all([
+      prisma.cemeteryPlot.findMany({
+        where,
+        include: {
+          reserver: {
+            select: {
+              id: true,
+              firstName: true,
+              fullNameLast: true,
+              email: true
+            }
+          },
+          assignments: {
+            include: {
+              deceased: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  dateOfBirth: true,
+                  dateOfDeath: true
+                }
+              },
+              permit: {
+                select: {
+                  id: true,
+                  permitNumber: true
+                }
+              },
+              assigner: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  fullNameLast: true
+                }
+              }
+            },
+            orderBy: { assignedAt: 'desc' }
+          }
+        },
+        skip,
+        take,
+        orderBy: [
+          { section: 'asc' },
+          { block: 'asc' },
+          { lot: 'asc' }
+        ]
+      }),
+      prisma.cemeteryPlot.count({ where })
+    ]);
+
+    const totalPages = Math.ceil(total / parseInt(limit));
+
+    res.json({
+      success: true,
+      data: plots,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        totalPages
+      },
+      message: 'Cemetery plots retrieved successfully'
+    });
+
+  } catch (error) {
+    console.error('Error fetching cemetery plots:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch cemetery plots',
+      details: error.message
+    });
+  }
+});
+
+// GET /statistics - Get cemetery plot statistics
+router.get('/statistics', requireCitizen, async (req, res) => {
+  try {
+    console.log('Fetching cemetery statistics...');
+    
+    const [
+      totalPlots,
+      vacantPlots,
+      reservedPlots,
+      occupiedPlots,
+      blockedPlots,
+      totalAssignments
+    ] = await Promise.all([
+      prisma.cemeteryPlot.count(),
+      prisma.cemeteryPlot.count({ where: { status: 'VACANT' } }),
+      prisma.cemeteryPlot.count({ where: { status: 'RESERVED' } }),
+      prisma.cemeteryPlot.count({ where: { status: 'OCCUPIED' } }),
+      prisma.cemeteryPlot.count({ where: { status: 'BLOCKED' } }),
+      prisma.plotAssignment.count()
+    ]);
+
+    console.log('Statistics counts:', { totalPlots, vacantPlots, reservedPlots, occupiedPlots, blockedPlots, totalAssignments });
+
+    const occupancyRate = totalPlots > 0 ? ((occupiedPlots / totalPlots) * 100) : 0;
+
+    const statistics = {
+      totalPlots,
+      vacantPlots,
+      reservedPlots,
+      occupiedPlots,
+      blockedPlots: blockedPlots,
+      totalAssignments,
+      occupancyRate: parseFloat(occupancyRate.toFixed(2))
+    };
+
+    console.log('Returning statistics:', statistics);
+
+    res.json({
+      success: true,
+      data: statistics,
+      message: 'Cemetery statistics retrieved successfully'
+    });
+
+  } catch (error) {
+    console.error('Error fetching cemetery statistics:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch cemetery statistics',
+      details: error.message
+    });
+  }
+});
+
+// GET /:id - Get specific plot details
+router.get('/:id', requireCitizen, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const plot = await prisma.cemeteryPlot.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        reserver: {
+          select: {
+            id: true,
+            firstName: true,
+            fullNameLast: true,
+            email: true,
+            phone: true
+          }
+        },
+        assignments: {
+          include: {
+            deceased: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                dateOfBirth: true,
+                dateOfDeath: true,
+                registrationNumber: true
+              }
+            },
+            permit: {
+              select: {
+                id: true,
+                permitNumber: true,
+                status: true,
+                appliedAt: true
+              }
+            },
+            assigner: {
+              select: {
+                id: true,
+                firstName: true,
+                fullNameLast: true,
+                role: true
+              }
+            }
+          },
+          orderBy: { assignedAt: 'desc' }
+        }
+      }
+    });
+
+    if (!plot) {
+      return res.status(404).json({
+        success: false,
+        error: 'Cemetery plot not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: plot,
+      message: 'Cemetery plot details retrieved successfully'
+    });
+
+  } catch (error) {
+    console.error('Error fetching cemetery plot:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch cemetery plot details',
+      details: error.message
+    });
+  }
+});
+
+// PUT /:id - Update plot information (employee/admin only)
+router.put('/:id', requireEmployee, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      section,
+      block,
+      lot,
+      plotCode,
+      size,
+      latitude,
+      longitude,
+      status
+    } = req.body;
+
+    // Check if plot exists
+    const existingPlot = await prisma.cemeteryPlot.findUnique({
+      where: { id: parseInt(id) }
+    });
+
+    if (!existingPlot) {
+      return res.status(404).json({
+        success: false,
+        error: 'Cemetery plot not found'
+      });
+    }
+
+    // Check if plotCode is unique (if being updated)
+    if (plotCode && plotCode !== existingPlot.plotCode) {
+      const existingCode = await prisma.cemeteryPlot.findUnique({
+        where: { plotCode }
+      });
+
+      if (existingCode) {
+        return res.status(400).json({
+          success: false,
+          error: 'Plot code already exists'
+        });
+      }
+    }
+
+    const updateData = {};
+    
+    if (section !== undefined) updateData.section = section;
+    if (block !== undefined) updateData.block = block;
+    if (lot !== undefined) updateData.lot = lot;
+    if (plotCode !== undefined) updateData.plotCode = plotCode;
+    if (size !== undefined) updateData.size = size;
+    if (latitude !== undefined) updateData.latitude = latitude;
+    if (longitude !== undefined) updateData.longitude = longitude;
+    if (status !== undefined) updateData.status = status;
+
+    const updatedPlot = await prisma.cemeteryPlot.update({
+      where: { id: parseInt(id) },
+      data: updateData,
+      include: {
+        reserver: {
+          select: {
+            id: true,
+            firstName: true,
+            fullNameLast: true,
+            email: true
+          }
+        },
+        assignments: {
+          include: {
+            deceased: true,
+            permit: true,
+            assigner: {
+              select: {
+                id: true,
+                firstName: true,
+                fullNameLast: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // Create audit log
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user.id,
+        action: 'UPDATE_CEMETERY_PLOT',
+        tableName: 'cemetery_plots',
+        recordId: parseInt(id),
+        oldValues: existingPlot,
+        newValues: updatedPlot,
+        changes: Object.keys(updateData),
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent') || 'Unknown'
+      }
+    });
+
+    res.json({
+      success: true,
+      data: updatedPlot,
+      message: 'Cemetery plot updated successfully'
+    });
+
+  } catch (error) {
+    console.error('Error updating cemetery plot:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update cemetery plot',
+      details: error.message
+    });
+  }
+});
+
+// POST /:id/assign - Assign plot to deceased (employee/admin only)
+router.post('/:id/assign', requireEmployee, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      deceasedId,
+      permitId,
+      notes
+    } = req.body;
+
+    // Validate required fields
+    if (!deceasedId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Deceased ID is required'
+      });
+    }
+
+    // Check if plot exists and is available
+    const plot = await prisma.cemeteryPlot.findUnique({
+      where: { id: parseInt(id) }
+    });
+
+    if (!plot) {
+      return res.status(404).json({
+        success: false,
+        error: 'Cemetery plot not found'
+      });
+    }
+
+    if (plot.status !== 'VACANT' && plot.status !== 'RESERVED') {
+      return res.status(400).json({
+        success: false,
+        error: 'Plot is not available for assignment'
+      });
+    }
+
+    // Check if deceased record exists
+    const deceased = await prisma.deceasedRecord.findUnique({
+      where: { id: parseInt(deceasedId) }
+    });
+
+    if (!deceased) {
+      return res.status(404).json({
+        success: false,
+        error: 'Deceased record not found'
+      });
+    }
+
+    // Check if permit exists (if provided)
+    if (permitId) {
+      const permit = await prisma.permitRequest.findUnique({
+        where: { id: parseInt(permitId) }
+      });
+
+      if (!permit) {
+        return res.status(404).json({
+          success: false,
+          error: 'Permit not found'
+        });
+      }
+    }
+
+    // Create assignment and update plot status in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Create plot assignment
+      const assignment = await tx.plotAssignment.create({
+        data: {
+          plotId: parseInt(id),
+          deceasedId: parseInt(deceasedId),
+          permitId: permitId ? parseInt(permitId) : null,
+          assignedBy: req.user.id,
+          notes: notes || null
+        },
+        include: {
+          deceased: true,
+          permit: true,
+          assigner: {
+            select: {
+              id: true,
+              firstName: true,
+              fullNameLast: true
+            }
+          }
+        }
+      });
+
+      // Update plot status
+      const updatedPlot = await tx.cemeteryPlot.update({
+        where: { id: parseInt(id) },
+        data: { 
+          status: 'OCCUPIED',
+          reservedBy: null,
+          reservedUntil: null
+        },
+        include: {
+          assignments: {
+            include: {
+              deceased: true,
+              permit: true,
+              assigner: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  fullNameLast: true
+                }
+              }
+            }
+          }
+        }
+      });
+
+      return { assignment, plot: updatedPlot };
+    });
+
+    // Create audit log
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user.id,
+        action: 'ASSIGN_CEMETERY_PLOT',
+        tableName: 'plot_assignments',
+        recordId: result.assignment.id,
+        oldValues: null,
+        newValues: result.assignment,
+        changes: ['plot_assignment_created', 'plot_status_updated'],
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent') || 'Unknown'
+      }
+    });
+
+    res.json({
+      success: true,
+      data: {
+        assignment: result.assignment,
+        plot: result.plot
+      },
+      message: 'Plot assigned successfully'
+    });
+
+  } catch (error) {
+    console.error('Error assigning cemetery plot:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to assign cemetery plot',
+      details: error.message
+    });
+  }
+});
+
+// POST /:id/reserve - Reserve plot (employee/admin only)
+router.post('/:id/reserve', requireEmployee, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      reservedBy,
+      reservedUntil,
+      notes
+    } = req.body;
+
+    // Validate required fields
+    if (!reservedBy) {
+      return res.status(400).json({
+        success: false,
+        error: 'Reserved by user ID is required'
+      });
+    }
+
+    // Check if plot exists and is vacant
+    const plot = await prisma.cemeteryPlot.findUnique({
+      where: { id: parseInt(id) }
+    });
+
+    if (!plot) {
+      return res.status(404).json({
+        success: false,
+        error: 'Cemetery plot not found'
+      });
+    }
+
+    if (plot.status !== 'VACANT') {
+      return res.status(400).json({
+        success: false,
+        error: 'Plot is not available for reservation'
+      });
+    }
+
+    // Check if user exists
+    const user = await prisma.user.findUnique({
+      where: { id: parseInt(reservedBy) }
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
+    const reservationDate = reservedUntil ? new Date(reservedUntil) : 
+      new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // Default 30 days
+
+    const updatedPlot = await prisma.cemeteryPlot.update({
+      where: { id: parseInt(id) },
+      data: {
+        status: 'RESERVED',
+        reservedBy: parseInt(reservedBy),
+        reservedUntil: reservationDate
+      },
+      include: {
+        reserver: {
+          select: {
+            id: true,
+            firstName: true,
+            fullNameLast: true,
+            email: true
+          }
+        }
+      }
+    });
+
+    // Create audit log
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user.id,
+        action: 'RESERVE_CEMETERY_PLOT',
+        tableName: 'cemetery_plots',
+        recordId: parseInt(id),
+        oldValues: plot,
+        newValues: updatedPlot,
+        changes: ['status', 'reservedBy', 'reservedUntil'],
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent') || 'Unknown'
+      }
+    });
+
+    res.json({
+      success: true,
+      data: updatedPlot,
+      message: 'Plot reserved successfully'
+    });
+
+  } catch (error) {
+    console.error('Error reserving cemetery plot:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to reserve cemetery plot',
+      details: error.message
+    });
+  }
+});
+
+// DELETE /:id/reservation - Cancel plot reservation (employee/admin only)
+router.delete('/:id/reservation', requireEmployee, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if plot exists and is reserved
+    const plot = await prisma.cemeteryPlot.findUnique({
+      where: { id: parseInt(id) }
+    });
+
+    if (!plot) {
+      return res.status(404).json({
+        success: false,
+        error: 'Cemetery plot not found'
+      });
+    }
+
+    if (plot.status !== 'RESERVED') {
+      return res.status(400).json({
+        success: false,
+        error: 'Plot is not reserved'
+      });
+    }
+
+    const updatedPlot = await prisma.cemeteryPlot.update({
+      where: { id: parseInt(id) },
+      data: {
+        status: 'VACANT',
+        reservedBy: null,
+        reservedUntil: null
+      }
+    });
+
+    // Create audit log
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user.id,
+        action: 'CANCEL_PLOT_RESERVATION',
+        tableName: 'cemetery_plots',
+        recordId: parseInt(id),
+        oldValues: plot,
+        newValues: updatedPlot,
+        changes: ['status', 'reservedBy', 'reservedUntil'],
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent') || 'Unknown'
+      }
+    });
+
+    res.json({
+      success: true,
+      data: updatedPlot,
+      message: 'Plot reservation cancelled successfully'
+    });
+
+  } catch (error) {
+    console.error('Error cancelling plot reservation:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to cancel plot reservation',
+      details: error.message
+    });
+  }
+});
+
+// GET /search - Search plots by criteria
+router.get('/search/advanced', requireCitizen, async (req, res) => {
+  try {
+    const {
+      query,
+      section,
+      block,
+      status,
+      size,
+      minLat,
+      maxLat,
+      minLng,
+      maxLng,
+      page = 1,
+      limit = 20
+    } = req.query;
+
+    const where = {};
+    
+    if (query) {
+      where.OR = [
+        { plotCode: { contains: query, mode: 'insensitive' } },
+        { section: { contains: query, mode: 'insensitive' } },
+        { block: { contains: query, mode: 'insensitive' } },
+        { lot: { contains: query, mode: 'insensitive' } }
+      ];
+    }
+    
+    if (section) where.section = { contains: section, mode: 'insensitive' };
+    if (block) where.block = { contains: block, mode: 'insensitive' };
+    if (status) where.status = status;
+    if (size) where.size = { contains: size, mode: 'insensitive' };
+    
+    // Geographic bounds
+    if (minLat && maxLat) {
+      where.latitude = {
+        gte: parseFloat(minLat),
+        lte: parseFloat(maxLat)
+      };
+    }
+    
+    if (minLng && maxLng) {
+      where.longitude = {
+        gte: parseFloat(minLng),
+        lte: parseFloat(maxLng)
+      };
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const take = parseInt(limit);
+
+    const [plots, total] = await Promise.all([
+      prisma.cemeteryPlot.findMany({
+        where,
+        include: {
+          reserver: {
+            select: {
+              id: true,
+              firstName: true,
+              fullNameLast: true
+            }
+          },
+          assignments: {
+            include: {
+              deceased: true
+            },
+            take: 1,
+            orderBy: { assignedAt: 'desc' }
+          }
+        },
+        skip,
+        take,
+        orderBy: { id: 'asc' }
+      }),
+      prisma.cemeteryPlot.count({ where })
+    ]);
+
+    res.json({
+      success: true,
+      data: plots,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        totalPages: Math.ceil(total / parseInt(limit))
+      },
+      message: 'Search completed successfully'
+    });
+
+  } catch (error) {
+    console.error('Error searching cemetery plots:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to search cemetery plots',
+      details: error.message
+    });
+  }
+});
+
+// GET /map - Get plot coordinates for mapping
+router.get('/map/coordinates', requireCitizen, async (req, res) => {
+  try {
+    const { section, block, status } = req.query;
+    
+    const where = {};
+    
+    if (section) where.section = section;
+    if (block) where.block = block;
+    if (status) where.status = status;
+
+    // Only get plots with coordinates
+    where.latitude = { not: null };
+    where.longitude = { not: null };
+
+    const plots = await prisma.cemeteryPlot.findMany({
+      where,
+      select: {
+        id: true,
+        plotCode: true,
+        section: true,
+        block: true,
+        lot: true,
+        latitude: true,
+        longitude: true,
+        status: true,
+        assignments: {
+          select: {
+            deceased: {
+              select: {
+                firstName: true,
+                lastName: true
+              }
+            }
+          },
+          take: 1,
+          orderBy: { assignedAt: 'desc' }
+        }
+      }
+    });
+
+    res.json({
+      success: true,
+      data: plots,
+      message: 'Plot coordinates retrieved successfully'
+    });
+
+  } catch (error) {
+    console.error('Error fetching plot coordinates:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch plot coordinates',
+      details: error.message
+    });
+  }
 });
 
 module.exports = router;

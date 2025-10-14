@@ -12,7 +12,7 @@ const userRoutes = require('./routes/users');
 const deathRegistrationRoutes = require('./routes/death-registrations');
 const permitRoutes = require('./routes/permits');
 const certificateRoutes = require('./routes/certificates');
-const plotRoutes = require('./routes/plots');
+const plotRoutes = require('./routes/plots-simple');
 const errorHandler = require('./middleware/errorHandler');
 const { authenticateToken } = require('./middleware/auth');
 

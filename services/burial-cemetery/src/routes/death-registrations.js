@@ -1,6 +1,6 @@
 const express = require('express');
 const { PrismaClient } = require('@prisma/client');
-const { requireCitizen, requireEmployee } = require('../middleware/auth');
+const { requireCitizen, requireEmployee, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -558,6 +558,122 @@ router.put('/:id', requireEmployee, async (req, res) => {
   } catch (error) {
     console.error('Error updating death registration:', error);
     res.status(500).json({ error: 'Failed to update death registration' });
+  }
+});
+
+// Admin override endpoint
+router.post('/:id/override', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { action, reason, adminId, adminEmail, timestamp } = req.body;
+
+    // Validate required fields
+    if (!action || !reason?.trim()) {
+      return res.status(400).json({ 
+        error: 'Action and reason are required for administrative overrides' 
+      });
+    }
+
+    // Validate action type
+    const validActions = ['approve', 'reject', 'edit', 'waive_fee', 'reset_status', 'adjust_fee'];
+    if (!validActions.includes(action)) {
+      return res.status(400).json({ 
+        error: `Invalid action. Must be one of: ${validActions.join(', ')}` 
+      });
+    }
+
+    // Get current registration
+    const registration = await prisma.deathRegistration.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        deceased: true,
+        submitter: true,
+        payment: true
+      }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Death registration not found' });
+    }
+
+    // Apply the override action
+    let updates = {};
+    let auditMessage = '';
+
+    switch (action) {
+      case 'approve':
+        updates.status = 'approved';
+        auditMessage = `Registration force approved by admin: ${reason}`;
+        break;
+      case 'reject':
+        updates.status = 'rejected';
+        auditMessage = `Registration force rejected by admin: ${reason}`;
+        break;
+      case 'waive_fee':
+        updates.amountDue = 0;
+        auditMessage = `Fee waived by admin: ${reason}`;
+        break;
+      case 'adjust_fee':
+        // This would require additional fee amount in the request
+        auditMessage = `Fee adjusted by admin: ${reason}`;
+        break;
+      case 'reset_status':
+        updates.status = 'submitted';
+        auditMessage = `Status reset by admin: ${reason}`;
+        break;
+      case 'edit':
+        auditMessage = `Record marked for editing by admin: ${reason}`;
+        break;
+    }
+
+    // Update the registration
+    const updatedRegistration = await prisma.deathRegistration.update({
+      where: { id: parseInt(id) },
+      data: {
+        ...updates,
+        updatedAt: new Date(),
+        // Add audit trail (you might want to create a separate audit table)
+        notes: registration.notes ? 
+          `${registration.notes}\n[${new Date().toISOString()}] ADMIN OVERRIDE: ${auditMessage}` :
+          `[${new Date().toISOString()}] ADMIN OVERRIDE: ${auditMessage}`
+      },
+      include: {
+        deceased: true,
+        submitter: {
+          select: {
+            id: true,
+            fullNameFirst: true,
+            fullNameMiddle: true,
+            fullNameLast: true,
+            email: true
+          }
+        },
+        payment: true
+      }
+    });
+
+    // Log the admin action
+    console.log(`Admin override executed: ${action} on registration ${id} by ${adminEmail || adminId}`);
+
+    res.json({
+      success: true,
+      message: `Administrative override "${action}" executed successfully`,
+      registration: updatedRegistration,
+      audit: {
+        action,
+        reason,
+        executedBy: adminEmail,
+        timestamp: timestamp || new Date().toISOString(),
+        registrationId: id
+      }
+    });
+
+  } catch (error) {
+    console.error('Error executing admin override:', error);
+    res.status(500).json({ 
+      error: 'Failed to execute administrative override',
+      details: error.message
+    });
   }
 });
 

@@ -332,6 +332,59 @@ async function main() {
         registeredBy: employee.id,
         createdAt: lastWeek,
         remarks: 'Ready for pickup - certificate available'
+      },
+      // Registrations that might need admin override
+      {
+        registrationType: 'REGULAR',
+        submittedBy: citizen.id,
+        informantName: 'Emergency Contact',
+        informantRelationship: 'Friend',
+        informantContact: '+63-925-555-0131',
+        status: 'REJECTED',
+        amountDue: 500.00,
+        pickupRequired: true,
+        pickupStatus: 'NOT_READY',
+        createdAt: lastWeek,
+        remarks: 'Rejected due to incomplete documentation - may need admin override'
+      },
+      {
+        registrationType: 'DELAYED',
+        submittedBy: citizen.id,
+        informantName: 'Legal Representative',
+        informantRelationship: 'Attorney',
+        informantContact: '+63-926-555-0132',
+        status: 'RETURNED',
+        amountDue: 1000.00,
+        pickupRequired: true,
+        pickupStatus: 'NOT_READY',
+        createdAt: lastWeek,
+        remarks: 'Returned for corrections - complex case requiring admin review'
+      },
+      {
+        registrationType: 'REGULAR',
+        submittedBy: citizen.id,
+        informantName: 'Family Member',
+        informantRelationship: 'Sibling',
+        informantContact: '+63-927-555-0133',
+        status: 'PENDING_VERIFICATION',
+        amountDue: 500.00,
+        pickupRequired: true,
+        pickupStatus: 'NOT_READY',
+        createdAt: yesterday,
+        remarks: 'Pending verification - awaiting hospital records confirmation'
+      },
+      {
+        registrationType: 'REGULAR',
+        submittedBy: citizen.id,
+        informantName: 'Emergency Services',
+        informantRelationship: 'Government Agency',
+        informantContact: '+63-928-555-0134',
+        status: 'SUBMITTED',
+        amountDue: 0.00, // Fee waiver candidate
+        pickupRequired: true,
+        pickupStatus: 'NOT_READY',
+        createdAt: today,
+        remarks: 'Emergency case - potential fee waiver required'
       }
     ];
 
@@ -341,13 +394,247 @@ async function main() {
       });
     }
 
+    // Create sample permits
+    console.log('🏛️  Creating sample permits...');
+    
+    const permits = [
+      {
+        permitType: 'BURIAL',
+        status: 'SUBMITTED',
+        amountDue: 500.00,
+        deathId: deceasedRecords[0].id,
+        citizenUserId: citizen.id,
+        createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
+        remarks: 'Standard burial permit application'
+      },
+      {
+        permitType: 'BURIAL',
+        status: 'PENDING_VERIFICATION',
+        amountDue: 500.00,
+        orNumber: 'OR-2024-001234',
+        deathId: deceasedRecords[1].id,
+        citizenUserId: citizen.id,
+        createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 days ago
+        remarks: 'Payment received, pending document review'
+      },
+      {
+        permitType: 'EXHUMATION',
+        status: 'PAID',
+        amountDue: 1000.00,
+        orNumber: 'OR-2024-001235',
+        deathId: deceasedRecords[2].id,
+        citizenUserId: citizen.id,
+        createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000), // 10 days ago
+        remarks: 'Approved with court order - family relocation'
+      },
+      {
+        permitType: 'CREMATION',
+        status: 'ISSUED',
+        amountDue: 750.00,
+        orNumber: 'OR-2024-001236',
+        deathId: deceasedRecords[3].id,
+        citizenUserId: citizen.id,
+        issuedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // 1 day ago
+        createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days ago
+        pickupStatus: 'READY_FOR_PICKUP',
+        remarks: 'Permit issued - ready for crematorium processing'
+      },
+      {
+        permitType: 'BURIAL',
+        status: 'REJECTED',
+        amountDue: 500.00,
+        deathId: deceasedRecords[4].id,
+        citizenUserId: citizen.id,
+        createdAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000), // 6 days ago
+        remarks: 'Rejected - incomplete documentation, missing signatures'
+      },
+      {
+        permitType: 'EXHUMATION',
+        status: 'SUBMITTED',
+        amountDue: 1000.00,
+        deathId: deceasedRecords[0].id,
+        citizenUserId: citizen.id,
+        createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
+        remarks: 'Awaiting court order for family dispute resolution'
+      },
+      {
+        permitType: 'CREMATION',
+        status: 'FOR_PICKUP',
+        amountDue: 750.00,
+        orNumber: 'OR-2024-001237',
+        deathId: deceasedRecords[1].id,
+        citizenUserId: citizen.id,
+        issuedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
+        createdAt: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000), // 12 days ago
+        pickupStatus: 'READY_FOR_PICKUP',
+        remarks: 'Permit ready for pickup at Civil Registry Office'
+      },
+      {
+        permitType: 'BURIAL',
+        status: 'CANCELLED',
+        amountDue: 500.00,
+        deathId: deceasedRecords[2].id,
+        citizenUserId: citizen.id,
+        createdAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000), // 15 days ago
+        remarks: 'Cancelled by family - opted for cremation instead'
+      }
+    ];
+
+    for (const permit of permits) {
+      await prisma.permitRequest.create({
+        data: permit,
+      });
+    }
+
+    console.log('🏛️  Creating sample certificate requests...');
+    
+    // Create sample certificate requests
+    const certificateRequests = [
+      {
+        certRequestType: 'DEATH',
+        deathId: createdDeceased[0].id, // John Doe
+        requesterUserId: citizen.id,
+        relationshipToDeceased: 'Son',
+        purpose: 'Insurance claim',
+        copies: 2,
+        status: 'SUBMITTED',
+        amountDue: 100.00,
+        pickupStatus: 'NOT_READY',
+        createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 days ago
+        remarks: 'Initial request for death certificate'
+      },
+      {
+        certRequestType: 'DEATH',
+        deathId: createdDeceased[1].id, // Maria Clara
+        requesterUserId: citizen.id,
+        relationshipToDeceased: 'Husband',
+        purpose: 'SSS benefits processing',
+        copies: 1,
+        status: 'PROCESSING',
+        amountDue: 50.00,
+        pickupStatus: 'NOT_READY',
+        createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
+        remarks: 'Under review by registry office'
+      },
+      {
+        certRequestType: 'DEATH',
+        deathId: createdDeceased[2].id, // Roberto Santos
+        requesterUserId: citizen.id,
+        relationshipToDeceased: 'Daughter',
+        purpose: 'Legal proceedings',
+        copies: 3,
+        status: 'READY_FOR_PICKUP',
+        amountDue: 150.00,
+        paymentOrderNo: 'OR-2024-001301',
+        pickupStatus: 'READY_FOR_PICKUP',
+        createdAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000), // 8 days ago
+        remarks: 'Certificate ready for pickup at Civil Registry'
+      },
+      {
+        certRequestType: 'BIRTH',
+        requesterUserId: citizen.id,
+        relationshipToDeceased: 'Self',
+        purpose: 'Passport application',
+        copies: 1,
+        status: 'FOR_PAYMENT',
+        amountDue: 30.00,
+        pickupStatus: 'NOT_READY',
+        createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
+        remarks: 'Awaiting payment confirmation'
+      },
+      {
+        certRequestType: 'DEATH',
+        deathId: createdDeceased[3].id, // Ana Dela Cruz
+        requesterUserId: citizen.id,
+        relationshipToDeceased: 'Sister',
+        purpose: 'Bank account closure',
+        copies: 1,
+        status: 'REJECTED',
+        amountDue: 50.00,
+        pickupStatus: 'NOT_READY',
+        createdAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000), // 6 days ago
+        remarks: 'Insufficient documentation provided'
+      },
+      {
+        certRequestType: 'MARRIAGE',
+        requesterUserId: citizen.id,
+        relationshipToDeceased: 'Self',
+        purpose: 'Visa application',
+        copies: 2,
+        status: 'PAID',
+        amountDue: 80.00,
+        paymentOrderNo: 'OR-2024-001298',
+        pickupStatus: 'NOT_READY',
+        createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000), // 4 days ago
+        remarks: 'Payment confirmed, processing started'
+      },
+      {
+        certRequestType: 'DEATH',
+        deathId: createdDeceased[0].id, // John Doe (another request)
+        requesterUserId: citizen.id,
+        relationshipToDeceased: 'Wife',
+        purpose: 'Property transfer',
+        copies: 4,
+        status: 'CLAIMED',
+        amountDue: 200.00,
+        paymentOrderNo: 'OR-2024-001295',
+        pickupStatus: 'CLAIMED',
+        createdAt: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000), // 12 days ago
+        remarks: 'Certificate successfully claimed'
+      },
+      {
+        certRequestType: 'CNR',
+        requesterUserId: citizen.id,
+        relationshipToDeceased: 'Self',
+        purpose: 'Employment verification',
+        copies: 1,
+        status: 'SUBMITTED',
+        amountDue: 25.00,
+        pickupStatus: 'NOT_READY',
+        createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // 1 day ago
+        remarks: 'New request pending initial review'
+      },
+      {
+        certRequestType: 'DEATH',
+        deathId: createdDeceased[1].id, // Maria Clara (expedited)
+        requesterUserId: citizen.id,
+        relationshipToDeceased: 'Daughter',
+        purpose: 'Emergency travel',
+        copies: 1,
+        status: 'PROCESSING',
+        amountDue: 75.00, // Expedited fee
+        pickupStatus: 'NOT_READY',
+        createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // 1 day ago
+        remarks: 'Expedited processing requested'
+      },
+      {
+        certRequestType: 'BIRTH',
+        requesterUserId: citizen.id,
+        relationshipToDeceased: 'Parent',
+        purpose: 'School enrollment',
+        copies: 2,
+        status: 'READY_FOR_PICKUP',
+        amountDue: 60.00,
+        paymentOrderNo: 'OR-2024-001302',
+        pickupStatus: 'READY_FOR_PICKUP',
+        createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days ago
+        remarks: 'Birth certificate ready for collection'
+      }
+    ];
+
+    for (const certificate of certificateRequests) {
+      await prisma.certificateRequest.create({
+        data: certificate,
+      });
+    }
+
     // Create audit log for seeding
     await prisma.auditLog.create({
       data: {
         actorUserId: admin.id,
         action: 'DATABASE_SEEDED',
         moduleName: 'SYSTEM',
-        details: 'Database seeded with initial data',
+        details: 'Database seeded with initial data including permits and certificates',
       },
     });
 
@@ -356,11 +643,61 @@ async function main() {
     console.log(`👤 Users: ${await prisma.user.count()}`);
     console.log(`⚰️  Deceased Records: ${await prisma.deceasedRecord.count()}`);
     console.log(`📋 Death Registrations: ${await prisma.deathRegistration.count()}`);
-    console.log(`🏞️  Cemetery Plots: ${await prisma.cemeteryPlot.count()}`);
+    console.log(`🏛️  Permits: ${await prisma.permitRequest.count()}`);
+    console.log(`📜 Certificate Requests: ${await prisma.certificateRequest.count()}`);
+    console.log(`�️  Cemetery Plots: ${await prisma.cemeteryPlot.count()}`);
+    console.log(`📝 Audit Logs: ${await prisma.auditLog.count()}`);
+    
+    // Show status breakdown
+    const statusCounts = await prisma.deathRegistration.groupBy({
+      by: ['status'],
+      _count: { status: true }
+    });
+    console.log('\n📊 Death Registration Status Breakdown:');
+    statusCounts.forEach(item => {
+      console.log(`   ${item.status}: ${item._count.status}`);
+    });
+    
     console.log('\n🔐 Sample Login Credentials:');
     console.log('Admin: admin@cemetery.qc.gov.ph / admin123');
     console.log('Employee: employee@cemetery.qc.gov.ph / employee123');
     console.log('Citizen: citizen@example.com / citizen123');
+    
+    // Show permit status breakdown
+    const permitStatusCounts = await prisma.permitRequest.groupBy({
+      by: ['status'],
+      _count: { status: true }
+    });
+    console.log('\n🏛️  Permit Status Breakdown:');
+    permitStatusCounts.forEach(item => {
+      console.log(`   ${item.status}: ${item._count.status}`);
+    });
+
+    // Show certificate status breakdown
+    const certificateStatusCounts = await prisma.certificateRequest.groupBy({
+      by: ['status'],
+      _count: { status: true }
+    });
+    console.log('\n� Certificate Request Status Breakdown:');
+    certificateStatusCounts.forEach(item => {
+      console.log(`   ${item.status}: ${item._count.status}`);
+    });
+
+    console.log('\n�🔧 Admin Override Test Cases Available:');
+    console.log('Death Registrations:');
+    console.log('- Rejected registrations for approval override');
+    console.log('- Returned registrations for status reset');
+    console.log('- Pending registrations for expedited approval');
+    console.log('- Zero-amount registrations for fee waiver testing');
+    console.log('\nPermits:');
+    console.log('- Rejected permit for admin approval');
+    console.log('- Submitted permits for expedited processing');
+    console.log('- Fee adjustment and waiver testing available');
+    console.log('\nCertificate Requests:');
+    console.log('- Rejected certificate request for admin approval');
+    console.log('- Submitted requests for expedited processing');
+    console.log('- Fee waiver and adjustment testing available');
+    console.log('- Multiple certificate types for testing');
 
   } catch (error) {
     console.error('❌ Error seeding database:', error);
