@@ -133,83 +133,96 @@ export default function CemeteryPlotsPage() {
       try {
         setLoading(true)
         
-        console.log('Fetching cemetery data...')
+        console.log('Loading cemetery data from localStorage...')
         
-        // Fetch plots and statistics in parallel - request all plots for accurate statistics
-        const [plotsResponse, statsResponse] = await Promise.all([
-          fetch('/api/cemetery-plots?limit=100'),
-          fetch('/api/cemetery-statistics')
-        ])
+        // Load cemetery data from localStorage (same as cemetery management page)
+        const savedCemeteries = localStorage.getItem('cemeteries')
+        let allPlots: CemeteryPlot[] = []
         
-        console.log('API Response status - Plots:', plotsResponse.status, 'Statistics:', statsResponse.status)
-        
-        const plotsData = await plotsResponse.json()
-        
-        console.log('Plots data received:', plotsData)
-        
-        // Handle both successful and failed responses gracefully
-        if (!plotsResponse.ok && plotsData.success === false) {
-          console.warn('Plots API returned error:', plotsData.error)
-        }
-        
-        // Transform backend data to match frontend interface
-        const transformedPlots = (plotsData.plots || []).map((backendPlot: any) => ({
-          id: backendPlot.id.toString(),
-          plotNumber: backendPlot.plotCode || `${backendPlot.section}-${backendPlot.block}-${backendPlot.lot}`,
-          section: backendPlot.section || '',
-          block: backendPlot.block || '',
-          lot: backendPlot.lot || '',
-          coordinates: {
-            lat: backendPlot.latitude ? parseFloat(backendPlot.latitude) : 14.6760,
-            lng: backendPlot.longitude ? parseFloat(backendPlot.longitude) : 121.0437
-          },
-          size: backendPlot.size?.toLowerCase() || 'standard',
-          type: 'ground_burial', // Default type since not in backend model
-          status: backendPlot.status?.toLowerCase() || 'vacant',
-          reservedBy: backendPlot.reserver ? 
-            `${backendPlot.reserver.fullNameFirst} ${backendPlot.reserver.fullNameLast}` : undefined,
-          occupiedBy: backendPlot.assignments?.length > 0 && backendPlot.assignments[0].deceased ? {
-            name: `${backendPlot.assignments[0].deceased.firstName} ${backendPlot.assignments[0].deceased.lastName}`,
-            dateOfBirth: backendPlot.assignments[0].deceased.dateOfBirth,
-            dateOfDeath: backendPlot.assignments[0].deceased.dateOfDeath,
-            burialDate: backendPlot.assignments[0].assignedAt,
-            permitNumber: backendPlot.assignments[0].permit?.permitNumber || '',
-            registrationNumber: backendPlot.assignments[0].deceased.registrationNumber || ''
-          } : undefined,
-          assignedDate: backendPlot.assignments?.length > 0 ? 
-            backendPlot.assignments[0].assignedAt : backendPlot.reservedUntil,
-          lastUpdated: backendPlot.updatedAt || backendPlot.createdAt,
-          dimensions: {
-            length: 2.0, // Default dimensions
-            width: 1.0,
-            depth: 2.0
-          },
-          pricing: {
-            baseFee: 5000,
-            maintenanceFee: 500,
-            totalFee: 5500
-          },
-          restrictions: [],
-          notes: backendPlot.assignments?.[0]?.notes,
-          gravestone: undefined
-        }))
-        
-        setPlots(transformedPlots)
-        
-        // Always calculate statistics from plots data to ensure we have numbers
-        calculateStatisticsFromPlots(transformedPlots)
-        
-        // Also try to get statistics from API (but fallback is already set above)
-        if (statsResponse.ok) {
-          const statsData = await statsResponse.json()
-          console.log('Statistics data received:', statsData)
-          if (statsData.success && statsData.statistics) {
-            // Only update if we get valid statistics from API
-            if (statsData.statistics.totalPlots > 0) {
-              setStatistics(statsData.statistics)
+        if (savedCemeteries) {
+          const cemeteries = JSON.parse(savedCemeteries)
+          
+          // For each cemetery, load its sections and extract all plots
+          for (const cemetery of cemeteries) {
+            const savedSections = localStorage.getItem(`cemetery_${cemetery.id}_sections`)
+            if (savedSections) {
+              const sections = JSON.parse(savedSections)
+              
+              // Flatten the hierarchical structure: Cemetery > Sections > Blocks > Plots
+              sections.forEach((section: any) => {
+                section.blocks.forEach((block: any) => {
+                  block.plots.forEach((plot: any) => {
+                    // Get the active burials for this plot
+                    const activeBurials = plot.burials?.filter((burial: any) => burial.status === 'active') || []
+                    const primaryBurial = activeBurials.length > 0 ? activeBurials[0] : null
+                    
+                    // Determine plot status based on burials
+                    let plotStatus = 'vacant'
+                    if (plot.status === 'reserved') plotStatus = 'reserved'
+                    else if (plot.status === 'maintenance') plotStatus = 'unavailable'
+                    else if (activeBurials.length > 0) plotStatus = 'occupied'
+                    
+                    // Transform coordinates from array to lat/lng object
+                    const coords = plot.coordinates && plot.coordinates.length > 0 ? plot.coordinates[0] : [14.6760, 121.0437]
+                    
+                    // Transform the plot data to match the expected interface
+                    const transformedPlot: CemeteryPlot = {
+                      id: plot.id,
+                      plotNumber: plot.plotNumber,
+                      section: section.name,
+                      block: block.name,
+                      lot: plot.plotNumber.split('-').pop() || plot.plotNumber,
+                      coordinates: {
+                        lat: coords[0] || 14.6760,
+                        lng: coords[1] || 121.0437
+                      },
+                      size: plot.size || 'standard',
+                      type: 'ground_burial',
+                      status: plotStatus as 'vacant' | 'reserved' | 'occupied' | 'unavailable' | 'blocked',
+                      reservedBy: undefined, // Could be enhanced to track reservations
+                      occupiedBy: primaryBurial ? {
+                        name: `${primaryBurial.deceasedInfo.firstName} ${primaryBurial.deceasedInfo.lastName}`,
+                        dateOfBirth: primaryBurial.deceasedInfo.dateOfBirth,
+                        dateOfDeath: primaryBurial.deceasedInfo.dateOfDeath,
+                        burialDate: primaryBurial.deceasedInfo.burialDate,
+                        permitNumber: '',
+                        registrationNumber: ''
+                      } : undefined,
+                      assignedDate: primaryBurial ? primaryBurial.deceasedInfo.burialDate : undefined,
+                      lastUpdated: new Date().toISOString(),
+                      dimensions: {
+                        length: plot.length || 2.0,
+                        width: plot.width || 1.0,
+                        depth: plot.depth || 2.0
+                      },
+                      pricing: {
+                        baseFee: plot.baseFee || 5000,
+                        maintenanceFee: plot.maintenanceFee || 500,
+                        totalFee: (plot.baseFee || 5000) + (plot.maintenanceFee || 500)
+                      },
+                      restrictions: [],
+                      notes: `${activeBurials.length}/${plot.maxLayers || 3} layers occupied`,
+                      gravestone: plot.gravestone ? {
+                        material: plot.gravestone.material,
+                        inscription: plot.gravestone.inscription,
+                        dateInstalled: plot.gravestone.dateInstalled,
+                        condition: plot.gravestone.condition
+                      } : undefined
+                    }
+                    
+                    allPlots.push(transformedPlot)
+                  })
+                })
+              })
             }
           }
         }
+        
+        console.log('Transformed plots:', allPlots)
+        setPlots(allPlots)
+        
+        // Calculate statistics from plots data
+        calculateStatisticsFromPlots(allPlots)
         
       } catch (error) {
         console.error('Error fetching cemetery data:', error)
@@ -324,7 +337,7 @@ export default function CemeteryPlotsPage() {
               </span>
               Cemetery Plot Management
             </h1>
-            <p className="text-gray-600">Manage cemetery plots, assignments, and AI mapping integration</p>
+            <p className="text-gray-600">Comprehensive view of all plots across all cemeteries with burial management</p>
           </div>
           <div className="flex items-center space-x-3">
             <button 
@@ -336,6 +349,16 @@ export default function CemeteryPlotsPage() {
               </span>
               Refresh
             </button>
+            <Link
+              href="/admin/cemetery"
+              className="px-4 py-2 text-white rounded-lg transition-colors hover:opacity-90 flex items-center"
+              style={{backgroundColor: '#8B5CF6'}}
+            >
+              <span className="mr-2">
+                <FiNavigation size={16} />
+              </span>
+              Cemetery Management
+            </Link>
             <Link
               href="/admin/cemetery-map"
               className="px-4 py-2 text-white rounded-lg transition-colors hover:opacity-90 flex items-center"
@@ -615,6 +638,20 @@ export default function CemeteryPlotsPage() {
                       </span>
                       Edit
                     </button>
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`Are you sure you want to delete plot ${plot.plotNumber}? This action cannot be undone.`)) {
+                          setPlots(prev => prev.filter(p => p.id !== plot.id))
+                          console.log('Plot deleted:', plot.plotNumber)
+                        }
+                      }}
+                      className="flex items-center px-3 py-2 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <span className="mr-1">
+                        <FiTrash2 size={14} />
+                      </span>
+                      Delete
+                    </button>
                   </div>
                   <div className="flex items-center space-x-4">
                     <span className="text-xs text-gray-500">
@@ -683,6 +720,18 @@ export default function CemeteryPlotsPage() {
                       Assign
                     </button>
                   )}
+                  <button
+                    onClick={() => {
+                      if (window.confirm(`Are you sure you want to delete plot ${plot.plotNumber}? This action cannot be undone.`)) {
+                        setPlots(prev => prev.filter(p => p.id !== plot.id))
+                        console.log('Plot deleted:', plot.plotNumber)
+                      }
+                    }}
+                    className="px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded"
+                    title="Delete Plot"
+                  >
+                    <FiTrash2 size={12} />
+                  </button>
                 </div>
               </div>
             </div>
@@ -715,7 +764,31 @@ export default function CemeteryPlotsPage() {
             <MdLocationOn size={48} />
           </span>
           <h3 className="text-lg font-medium text-gray-900 mb-2">No plots found</h3>
-          <p className="text-gray-600">No cemetery plots match your current search and filter criteria.</p>
+          {plots.length === 0 ? (
+            <div className="space-y-4">
+              <p className="text-gray-600">No cemetery plots have been created yet.</p>
+              <p className="text-sm text-blue-600">
+                📍 To create plots, go to <strong>Cemetery Management</strong> and set up:
+              </p>
+              <div className="bg-blue-50 p-4 rounded-lg text-left max-w-md mx-auto">
+                <ol className="text-sm text-blue-800 space-y-1">
+                  <li>1. Create a cemetery layout</li>
+                  <li>2. Add sections to divide the cemetery</li>
+                  <li>3. Create blocks within sections</li>
+                  <li>4. Generate plots within blocks</li>
+                </ol>
+              </div>
+              <Link
+                href="/admin/cemetery"
+                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <span className="mr-2"><FiNavigation size={16} /></span>
+                Go to Cemetery Management
+              </Link>
+            </div>
+          ) : (
+            <p className="text-gray-600">No cemetery plots match your current search and filter criteria.</p>
+          )}
         </div>
       )}
     </div>

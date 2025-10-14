@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
+import apiClient from '../../../lib/api'
 import { 
   MdMap, MdEdit, MdSearch, MdCancel, MdDelete, MdLocationOn, 
   MdTerrain, MdLayers, MdSatellite, MdNavigation, MdZoomIn,
@@ -12,11 +13,11 @@ import {
 import { 
   FiPlus, FiMap, FiEye, FiEdit2, FiTrash2, FiSave, 
   FiX, FiCheck, FiMapPin, FiGrid, FiLayers, FiTarget,
-  FiRefreshCw, FiDownload, FiUpload, FiActivity
+  FiRefreshCw, FiDownload, FiUpload, FiActivity, FiList
 } from 'react-icons/fi'
 
 // Management workflow steps
-type ManagementStep = 'overview' | 'sections' | 'blocks' | 'plots' | 'gravestones'
+type ManagementStep = 'overview' | 'sections' | 'blocks' | 'plots' | 'burials'
 
 type Point = [number, number]
 
@@ -75,13 +76,41 @@ interface Plot {
   orientation: 'north' | 'south' | 'east' | 'west'
   accessibility: boolean
   status: 'available' | 'reserved' | 'occupied' | 'maintenance'
+  maxLayers: number // Maximum burial layers (typically 3-5 in Philippine public cemeteries)
+  burials: Burial[] // Array of burials in this plot
   gravestone?: Gravestone
+}
+
+interface Burial {
+  id: string
+  plotId: string
+  layer: number // 1 = ground level, 2 = second layer, etc.
+  deceasedInfo: {
+    firstName: string
+    lastName: string
+    middleName?: string
+    dateOfBirth: string
+    dateOfDeath: string
+    burialDate: string
+    gender: 'male' | 'female'
+    causeOfDeath?: string
+    occupation?: string
+    nextOfKin?: {
+      name: string
+      relationship: string
+      contactNumber: string
+    }
+  }
+  burialType: 'temporary' | 'permanent' // Temporary burials can be moved later
+  expirationDate?: string // For temporary burials
+  status: 'active' | 'transferred' | 'exhumed'
+  notes?: string
 }
 
 interface Gravestone {
   id: string
   plotId: string
-  material: 'granite' | 'marble' | 'bronze' | 'limestone' | 'sandstone' | 'other'
+  material: 'granite' | 'marble' | 'bronze' | 'limestone' | 'sandstone' | 'concrete' | 'other'
   condition: 'excellent' | 'good' | 'fair' | 'poor' | 'damaged'
   inscription: string
   dateInstalled: string
@@ -89,14 +118,8 @@ interface Gravestone {
   height: number
   width: number
   thickness: number
-  deceasedInfo: {
-    firstName: string
-    lastName: string
-    dateOfBirth: string
-    dateOfDeath: string
-    burialDate: string
-    gender: 'male' | 'female'
-  }
+  // For multi-burial plots, gravestone can list multiple deceased
+  listedDeceased?: string[] // Array of burial IDs listed on this gravestone
 }
 
 const CemeteryMapComponent = dynamic(() => import("../cemetery-map/CemeteryMapComponent"), {
@@ -128,7 +151,7 @@ export default function CemeteryManagementPage() {
   // Drawing states
   const [currentDrawing, setCurrentDrawing] = useState<Point[]>([])
   const [isDrawing, setIsDrawing] = useState(false)
-  const [drawingMode, setDrawingMode] = useState<'section' | 'block' | null>(null)
+  const [drawingMode, setDrawingMode] = useState<'section' | 'block' | 'plot' | null>(null)
 
   // Form states
   const [sectionFormData, setSectionFormData] = useState({
@@ -145,6 +168,70 @@ export default function CemeteryManagementPage() {
     capacity: 50,
     color: '#10B981'
   })
+
+  const [plotFormData, setPlotFormData] = useState({
+    plotCode: '',
+    blockId: '',
+    size: 'standard' as 'standard' | 'large' | 'family' | 'niche'
+  })
+
+  const [plotStatistics, setPlotStatistics] = useState({
+    total: 0,
+    vacant: 0,
+    reserved: 0,
+    occupied: 0,
+    blocked: 0
+  })
+
+  const [plots, setPlots] = useState<Plot[]>([])
+  const [selectedPlotId, setSelectedPlotId] = useState('')
+
+  const [gravestoneFormData, setGravestoneFormData] = useState({
+    firstName: '',
+    lastName: '',
+    dateOfBirth: '',
+    dateOfDeath: '',
+    burialDate: '',
+    gender: '' as 'male' | 'female' | '',
+    material: 'granite' as 'granite' | 'marble' | 'bronze' | 'limestone' | 'sandstone' | 'concrete' | 'other',
+    condition: 'good' as 'excellent' | 'good' | 'fair' | 'poor' | 'damaged',
+    inscription: ''
+  })
+
+  // New burial management states
+  const [burialFormData, setBurialFormData] = useState({
+    firstName: '',
+    lastName: '',
+    middleName: '',
+    dateOfBirth: '',
+    dateOfDeath: '',
+    burialDate: '',
+    gender: '' as 'male' | 'female' | '',
+    causeOfDeath: '',
+    occupation: '',
+    nextOfKin: {
+      name: '',
+      relationship: '',
+      contactNumber: ''
+    },
+    burialType: 'permanent' as 'temporary' | 'permanent',
+    expirationDate: '',
+    layer: 1,
+    notes: ''
+  })
+
+  // Occupant listing states
+  const [showOccupantsList, setShowOccupantsList] = useState(false)
+  const [selectedAreaType, setSelectedAreaType] = useState<'plot' | 'block' | 'section' | null>(null)
+  const [selectedAreaId, setSelectedAreaId] = useState<string>('')
+  const [selectedAreaName, setSelectedAreaName] = useState<string>('')
+  const [areaOccupants, setAreaOccupants] = useState<Burial[]>([])
+
+  // Delete confirmation states
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleteType, setDeleteType] = useState<'cemetery' | 'section' | 'block' | 'plot' | 'gravestone' | 'burial' | null>(null)
+  const [deleteItem, setDeleteItem] = useState<any>(null)
+  const [deleteItemName, setDeleteItemName] = useState('')
 
   // Load cemetery data
   useEffect(() => {
@@ -191,6 +278,19 @@ export default function CemeteryManagementPage() {
       area -= points[j][0] * points[i][1]
     }
     return Math.abs(area) / 2
+  }
+
+  const calculateCemeteryCenter = (cemetery: Cemetery): [number, number] => {
+    if (cemetery.boundary && cemetery.boundary.length > 2) {
+      const lats = cemetery.boundary.map(point => point[0])
+      const lngs = cemetery.boundary.map(point => point[1])
+      
+      const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2
+      const centerLng = (Math.min(...lngs) + Math.max(...lngs)) / 2
+      
+      return [centerLat, centerLng]
+    }
+    return [14.6760, 121.0437] // Default fallback
   }
 
   const handleSaveSection = async () => {
@@ -281,6 +381,626 @@ export default function CemeteryManagementPage() {
     }
   }
 
+  const handleSavePlot = async () => {
+    if (!selectedCemetery || !plotFormData.blockId || currentDrawing.length < 3) return
+
+    setIsSaving(true)
+    try {
+      // Find the block and section
+      let targetSection: Section | null = null
+      let targetBlock: Block | null = null
+
+      for (const section of sections) {
+        const block = section.blocks.find(b => b.id === plotFormData.blockId)
+        if (block) {
+          targetSection = section
+          targetBlock = block
+          break
+        }
+      }
+
+      if (!targetSection || !targetBlock) {
+        throw new Error('Block not found')
+      }
+
+      const plotCode = plotFormData.plotCode || `${targetSection.name}-${targetBlock.name}-${Date.now()}`
+
+      const newPlot: Plot = {
+        id: Date.now().toString(),
+        blockId: plotFormData.blockId,
+        plotNumber: plotCode,
+        coordinates: [...currentDrawing],
+        size: plotFormData.size,
+        length: 2,
+        width: 1,
+        depth: 1.5,
+        baseFee: selectedCemetery.standardPrice,
+        maintenanceFee: selectedCemetery.maintenanceFee,
+        orientation: 'north',
+        accessibility: true,
+        status: 'available',
+        maxLayers: 3, // Default to 3 layers for Philippine public cemeteries
+        burials: [] // Empty array for new plots
+      }
+
+      // Update sections with new plot
+      const updatedSections = sections.map(section => {
+        if (section.id === targetSection!.id) {
+          return {
+            ...section,
+            blocks: section.blocks.map(block => {
+              if (block.id === plotFormData.blockId) {
+                return {
+                  ...block,
+                  plots: [...block.plots, newPlot]
+                }
+              }
+              return block
+            })
+          }
+        }
+        return section
+      })
+
+      setSections(updatedSections)
+      setPlots(prev => [...prev, newPlot])
+
+      // Save to localStorage
+      localStorage.setItem(`cemetery_${selectedCemetery.id}_sections`, JSON.stringify(updatedSections))
+
+      // Reset form and drawing
+      setPlotFormData({ plotCode: '', blockId: '', size: 'standard' })
+      setCurrentDrawing([])
+      setDrawingMode(null)
+      setIsDrawing(false)
+
+      // Update statistics
+      updatePlotStatistics()
+
+      console.log('Plot saved successfully:', newPlot)
+    } catch (error) {
+      console.error('Error saving plot:', error)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleAutoGeneratePlots = async () => {
+    if (!selectedCemetery || sections.length === 0) return
+
+    setIsSaving(true)
+    try {
+      const plotsToCreate: any[] = []
+      
+      sections.forEach(section => {
+        section.blocks.forEach(block => {
+          // Simple grid generation within block boundary
+          const boundary = block.boundary
+          if (boundary.length < 3) return
+
+          const minLat = Math.min(...boundary.map(p => p[0]))
+          const maxLat = Math.max(...boundary.map(p => p[0]))
+          const minLng = Math.min(...boundary.map(p => p[1]))
+          const maxLng = Math.max(...boundary.map(p => p[1]))
+
+          const plotLength = 2 / 111000 // ~2m in lat degrees
+          const plotWidth = 1 / 111000  // ~1m in lng degrees
+          const spacing = 0.5 / 111000  // ~0.5m spacing
+
+          let plotNumber = 1
+          for (let lat = minLat; lat <= maxLat - plotLength; lat += plotLength + spacing) {
+            for (let lng = minLng; lng <= maxLng - plotWidth; lng += plotWidth + spacing) {
+              const plotCoords: Point[] = [
+                [lat, lng],
+                [lat + plotLength, lng],
+                [lat + plotLength, lng + plotWidth],
+                [lat, lng + plotWidth],
+                [lat, lng] // Close the polygon
+              ]
+
+              const plotCode = `${section.name}-${block.name}-${plotNumber.toString().padStart(3, '0')}`
+
+              const newPlot: Plot = {
+                id: `${Date.now()}-${plotNumber}`,
+                blockId: block.id,
+                plotNumber: plotCode,
+                coordinates: plotCoords,
+                size: 'standard',
+                length: 2,
+                width: 1,
+                depth: 1.5,
+                baseFee: selectedCemetery.standardPrice,
+                maintenanceFee: selectedCemetery.maintenanceFee,
+                orientation: 'north',
+                accessibility: true,
+                status: 'available',
+                maxLayers: 3, // Default to 3 layers for Philippine public cemeteries
+                burials: [] // Empty array for new plots
+              }
+
+              plotsToCreate.push(newPlot)
+              plotNumber++
+            }
+          }
+        })
+      })
+
+      // Update sections with generated plots
+      const updatedSections = sections.map(section => ({
+        ...section,
+        blocks: section.blocks.map(block => ({
+          ...block,
+          plots: plotsToCreate.filter(plot => plot.blockId === block.id)
+        }))
+      }))
+
+      setSections(updatedSections)
+      setPlots(plotsToCreate)
+
+      // Save to localStorage
+      localStorage.setItem(`cemetery_${selectedCemetery.id}_sections`, JSON.stringify(updatedSections))
+
+      // Update statistics
+      updatePlotStatistics()
+
+      console.log(`Generated ${plotsToCreate.length} plots successfully`)
+    } catch (error) {
+      console.error('Error generating plots:', error)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const updatePlotStatistics = () => {
+    const allPlots = sections.flatMap(section => 
+      section.blocks.flatMap(block => block.plots)
+    )
+
+    // Calculate statistics based on burials, not just plot status
+    let totalBurials = 0
+    let totalCapacity = 0
+    
+    allPlots.forEach(plot => {
+      const activeBurials = plot.burials?.filter(b => b.status === 'active').length || 0
+      totalBurials += activeBurials
+      totalCapacity += plot.maxLayers || 3
+    })
+
+    setPlotStatistics({
+      total: allPlots.length,
+      vacant: allPlots.filter(p => {
+        const activeBurials = p.burials?.filter(b => b.status === 'active').length || 0
+        return activeBurials === 0
+      }).length,
+      reserved: allPlots.filter(p => p.status === 'reserved').length,
+      occupied: allPlots.filter(p => {
+        const activeBurials = p.burials?.filter(b => b.status === 'active').length || 0
+        return activeBurials > 0
+      }).length,
+      blocked: allPlots.filter(p => p.status === 'maintenance').length
+    })
+  }
+
+  const handleSaveGravestone = async () => {
+    if (!selectedCemetery || !selectedPlotId || !gravestoneFormData.firstName || !gravestoneFormData.lastName) return
+
+    setIsSaving(true)
+    try {
+      // Find the plot to update
+      const updatedSections = sections.map(section => ({
+        ...section,
+        blocks: section.blocks.map(block => ({
+          ...block,
+          plots: block.plots.map(plot => {
+            if (plot.id === selectedPlotId) {
+              return {
+                ...plot,
+                status: 'occupied' as 'available' | 'reserved' | 'occupied' | 'maintenance',
+                gravestone: {
+                  id: Date.now().toString(),
+                  plotId: plot.id,
+                  material: gravestoneFormData.material,
+                  condition: gravestoneFormData.condition,
+                  inscription: gravestoneFormData.inscription,
+                  dateInstalled: new Date().toISOString().split('T')[0],
+                  manufacturer: 'Unknown',
+                  height: 100,
+                  width: 80,
+                  thickness: 15,
+                  listedDeceased: [] // Empty array for now, can be populated later
+                }
+              }
+            }
+            return plot
+          })
+        }))
+      }))
+
+      setSections(updatedSections)
+
+      // Save to localStorage
+      localStorage.setItem(`cemetery_${selectedCemetery.id}_sections`, JSON.stringify(updatedSections))
+
+      // Reset form
+      setGravestoneFormData({
+        firstName: '',
+        lastName: '',
+        dateOfBirth: '',
+        dateOfDeath: '',
+        burialDate: '',
+        gender: '',
+        material: 'granite',
+        condition: 'good',
+        inscription: ''
+      })
+      setSelectedPlotId('')
+
+      // Update statistics
+      updatePlotStatistics()
+
+      console.log('Gravestone information saved successfully')
+    } catch (error) {
+      console.error('Error saving gravestone:', error)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // New Burial Management Functions
+  const handleAddBurial = async () => {
+    if (!selectedCemetery || !selectedPlotId || !burialFormData.firstName || !burialFormData.lastName) return
+
+    setIsSaving(true)
+    try {
+      // Find the plot and check available layers
+      let targetPlot: Plot | null = null
+      let targetSection: Section | null = null
+      let targetBlock: Block | null = null
+
+      for (const section of sections) {
+        for (const block of section.blocks) {
+          const plot = block.plots.find(p => p.id === selectedPlotId)
+          if (plot) {
+            targetPlot = plot
+            targetSection = section
+            targetBlock = block
+            break
+          }
+        }
+        if (targetPlot) break
+      }
+
+      if (!targetPlot || !targetSection || !targetBlock) {
+        throw new Error('Plot not found')
+      }
+
+      // Check if the selected layer is available
+      const existingBurial = targetPlot.burials.find(b => b.layer === burialFormData.layer && b.status === 'active')
+      if (existingBurial) {
+        throw new Error(`Layer ${burialFormData.layer} is already occupied by ${existingBurial.deceasedInfo.firstName} ${existingBurial.deceasedInfo.lastName}`)
+      }
+
+      // Check if layer is within plot limits
+      if (burialFormData.layer > targetPlot.maxLayers) {
+        throw new Error(`Layer ${burialFormData.layer} exceeds plot maximum of ${targetPlot.maxLayers} layers`)
+      }
+
+      const newBurial: Burial = {
+        id: Date.now().toString(),
+        plotId: selectedPlotId,
+        layer: burialFormData.layer,
+        deceasedInfo: {
+          firstName: burialFormData.firstName,
+          lastName: burialFormData.lastName,
+          middleName: burialFormData.middleName,
+          dateOfBirth: burialFormData.dateOfBirth,
+          dateOfDeath: burialFormData.dateOfDeath,
+          burialDate: burialFormData.burialDate,
+          gender: burialFormData.gender || 'male',
+          causeOfDeath: burialFormData.causeOfDeath,
+          occupation: burialFormData.occupation,
+          nextOfKin: burialFormData.nextOfKin.name ? {
+            name: burialFormData.nextOfKin.name,
+            relationship: burialFormData.nextOfKin.relationship,
+            contactNumber: burialFormData.nextOfKin.contactNumber
+          } : undefined
+        },
+        burialType: burialFormData.burialType,
+        expirationDate: burialFormData.burialType === 'temporary' ? burialFormData.expirationDate : undefined,
+        status: 'active',
+        notes: burialFormData.notes
+      }
+
+      // Update sections with new burial
+      const updatedSections = sections.map(section => {
+        if (section.id === targetSection!.id) {
+          return {
+            ...section,
+            blocks: section.blocks.map(block => {
+              if (block.id === targetBlock!.id) {
+                return {
+                  ...block,
+                  plots: block.plots.map(plot => {
+                    if (plot.id === selectedPlotId) {
+                      const updatedBurials = [...plot.burials, newBurial]
+                      return {
+                        ...plot,
+                        burials: updatedBurials,
+                        status: 'occupied' as 'available' | 'reserved' | 'occupied' | 'maintenance'
+                      }
+                    }
+                    return plot
+                  })
+                }
+              }
+              return block
+            })
+          }
+        }
+        return section
+      })
+
+      setSections(updatedSections)
+
+      // Save to localStorage
+      localStorage.setItem(`cemetery_${selectedCemetery.id}_sections`, JSON.stringify(updatedSections))
+
+      // Reset form
+      setBurialFormData({
+        firstName: '',
+        lastName: '',
+        middleName: '',
+        dateOfBirth: '',
+        dateOfDeath: '',
+        burialDate: '',
+        gender: '',
+        causeOfDeath: '',
+        occupation: '',
+        nextOfKin: {
+          name: '',
+          relationship: '',
+          contactNumber: ''
+        },
+        burialType: 'permanent',
+        expirationDate: '',
+        layer: 1,
+        notes: ''
+      })
+
+      // Update statistics
+      updatePlotStatistics()
+
+      console.log('Burial added successfully:', newBurial)
+      alert(`Burial added successfully for ${newBurial.deceasedInfo.firstName} ${newBurial.deceasedInfo.lastName} in Layer ${newBurial.layer}`)
+    } catch (error) {
+      console.error('Error adding burial:', error)
+      alert(`Error: ${error}`)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // Occupant Listing Functions
+  const getAreaOccupants = (areaType: 'plot' | 'block' | 'section', areaId: string): Burial[] => {
+    const allBurials: Burial[] = []
+
+    if (areaType === 'plot') {
+      // Get burials from specific plot
+      for (const section of sections) {
+        for (const block of section.blocks) {
+          const plot = block.plots.find(p => p.id === areaId)
+          if (plot) {
+            return plot.burials.filter(b => b.status === 'active')
+          }
+        }
+      }
+    } else if (areaType === 'block') {
+      // Get burials from all plots in block
+      for (const section of sections) {
+        const block = section.blocks.find(b => b.id === areaId)
+        if (block) {
+          block.plots.forEach(plot => {
+            allBurials.push(...plot.burials.filter(b => b.status === 'active'))
+          })
+          break
+        }
+      }
+    } else if (areaType === 'section') {
+      // Get burials from all plots in section
+      const section = sections.find(s => s.id === areaId)
+      if (section) {
+        section.blocks.forEach(block => {
+          block.plots.forEach(plot => {
+            allBurials.push(...plot.burials.filter(b => b.status === 'active'))
+          })
+        })
+      }
+    }
+
+    return allBurials.sort((a, b) => {
+      // Sort by burial date (newest first)
+      return new Date(b.deceasedInfo.burialDate).getTime() - new Date(a.deceasedInfo.burialDate).getTime()
+    })
+  }
+
+  const handleShowOccupants = (areaType: 'plot' | 'block' | 'section', areaId: string, areaName: string) => {
+    const occupants = getAreaOccupants(areaType, areaId)
+    setSelectedAreaType(areaType)
+    setSelectedAreaId(areaId)
+    setSelectedAreaName(areaName)
+    setAreaOccupants(occupants)
+    setShowOccupantsList(true)
+  }
+
+  const handleCloseOccupantsList = () => {
+    setShowOccupantsList(false)
+    setSelectedAreaType(null)
+    setSelectedAreaId('')
+    setSelectedAreaName('')
+    setAreaOccupants([])
+  }
+
+  // Delete functions
+  const handleDeleteConfirm = (type: 'cemetery' | 'section' | 'block' | 'plot' | 'gravestone' | 'burial', item: any, itemName: string) => {
+    setDeleteType(type)
+    setDeleteItem(item)
+    setDeleteItemName(itemName)
+    setShowDeleteConfirm(true)
+  }
+
+  const handleDeleteCancel = () => {
+    setShowDeleteConfirm(false)
+    setDeleteType(null)
+    setDeleteItem(null)
+    setDeleteItemName('')
+  }
+
+  const handleDeleteExecute = async () => {
+    if (!deleteType || !deleteItem || !selectedCemetery) return
+
+    setIsSaving(true)
+    try {
+      switch (deleteType) {
+        case 'cemetery':
+          // Delete cemetery
+          const updatedCemeteries = cemeteries.filter(c => c.id !== deleteItem.id)
+          setCemeteries(updatedCemeteries)
+          localStorage.setItem('cemeteries', JSON.stringify(updatedCemeteries))
+          
+          // Clear cemetery-specific data
+          localStorage.removeItem(`cemetery_${deleteItem.id}_sections`)
+          
+          // Reset selected cemetery if it was deleted
+          if (selectedCemetery.id === deleteItem.id) {
+            setSelectedCemetery(null)
+            setSections([])
+          }
+          break
+
+        case 'section':
+          // Delete section and all its blocks and plots
+          const updatedSectionsAfterDelete = sections.filter(s => s.id !== deleteItem.id)
+          setSections(updatedSectionsAfterDelete)
+          localStorage.setItem(`cemetery_${selectedCemetery.id}_sections`, JSON.stringify(updatedSectionsAfterDelete))
+          break
+
+        case 'block':
+          // Delete block and all its plots
+          const updatedSectionsAfterBlockDelete = sections.map(section => ({
+            ...section,
+            blocks: section.blocks.filter(b => b.id !== deleteItem.id)
+          }))
+          setSections(updatedSectionsAfterBlockDelete)
+          localStorage.setItem(`cemetery_${selectedCemetery.id}_sections`, JSON.stringify(updatedSectionsAfterBlockDelete))
+          break
+
+        case 'plot':
+          // Delete plot
+          const updatedSectionsAfterPlotDelete = sections.map(section => ({
+            ...section,
+            blocks: section.blocks.map(block => ({
+              ...block,
+              plots: block.plots.filter(p => p.id !== deleteItem.id)
+            }))
+          }))
+          setSections(updatedSectionsAfterPlotDelete)
+          localStorage.setItem(`cemetery_${selectedCemetery.id}_sections`, JSON.stringify(updatedSectionsAfterPlotDelete))
+          break
+
+        case 'burial':
+          // Delete burial (mark as transferred/exhumed)
+          const updatedSectionsAfterBurialDelete = sections.map(section => ({
+            ...section,
+            blocks: section.blocks.map(block => ({
+              ...block,
+              plots: block.plots.map(plot => {
+                if (plot.burials.some(b => b.id === deleteItem.id)) {
+                  const updatedBurials = plot.burials.map(burial => 
+                    burial.id === deleteItem.id 
+                      ? { ...burial, status: 'transferred' as 'active' | 'transferred' | 'exhumed' }
+                      : burial
+                  )
+                  const activeBurials = updatedBurials.filter(b => b.status === 'active')
+                  return {
+                    ...plot,
+                    burials: updatedBurials,
+                    status: activeBurials.length > 0 ? 'occupied' : 'available' as 'available' | 'reserved' | 'occupied' | 'maintenance'
+                  }
+                }
+                return plot
+              })
+            }))
+          }))
+          setSections(updatedSectionsAfterBurialDelete)
+          localStorage.setItem(`cemetery_${selectedCemetery.id}_sections`, JSON.stringify(updatedSectionsAfterBurialDelete))
+          break
+
+        case 'gravestone':
+          // Delete gravestone (keep burials but remove gravestone)
+          const updatedSectionsAfterGravestoneDelete = sections.map(section => ({
+            ...section,
+            blocks: section.blocks.map(block => ({
+              ...block,
+              plots: block.plots.map(plot => {
+                if (plot.id === deleteItem.plotId) {
+                  const { gravestone, ...plotWithoutGravestone } = plot
+                  // Keep plot as occupied if there are active burials
+                  const activeBurials = plot.burials?.filter(b => b.status === 'active') || []
+                  return {
+                    ...plotWithoutGravestone,
+                    status: activeBurials.length > 0 ? 'occupied' : 'available' as 'available' | 'reserved' | 'occupied' | 'maintenance'
+                  }
+                }
+                return plot
+              })
+            }))
+          }))
+          setSections(updatedSectionsAfterGravestoneDelete)
+          localStorage.setItem(`cemetery_${selectedCemetery.id}_sections`, JSON.stringify(updatedSectionsAfterGravestoneDelete))
+          break
+      }
+
+      console.log(`${deleteType} deleted successfully:`, deleteItem)
+    } catch (error) {
+      console.error(`Error deleting ${deleteType}:`, error)
+    } finally {
+      setIsSaving(false)
+      handleDeleteCancel()
+      updatePlotStatistics()
+    }
+  }
+
+  // Update statistics when sections change
+  useEffect(() => {
+    updatePlotStatistics()
+  }, [sections])
+
+  // Handle keyboard events for modal close
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        if (showDeleteConfirm) {
+          handleDeleteCancel()
+        } else if (showOccupantsList) {
+          handleCloseOccupantsList()
+        }
+      }
+    }
+
+    if (showDeleteConfirm || showOccupantsList) {
+      document.addEventListener('keydown', handleKeyDown)
+      // Prevent body scroll when modal is open
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = 'unset'
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = 'unset'
+    }
+  }, [showDeleteConfirm, showOccupantsList])
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center">
@@ -346,16 +1066,25 @@ export default function CemeteryManagementPage() {
                       </div>
                     </div>
                     
-                    <button
-                      onClick={() => {
-                        setSelectedCemetery(cemetery)
-                        window.history.pushState({}, '', `/admin/cemetery?id=${cemetery.id}`)
-                      }}
-                      className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2"
-                    >
-                      <FiEdit2 size={16} />
-                      <span>Manage Cemetery</span>
-                    </button>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => {
+                          setSelectedCemetery(cemetery)
+                          window.history.pushState({}, '', `/admin/cemetery?id=${cemetery.id}`)
+                        }}
+                        className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2"
+                      >
+                        <FiEdit2 size={16} />
+                        <span>Manage</span>
+                      </button>
+                      <button
+                        onClick={() => handleDeleteConfirm('cemetery', cemetery, cemetery.name)}
+                        className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center"
+                        title="Delete Cemetery"
+                      >
+                        <MdDelete size={16} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -367,7 +1096,7 @@ export default function CemeteryManagementPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
+    <div className={`min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 ${(showDeleteConfirm || showOccupantsList) ? 'overflow-hidden' : ''}`}>
       <div className="p-6 max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
@@ -397,7 +1126,7 @@ export default function CemeteryManagementPage() {
               { key: 'sections', title: 'Sections', icon: MdLayers, color: '#7C3AED' },
               { key: 'blocks', title: 'Blocks', icon: FiGrid, color: '#3B82F6' },
               { key: 'plots', title: 'Plots', icon: FiMapPin, color: '#EF4444' },
-              { key: 'gravestones', title: 'Gravestones', icon: FiTarget, color: '#8B5CF6' }
+              { key: 'burials', title: 'Burials', icon: FiTarget, color: '#8B5CF6' }
             ].map((step) => {
               const isActive = currentStep === step.key
               const IconComponent = step.icon
@@ -428,7 +1157,9 @@ export default function CemeteryManagementPage() {
                 <h2 className="text-xl font-semibold text-gray-900">Interactive Cemetery Map</h2>
               </div>
               
-              <div className="h-96">
+              <div 
+                className={`h-[600px] ${(showDeleteConfirm || showOccupantsList) ? 'pointer-events-none' : ''}`}
+              >
                 <CemeteryMapComponent 
                   cemeteryLayout={selectedCemetery ? {
                     id: selectedCemetery.id,
@@ -446,12 +1177,48 @@ export default function CemeteryManagementPage() {
                         name: block.name,
                         sectionId: block.sectionId,
                         coordinates: block.boundary,
-                        color: block.color
+                        color: block.color,
+                        plots: block.plots.map(plot => ({
+                          id: plot.id,
+                          blockId: plot.blockId,
+                          plotCode: plot.plotNumber,
+                          coordinates: plot.coordinates,
+                          status: plot.status === 'available' ? 'VACANT' : 
+                                 plot.status === 'reserved' ? 'RESERVED' : 
+                                 plot.status === 'occupied' ? 'OCCUPIED' : 'BLOCKED',
+                          size: plot.size,
+                          occupantCount: plot.burials?.filter(b => b.status === 'active').length || 0,
+                          maxLayers: plot.maxLayers || 3,
+                          burials: plot.burials?.filter(b => b.status === 'active').map(burial => ({
+                            id: burial.id,
+                            layer: burial.layer,
+                            name: `${burial.deceasedInfo.firstName} ${burial.deceasedInfo.lastName}`,
+                            burialDate: burial.deceasedInfo.burialDate,
+                            burialType: burial.burialType
+                          })) || [],
+                          // Use burial data instead of gravestone deceased info
+                          deceased: (plot.burials && plot.burials.length > 0 && plot.burials[0].status === 'active') ? {
+                            firstName: plot.burials[0].deceasedInfo.firstName,
+                            lastName: plot.burials[0].deceasedInfo.lastName,
+                            dateOfBirth: plot.burials[0].deceasedInfo.dateOfBirth,
+                            dateOfDeath: plot.burials[0].deceasedInfo.dateOfDeath
+                          } : undefined,
+                          gravestone: plot.gravestone ? {
+                            material: plot.gravestone.material,
+                            inscription: plot.gravestone.inscription,
+                            condition: plot.gravestone.condition
+                          } : undefined
+                        }))
                       }))
                     }))
                   } : null}
                   drawingMode={drawingMode}
                   currentDrawing={currentDrawing}
+                  showPlots={currentStep === 'plots' || currentStep === 'burials'}
+                  center={selectedCemetery ? calculateCemeteryCenter(selectedCemetery) : undefined}
+                  zoom={19}
+                  height="h-[600px]"
+                  mapType="satellite"
                   onMapClick={(coords) => {
                     if (isDrawing) {
                       setCurrentDrawing(prev => [...prev, coords])
@@ -459,6 +1226,26 @@ export default function CemeteryManagementPage() {
                   }}
                   onPolygonClick={(type, id) => {
                     console.log(`Clicked ${type}:`, id)
+                    
+                    if (type === 'plot') {
+                      // Show plot occupants
+                      const plot = sections.flatMap(s => s.blocks.flatMap(b => b.plots)).find(p => p.id === id)
+                      if (plot) {
+                        handleShowOccupants('plot', plot.id, plot.plotNumber)
+                      }
+                    } else if (type === 'block') {
+                      // Show block occupants
+                      const block = sections.flatMap(s => s.blocks).find(b => b.id === id)
+                      if (block) {
+                        handleShowOccupants('block', block.id, block.name)
+                      }
+                    } else if (type === 'section') {
+                      // Show section occupants
+                      const section = sections.find(s => s.id === id)
+                      if (section) {
+                        handleShowOccupants('section', section.id, section.name)
+                      }
+                    }
                   }}
                 />
               </div>
@@ -502,6 +1289,43 @@ export default function CemeteryManagementPage() {
                       </div>
                     </div>
 
+                    <div className="bg-green-50 p-4 rounded-lg">
+                      <h4 className="font-medium text-green-900 mb-3">Burial Statistics</h4>
+                      <div className="space-y-2 text-sm">
+                        {(() => {
+                          const allPlots = sections.flatMap(s => s.blocks.flatMap(b => b.plots))
+                          const totalBurials = allPlots.reduce((total, plot) => {
+                            return total + (plot.burials?.filter(b => b.status === 'active').length || 0)
+                          }, 0)
+                          const totalCapacity = allPlots.reduce((total, plot) => total + (plot.maxLayers || 3), 0)
+                          const temporaryBurials = allPlots.reduce((total, plot) => {
+                            return total + (plot.burials?.filter(b => b.status === 'active' && b.burialType === 'temporary').length || 0)
+                          }, 0)
+                          
+                          return (
+                            <>
+                              <div className="flex justify-between">
+                                <span className="font-medium">Active Burials:</span>
+                                <span>{totalBurials.toLocaleString()}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="font-medium">Total Capacity:</span>
+                                <span>{totalCapacity.toLocaleString()} layers</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="font-medium">Occupancy Rate:</span>
+                                <span>{totalCapacity > 0 ? Math.round((totalBurials / totalCapacity) * 100) : 0}%</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="font-medium">Temporary Burials:</span>
+                                <span>{temporaryBurials.toLocaleString()}</span>
+                              </div>
+                            </>
+                          )
+                        })()}
+                      </div>
+                    </div>
+
                     <div className="bg-blue-50 p-4 rounded-lg">
                       <h4 className="font-medium text-blue-900 mb-3">Quick Actions</h4>
                       <div className="space-y-2">
@@ -525,6 +1349,20 @@ export default function CemeteryManagementPage() {
                         >
                           <FiMapPin size={16} color="#EF4444" />
                           <span>Manage Plots</span>
+                        </button>
+                        <button
+                          onClick={() => setCurrentStep('burials')}
+                          className="w-full text-left bg-white p-3 rounded border hover:bg-gray-50 transition-colors flex items-center space-x-2"
+                        >
+                          <FiTarget size={16} color="#8B5CF6" />
+                          <span>Manage Burials</span>
+                        </button>
+                        <button
+                          onClick={() => window.location.href = '/admin/cemetery/plots'}
+                          className="w-full text-left bg-gradient-to-r from-blue-600 to-purple-600 p-3 rounded border hover:from-blue-700 hover:to-purple-700 transition-colors flex items-center space-x-2 text-white"
+                        >
+                          <FiList size={16} />
+                          <span>View All Plots</span>
                         </button>
                       </div>
                     </div>
@@ -613,7 +1451,16 @@ export default function CemeteryManagementPage() {
                                 <div className="w-4 h-4 rounded" style={{ backgroundColor: section.color }}></div>
                                 <span className="text-sm font-medium">{section.name}</span>
                               </div>
-                              <span className="text-xs text-gray-500">{section.blocks.length} blocks</span>
+                              <div className="flex items-center space-x-2">
+                                <span className="text-xs text-gray-500">{section.blocks.length} blocks</span>
+                                <button
+                                  onClick={() => handleDeleteConfirm('section', section, section.name)}
+                                  className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+                                  title="Delete Section"
+                                >
+                                  <MdDelete size={16} />
+                                </button>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -760,7 +1607,16 @@ export default function CemeteryManagementPage() {
                                 section.blocks.map(block => (
                                   <div key={block.id} className="flex items-center justify-between bg-white p-2 rounded border text-sm">
                                     <span>{section.name} - {block.name} ({block.blockType})</span>
-                                    <span className="text-xs text-gray-500">{block.plots.length} plots</span>
+                                    <div className="flex items-center space-x-2">
+                                      <span className="text-xs text-gray-500">{block.plots.length} plots</span>
+                                      <button
+                                        onClick={() => handleDeleteConfirm('block', block, `${section.name} - ${block.name}`)}
+                                        className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+                                        title="Delete Block"
+                                      >
+                                        <MdDelete size={14} />
+                                      </button>
+                                    </div>
                                   </div>
                                 ))
                               )}
@@ -821,65 +1677,602 @@ export default function CemeteryManagementPage() {
                   </div>
                   
                   <div className="space-y-4">
-                    <div className="bg-red-50 p-4 rounded-lg">
-                      <h4 className="font-medium text-red-900 mb-2">Plot Generation</h4>
-                      <p className="text-sm text-red-800 mb-3">
-                        Generate plots automatically within existing blocks or create individual plots manually.
-                      </p>
-                      
-                      <div className="space-y-3">
-                        <button className="w-full bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition-colors text-sm">
-                          Auto-Generate All Plots
-                        </button>
-                        <button className="w-full bg-red-100 text-red-700 px-4 py-2 rounded hover:bg-red-200 transition-colors text-sm">
-                          Create Individual Plot
-                        </button>
-                      </div>
-                    </div>
+                    {sections.some(s => s.blocks.length > 0) ? (
+                      <>
+                        <div className="bg-red-50 p-4 rounded-lg">
+                          <h4 className="font-medium text-red-900 mb-2">Auto-Generate Plots</h4>
+                          <p className="text-sm text-red-800 mb-3">
+                            Generate plots automatically within existing blocks based on standard dimensions.
+                          </p>
+                          
+                          <div className="space-y-3">
+                            <div className="grid grid-cols-3 gap-2 text-sm">
+                              <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">Plot Length (m)</label>
+                                <input
+                                  type="number"
+                                  defaultValue="2"
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">Plot Width (m)</label>
+                                <input
+                                  type="number"
+                                  defaultValue="1"
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">Spacing (m)</label>
+                                <input
+                                  type="number"
+                                  defaultValue="0.5"
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
+                                />
+                              </div>
+                            </div>
+                            
+                            <button 
+                              onClick={handleAutoGeneratePlots}
+                              disabled={isSaving}
+                              className="w-full bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 disabled:bg-gray-300 transition-colors text-sm flex items-center justify-center space-x-2"
+                            >
+                              {isSaving ? (
+                                <>
+                                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                                  <span>Generating...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <FiGrid size={16} />
+                                  <span>Auto-Generate All Plots</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
 
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h4 className="font-medium text-gray-900 mb-2">Plot Statistics</h4>
-                      <div className="text-sm text-gray-600">
-                        <p>Total plots will be calculated based on blocks created.</p>
-                        <p className="mt-1">Implementation coming soon...</p>
+                        <div className="bg-blue-50 p-4 rounded-lg">
+                          <h4 className="font-medium text-blue-900 mb-2">Manual Plot Creation</h4>
+                          <p className="text-sm text-blue-800 mb-3">
+                            Create individual plots by drawing them on the map.
+                          </p>
+                          
+                          <div className="space-y-3">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Plot Code</label>
+                              <input
+                                type="text"
+                                value={plotFormData.plotCode}
+                                onChange={(e) => setPlotFormData({...plotFormData, plotCode: e.target.value})}
+                                placeholder="Auto-generated if empty"
+                                className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              />
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Block</label>
+                                <select
+                                  value={plotFormData.blockId}
+                                  onChange={(e) => setPlotFormData({...plotFormData, blockId: e.target.value})}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                >
+                                  <option value="">Select Block</option>
+                                  {sections.flatMap(section =>
+                                    section.blocks.map(block => (
+                                      <option key={block.id} value={block.id}>
+                                        {section.name} - {block.name}
+                                      </option>
+                                    ))
+                                  )}
+                                </select>
+                              </div>
+                              
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Size</label>
+                                <select
+                                  value={plotFormData.size}
+                                  onChange={(e) => setPlotFormData({...plotFormData, size: e.target.value as 'standard' | 'large' | 'family' | 'niche'})}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                >
+                                  <option value="standard">Standard</option>
+                                  <option value="large">Large</option>
+                                  <option value="family">Family</option>
+                                  <option value="niche">Niche</option>
+                                </select>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {drawingMode === 'plot' && (
+                            <div className="mt-3 bg-blue-100 p-3 rounded">
+                              <p className="text-sm text-blue-800">
+                                Drawing plot... Points: {currentDrawing.length}
+                                {currentDrawing.length >= 3 && <span className="text-green-700 ml-2">✓ Valid plot</span>}
+                              </p>
+                            </div>
+                          )}
+                          
+                          <div className="flex space-x-2 mt-4">
+                            {drawingMode !== 'plot' ? (
+                              <button
+                                onClick={() => {
+                                  if (plotFormData.blockId) {
+                                    setDrawingMode('plot')
+                                    setIsDrawing(true)
+                                    setCurrentDrawing([])
+                                  }
+                                }}
+                                disabled={!plotFormData.blockId}
+                                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300 transition-colors text-sm"
+                              >
+                                <FiMapPin size={16} />
+                                <span>Draw Plot</span>
+                              </button>
+                            ) : (
+                              <button
+                                onClick={handleSavePlot}
+                                disabled={currentDrawing.length < 3 || !plotFormData.blockId || isSaving}
+                                className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-300 transition-colors text-sm"
+                              >
+                                {isSaving ? (
+                                  <>
+                                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                                    <span>Saving...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <FiCheck size={16} />
+                                    <span>Save Plot</span>
+                                  </>
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="bg-green-50 p-4 rounded-lg">
+                          <h4 className="font-medium text-green-900 mb-2">Plot Statistics</h4>
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div className="bg-white p-3 rounded border">
+                              <div className="flex justify-between">
+                                <span>Total Plots:</span>
+                                <span className="font-medium">{plotStatistics.total}</span>
+                              </div>
+                            </div>
+                            <div className="bg-white p-3 rounded border">
+                              <div className="flex justify-between">
+                                <span className="text-green-600">Vacant:</span>
+                                <span className="font-medium text-green-600">{plotStatistics.vacant}</span>
+                              </div>
+                            </div>
+                            <div className="bg-white p-3 rounded border">
+                              <div className="flex justify-between">
+                                <span className="text-yellow-600">Reserved:</span>
+                                <span className="font-medium text-yellow-600">{plotStatistics.reserved}</span>
+                              </div>
+                            </div>
+                            <div className="bg-white p-3 rounded border">
+                              <div className="flex justify-between">
+                                <span className="text-red-600">Occupied:</span>
+                                <span className="font-medium text-red-600">{plotStatistics.occupied}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Plot List */}
+                        {plotStatistics.total > 0 && (
+                          <div className="bg-green-50 p-4 rounded-lg">
+                            <h4 className="font-medium text-green-900 mb-2">All Plots ({plotStatistics.total})</h4>
+                            <div className="space-y-2 max-h-60 overflow-y-auto">
+                              {sections.flatMap(section =>
+                                section.blocks.flatMap(block =>
+                                  block.plots.map(plot => (
+                                    <div key={plot.id} className="bg-white p-3 rounded border text-sm">
+                                      <div className="flex justify-between items-center">
+                                        <div>
+                                          <span className="font-medium">{plot.plotNumber}</span>
+                                          <span className="ml-2 text-gray-600">({plot.size})</span>
+                                          <span className={`ml-2 px-2 py-1 rounded text-xs ${
+                                            plot.status === 'available' ? 'bg-green-100 text-green-800' :
+                                            plot.status === 'reserved' ? 'bg-yellow-100 text-yellow-800' :
+                                            plot.status === 'occupied' ? 'bg-blue-100 text-blue-800' :
+                                            'bg-red-100 text-red-800'
+                                          }`}>
+                                            {plot.status}
+                                          </span>
+                                          {plot.burials && plot.burials.length > 0 && (
+                                            <span className="ml-2 text-xs text-purple-600">
+                                              ⚰️ {plot.burials.filter(b => b.status === 'active').length}/{plot.maxLayers || 3} layers
+                                            </span>
+                                          )}
+                                        </div>
+                                        <button
+                                          onClick={() => handleDeleteConfirm('plot', plot, `${plot.plotNumber} (${plot.status})`)}
+                                          className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+                                          title="Delete Plot"
+                                        >
+                                          <MdDelete size={14} />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))
+                                )
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="bg-yellow-50 p-4 rounded-lg">
+                        <p className="text-yellow-800 text-sm">
+                          Create blocks first before adding plots.
+                        </p>
+                        <button
+                          onClick={() => setCurrentStep('blocks')}
+                          className="mt-2 bg-yellow-600 text-white px-3 py-1 rounded text-sm hover:bg-yellow-700 transition-colors"
+                        >
+                          Create Blocks
+                        </button>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               )}
 
-              {/* Gravestones Management */}
-              {currentStep === 'gravestones' && (
+              {/* Burials Management */}
+              {currentStep === 'burials' && (
                 <div className="p-6">
                   <div className="flex items-center space-x-2 mb-6">
                     <FiTarget size={20} color="#8B5CF6" />
-                    <h3 className="text-lg font-semibold text-gray-900">Manage Gravestones</h3>
+                    <h3 className="text-lg font-semibold text-gray-900">Manage Burials</h3>
                   </div>
                   
                   <div className="space-y-4">
-                    <div className="bg-purple-50 p-4 rounded-lg">
-                      <h4 className="font-medium text-purple-900 mb-2">Gravestone Management</h4>
-                      <p className="text-sm text-purple-800 mb-3">
-                        Add gravestone information for occupied plots. This information will be searchable by citizens.
-                      </p>
-                      
-                      <div className="space-y-3">
-                        <button className="w-full bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 transition-colors text-sm">
-                          Add New Gravestone
-                        </button>
-                        <button className="w-full bg-purple-100 text-purple-700 px-4 py-2 rounded hover:bg-purple-200 transition-colors text-sm">
-                          Import Gravestone Data
-                        </button>
-                      </div>
-                    </div>
+                    {plots.length > 0 ? (
+                      <>
+                        {/* Add New Burial */}
+                        <div className="bg-purple-50 p-4 rounded-lg">
+                          <h4 className="font-medium text-purple-900 mb-2">Add New Burial</h4>
+                          <p className="text-sm text-purple-800 mb-3">
+                            Philippine public cemeteries allow multiple burials per plot in layers. Click on plots to see occupants.
+                          </p>
+                          
+                          <div className="space-y-3">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Select Plot</label>
+                              <select
+                                value={selectedPlotId}
+                                onChange={(e) => {
+                                  setSelectedPlotId(e.target.value)
+                                  // Reset layer to 1 when plot changes
+                                  setBurialFormData({...burialFormData, layer: 1})
+                                }}
+                                className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                              >
+                                <option value="">Select a plot</option>
+                                {sections.flatMap(section =>
+                                  section.blocks.flatMap(block =>
+                                    block.plots.map(plot => {
+                                      const activeBurials = plot.burials?.filter(b => b.status === 'active').length || 0
+                                      return (
+                                        <option key={plot.id} value={plot.id}>
+                                          {plot.plotNumber} ({activeBurials}/{plot.maxLayers} occupied)
+                                        </option>
+                                      )
+                                    })
+                                  )
+                                )}
+                              </select>
+                            </div>
+                            
+                            {selectedPlotId && (
+                              <>
+                                {/* Display plot layer status */}
+                                <div className="bg-white p-3 rounded border">
+                                  <h5 className="font-medium text-gray-900 mb-2">Plot Layer Status</h5>
+                                  {(() => {
+                                    const plot = sections.flatMap(s => s.blocks.flatMap(b => b.plots)).find(p => p.id === selectedPlotId)
+                                    if (!plot) return null
+                                    
+                                    return (
+                                      <div className="grid grid-cols-1 gap-2">
+                                        {Array.from({length: plot.maxLayers}, (_, i) => {
+                                          const layer = i + 1
+                                          const burial = plot.burials?.find(b => b.layer === layer && b.status === 'active')
+                                          return (
+                                            <div key={layer} className={`p-2 rounded text-sm ${
+                                              burial ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                                            }`}>
+                                              <strong>Layer {layer}:</strong> {burial ? 
+                                                `${burial.deceasedInfo.firstName} ${burial.deceasedInfo.lastName} (${burial.burialType})` : 
+                                                'Available'
+                                              }
+                                            </div>
+                                          )
+                                        })}
+                                      </div>
+                                    )
+                                  })()}
+                                </div>
 
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h4 className="font-medium text-gray-900 mb-2">Gravestone Records</h4>
-                      <div className="text-sm text-gray-600">
-                        <p>Gravestone management will be available after plots are created.</p>
-                        <p className="mt-1">Implementation coming soon...</p>
+                                <div className="bg-white p-4 rounded border space-y-3">
+                                  <h5 className="font-medium text-gray-900">Burial Information</h5>
+                                  
+                                  <div className="grid grid-cols-3 gap-3">
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
+                                      <input
+                                        type="text"
+                                        value={burialFormData.firstName}
+                                        onChange={(e) => setBurialFormData({...burialFormData, firstName: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                      />
+                                    </div>
+                                    
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
+                                      <input
+                                        type="text"
+                                        value={burialFormData.lastName}
+                                        onChange={(e) => setBurialFormData({...burialFormData, lastName: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                      />
+                                    </div>
+
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 mb-1">Middle Name</label>
+                                      <input
+                                        type="text"
+                                        value={burialFormData.middleName}
+                                        onChange={(e) => setBurialFormData({...burialFormData, middleName: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                      />
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="grid grid-cols-4 gap-3">
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
+                                      <input
+                                        type="date"
+                                        value={burialFormData.dateOfBirth}
+                                        onChange={(e) => setBurialFormData({...burialFormData, dateOfBirth: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                      />
+                                    </div>
+                                    
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 mb-1">Date of Death</label>
+                                      <input
+                                        type="date"
+                                        value={burialFormData.dateOfDeath}
+                                        onChange={(e) => setBurialFormData({...burialFormData, dateOfDeath: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                      />
+                                    </div>
+                                    
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 mb-1">Burial Date</label>
+                                      <input
+                                        type="date"
+                                        value={burialFormData.burialDate}
+                                        onChange={(e) => setBurialFormData({...burialFormData, burialDate: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                      />
+                                    </div>
+                                    
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                                      <select
+                                        value={burialFormData.gender}
+                                        onChange={(e) => setBurialFormData({...burialFormData, gender: e.target.value as 'male' | 'female'})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                      >
+                                        <option value="">Select</option>
+                                        <option value="male">Male</option>
+                                        <option value="female">Female</option>
+                                      </select>
+                                    </div>
+                                  </div>
+
+                                  <div className="grid grid-cols-3 gap-3">
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 mb-1">Burial Layer *</label>
+                                      <select
+                                        value={burialFormData.layer}
+                                        onChange={(e) => setBurialFormData({...burialFormData, layer: parseInt(e.target.value)})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                      >
+                                        {(() => {
+                                          const plot = sections.flatMap(s => s.blocks.flatMap(b => b.plots)).find(p => p.id === selectedPlotId)
+                                          if (!plot) return <option value="">Select plot first</option>
+                                          
+                                          return Array.from({length: plot.maxLayers}, (_, i) => {
+                                            const layer = i + 1
+                                            const isOccupied = plot.burials?.some(b => b.layer === layer && b.status === 'active')
+                                            return (
+                                              <option key={layer} value={layer} disabled={isOccupied}>
+                                                Layer {layer} {isOccupied ? '(Occupied)' : '(Available)'}
+                                              </option>
+                                            )
+                                          })
+                                        })()}
+                                      </select>
+                                    </div>
+
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 mb-1">Burial Type</label>
+                                      <select
+                                        value={burialFormData.burialType}
+                                        onChange={(e) => setBurialFormData({...burialFormData, burialType: e.target.value as 'temporary' | 'permanent'})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                      >
+                                        <option value="permanent">Permanent</option>
+                                        <option value="temporary">Temporary</option>
+                                      </select>
+                                    </div>
+
+                                    {burialFormData.burialType === 'temporary' && (
+                                      <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Expiration Date</label>
+                                        <input
+                                          type="date"
+                                          value={burialFormData.expirationDate}
+                                          onChange={(e) => setBurialFormData({...burialFormData, expirationDate: e.target.value})}
+                                          className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                        />
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 mb-1">Cause of Death</label>
+                                      <input
+                                        type="text"
+                                        value={burialFormData.causeOfDeath}
+                                        onChange={(e) => setBurialFormData({...burialFormData, causeOfDeath: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                      />
+                                    </div>
+
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 mb-1">Occupation</label>
+                                      <input
+                                        type="text"
+                                        value={burialFormData.occupation}
+                                        onChange={(e) => setBurialFormData({...burialFormData, occupation: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="border-t pt-3">
+                                    <h6 className="font-medium text-gray-900 mb-2">Next of Kin Information</h6>
+                                    <div className="grid grid-cols-3 gap-3">
+                                      <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                                        <input
+                                          type="text"
+                                          value={burialFormData.nextOfKin.name}
+                                          onChange={(e) => setBurialFormData({
+                                            ...burialFormData, 
+                                            nextOfKin: {...burialFormData.nextOfKin, name: e.target.value}
+                                          })}
+                                          className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                        />
+                                      </div>
+
+                                      <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Relationship</label>
+                                        <select
+                                          value={burialFormData.nextOfKin.relationship}
+                                          onChange={(e) => setBurialFormData({
+                                            ...burialFormData,
+                                            nextOfKin: {...burialFormData.nextOfKin, relationship: e.target.value}
+                                          })}
+                                          className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                        >
+                                          <option value="">Select</option>
+                                          <option value="spouse">Spouse</option>
+                                          <option value="son">Son</option>
+                                          <option value="daughter">Daughter</option>
+                                          <option value="father">Father</option>
+                                          <option value="mother">Mother</option>
+                                          <option value="sibling">Sibling</option>
+                                          <option value="other">Other</option>
+                                        </select>
+                                      </div>
+
+                                      <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Contact Number</label>
+                                        <input
+                                          type="text"
+                                          value={burialFormData.nextOfKin.contactNumber}
+                                          onChange={(e) => setBurialFormData({
+                                            ...burialFormData,
+                                            nextOfKin: {...burialFormData.nextOfKin, contactNumber: e.target.value}
+                                          })}
+                                          className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                                    <textarea
+                                      value={burialFormData.notes}
+                                      onChange={(e) => setBurialFormData({...burialFormData, notes: e.target.value})}
+                                      placeholder="Additional notes about the burial..."
+                                      rows={2}
+                                      className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                    />
+                                  </div>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                          
+                          {selectedPlotId && (
+                            <div className="flex space-x-2 mt-4">
+                              <button
+                                onClick={handleAddBurial}
+                                disabled={!burialFormData.firstName || !burialFormData.lastName || !burialFormData.layer || isSaving}
+                                className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:bg-gray-300 transition-colors text-sm"
+                              >
+                                {isSaving ? (
+                                  <>
+                                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                                    <span>Adding...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <FiPlus size={16} />
+                                    <span>Add Burial</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Occupant List Quick Actions */}
+                        <div className="bg-blue-50 p-4 rounded-lg">
+                          <h4 className="font-medium text-blue-900 mb-2">View Occupants</h4>
+                          <p className="text-sm text-blue-800 mb-3">
+                            Click on any area to see who is buried there. Perfect for Philippine multi-layer burial system.
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {sections.map(section => (
+                              <button
+                                key={section.id}
+                                onClick={() => handleShowOccupants('section', section.id, section.name)}
+                                className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
+                              >
+                                {section.name} Section
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="bg-yellow-50 p-4 rounded-lg">
+                        <p className="text-yellow-800 text-sm">
+                          Create plots first before adding burials.
+                        </p>
+                        <button
+                          onClick={() => setCurrentStep('plots')}
+                          className="mt-2 bg-yellow-600 text-white px-3 py-1 rounded text-sm hover:bg-yellow-700 transition-colors"
+                        >
+                          Create Plots
+                        </button>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -887,6 +2280,298 @@ export default function CemeteryManagementPage() {
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]"
+          onClick={handleDeleteCancel}
+          style={{ 
+            pointerEvents: 'auto',
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0
+          }}
+        >
+          <div 
+            className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="flex-shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                  <MdDelete size={20} color="#DC2626" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Delete {deleteType === 'gravestone' ? 'Gravestone' : deleteType ? deleteType.charAt(0).toUpperCase() + deleteType.slice(1) : 'Item'}
+                  </h3>
+                  <p className="text-sm text-gray-600">This action cannot be undone.</p>
+                </div>
+              </div>
+              
+              <div className="mb-6">
+                <p className="text-gray-700">
+                  Are you sure you want to delete <strong>"{deleteItemName}"</strong>?
+                </p>
+                {deleteType === 'section' && (
+                  <p className="text-sm text-red-600 mt-2">
+                    ⚠️ This will also delete all blocks and plots within this section.
+                  </p>
+                )}
+                {deleteType === 'block' && (
+                  <p className="text-sm text-red-600 mt-2">
+                    ⚠️ This will also delete all plots within this block.
+                  </p>
+                )}
+                {deleteType === 'cemetery' && (
+                  <p className="text-sm text-red-600 mt-2">
+                    ⚠️ This will delete the entire cemetery and all its data (sections, blocks, plots, gravestones).
+                  </p>
+                )}
+              </div>
+              
+              <div className="flex space-x-3">
+                <button
+                  onClick={handleDeleteCancel}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  disabled={isSaving}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteExecute}
+                  disabled={isSaving}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-red-400 transition-colors flex items-center justify-center space-x-2"
+                >
+                  {isSaving ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                      <span>Deleting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <MdDelete size={16} />
+                      <span>Delete</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Occupants List Modal */}
+      {showOccupantsList && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]"
+          onClick={handleCloseOccupantsList}
+          style={{ 
+            pointerEvents: 'auto',
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0
+          }}
+        >
+          <div 
+            className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[80vh] mx-4 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                    <FiEye size={20} color="#2563EB" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Occupants in {selectedAreaName} {selectedAreaType && selectedAreaType.charAt(0).toUpperCase() + selectedAreaType.slice(1)}
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      Total burials found: {areaOccupants.length} (Philippine multi-layer system)
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleCloseOccupantsList}
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <FiX size={20} />
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-6 overflow-y-auto max-h-96">
+              {areaOccupants.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="mx-auto mb-4">
+                    <FiMapPin size={48} color="#9CA3AF" />
+                  </div>
+                  <h4 className="text-lg font-medium text-gray-900 mb-2">No Active Burials</h4>
+                  <p className="text-gray-600">
+                    This {selectedAreaType} currently has no active burials recorded.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {areaOccupants.map((burial, index) => {
+                    // Find the plot this burial belongs to
+                    const plotInfo = sections.flatMap(section =>
+                      section.blocks.flatMap(block =>
+                        block.plots.map(plot => ({
+                          plot,
+                          section: section.name,
+                          block: block.name
+                        }))
+                      )
+                    ).find(info => info.plot.id === burial.plotId)
+
+                    return (
+                      <div key={burial.id} className="bg-gray-50 p-4 rounded-lg border">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-3 mb-2">
+                              <h4 className="text-lg font-semibold text-gray-900">
+                                {burial.deceasedInfo.firstName} {burial.deceasedInfo.middleName && `${burial.deceasedInfo.middleName} `}{burial.deceasedInfo.lastName}
+                              </h4>
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                burial.burialType === 'permanent' 
+                                  ? 'bg-green-100 text-green-800' 
+                                  : 'bg-yellow-100 text-yellow-800'
+                              }`}>
+                                {burial.burialType}
+                              </span>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                              <div>
+                                <p className="font-medium text-gray-700">Location</p>
+                                <p className="text-gray-600">
+                                  {plotInfo?.section} → {plotInfo?.block} → {plotInfo?.plot.plotNumber}
+                                </p>
+                                <p className="text-xs text-blue-600 font-medium">Layer {burial.layer}</p>
+                              </div>
+                              
+                              <div>
+                                <p className="font-medium text-gray-700">Dates</p>
+                                <p className="text-gray-600">
+                                  Born: {burial.deceasedInfo.dateOfBirth ? 
+                                    new Date(burial.deceasedInfo.dateOfBirth).toLocaleDateString() : 'N/A'}
+                                </p>
+                                <p className="text-gray-600">
+                                  Died: {burial.deceasedInfo.dateOfDeath ? 
+                                    new Date(burial.deceasedInfo.dateOfDeath).toLocaleDateString() : 'N/A'}
+                                </p>
+                                <p className="text-gray-600">
+                                  Buried: {burial.deceasedInfo.burialDate ? 
+                                    new Date(burial.deceasedInfo.burialDate).toLocaleDateString() : 'N/A'}
+                                </p>
+                              </div>
+                              
+                              <div>
+                                <p className="font-medium text-gray-700">Personal Info</p>
+                                <p className="text-gray-600">Gender: {burial.deceasedInfo.gender || 'N/A'}</p>
+                                {burial.deceasedInfo.occupation && (
+                                  <p className="text-gray-600">Job: {burial.deceasedInfo.occupation}</p>
+                                )}
+                                {burial.deceasedInfo.causeOfDeath && (
+                                  <p className="text-gray-600">Cause: {burial.deceasedInfo.causeOfDeath}</p>
+                                )}
+                              </div>
+                              
+                              <div>
+                                <p className="font-medium text-gray-700">Next of Kin</p>
+                                {burial.deceasedInfo.nextOfKin ? (
+                                  <>
+                                    <p className="text-gray-600">{burial.deceasedInfo.nextOfKin.name}</p>
+                                    <p className="text-gray-600 capitalize">{burial.deceasedInfo.nextOfKin.relationship}</p>
+                                    {burial.deceasedInfo.nextOfKin.contactNumber && (
+                                      <p className="text-gray-600 text-xs">{burial.deceasedInfo.nextOfKin.contactNumber}</p>
+                                    )}
+                                  </>
+                                ) : (
+                                  <p className="text-gray-600">N/A</p>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {burial.burialType === 'temporary' && burial.expirationDate && (
+                              <div className="mt-3 p-2 bg-yellow-50 rounded border">
+                                <p className="text-sm font-medium text-yellow-800">
+                                  Temporary Burial - Expires: {new Date(burial.expirationDate).toLocaleDateString()}
+                                </p>
+                              </div>
+                            )}
+                            
+                            {burial.notes && (
+                              <div className="mt-3 p-2 bg-blue-50 rounded border">
+                                <p className="text-sm text-blue-800">
+                                  <strong>Notes:</strong> {burial.notes}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                          
+                          <div className="flex space-x-2 ml-4">
+                            <button
+                              onClick={() => {
+                                // Navigate to plot location
+                                if (plotInfo) {
+                                  handleShowOccupants('plot', plotInfo.plot.id, plotInfo.plot.plotNumber)
+                                }
+                              }}
+                              className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors"
+                              title="View Plot Details"
+                            >
+                              <FiMapPin size={16} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteConfirm('burial', burial, `${burial.deceasedInfo.firstName} ${burial.deceasedInfo.lastName} (Layer ${burial.layer})`)}
+                              className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+                              title="Remove Burial"
+                            >
+                              <MdDelete size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+            
+            <div className="p-6 border-t border-gray-200 bg-gray-50">
+              <div className="flex justify-between items-center">
+                <div className="text-sm text-gray-600">
+                  {areaOccupants.length > 0 && (
+                    <>
+                      Showing burials in {selectedAreaType} "{selectedAreaName}" 
+                      {selectedAreaType === 'plot' && (
+                        <>
+                          {' '}({areaOccupants.filter(b => b.burialType === 'permanent').length} permanent, 
+                          {areaOccupants.filter(b => b.burialType === 'temporary').length} temporary)
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
+                <button
+                  onClick={handleCloseOccupantsList}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

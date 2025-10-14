@@ -827,4 +827,226 @@ router.get('/map/coordinates', requireCitizen, async (req, res) => {
   }
 });
 
+// POST / - Create a new plot (employee/admin only)
+router.post('/', requireEmployee, async (req, res) => {
+  try {
+    const {
+      cemeteryName = "Quezon City Public Cemetery",
+      section,
+      block,
+      lot,
+      plotCode,
+      size,
+      latitude,
+      longitude,
+      coordinates,
+      status = 'VACANT'
+    } = req.body;
+
+    // Validate required fields
+    if (!section || !block || !lot) {
+      return res.status(400).json({
+        success: false,
+        error: 'Section, block, and lot are required'
+      });
+    }
+
+    // Check if plotCode is unique (if provided)
+    if (plotCode) {
+      const existingCode = await prisma.cemeteryPlot.findUnique({
+        where: { plotCode }
+      });
+
+      if (existingCode) {
+        return res.status(400).json({
+          success: false,
+          error: 'Plot code already exists'
+        });
+      }
+    }
+
+    // Generate plotCode if not provided
+    const finalPlotCode = plotCode || `${section}-${block}-${lot}`;
+
+    // Check if the generated plotCode is unique
+    const existingGeneratedCode = await prisma.cemeteryPlot.findUnique({
+      where: { plotCode: finalPlotCode }
+    });
+
+    if (existingGeneratedCode) {
+      return res.status(400).json({
+        success: false,
+        error: `Generated plot code ${finalPlotCode} already exists`
+      });
+    }
+
+    const createData = {
+      cemeteryName,
+      section,
+      block,
+      lot,
+      plotCode: finalPlotCode,
+      size,
+      latitude: latitude ? parseFloat(latitude) : null,
+      longitude: longitude ? parseFloat(longitude) : null,
+      status
+    };
+
+    const newPlot = await prisma.cemeteryPlot.create({
+      data: createData,
+      include: {
+        reserver: {
+          select: {
+            id: true,
+            fullNameFirst: true,
+            fullNameLast: true,
+            email: true
+          }
+        },
+        assignments: {
+          include: {
+            deceased: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                dateOfBirth: true,
+                dateOfDeath: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    res.status(201).json({
+      success: true,
+      data: newPlot,
+      message: 'Cemetery plot created successfully'
+    });
+
+  } catch (error) {
+    console.error('Error creating cemetery plot:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create cemetery plot',
+      details: error.message
+    });
+  }
+});
+
+// POST /bulk - Create multiple plots (employee/admin only)
+router.post('/bulk', requireEmployee, async (req, res) => {
+  try {
+    const { plots } = req.body;
+
+    if (!Array.isArray(plots) || plots.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Plots array is required and must not be empty'
+      });
+    }
+
+    // Validate each plot and generate plot codes
+    const processedPlots = [];
+    const plotCodes = [];
+
+    for (const plot of plots) {
+      const {
+        cemeteryName = "Quezon City Public Cemetery",
+        section,
+        block,
+        lot,
+        plotCode,
+        size,
+        latitude,
+        longitude,
+        status = 'VACANT'
+      } = plot;
+
+      if (!section || !block || !lot) {
+        return res.status(400).json({
+          success: false,
+          error: 'Section, block, and lot are required for all plots'
+        });
+      }
+
+      const finalPlotCode = plotCode || `${section}-${block}-${lot}`;
+      
+      // Check for duplicates within the batch
+      if (plotCodes.includes(finalPlotCode)) {
+        return res.status(400).json({
+          success: false,
+          error: `Duplicate plot code in batch: ${finalPlotCode}`
+        });
+      }
+
+      plotCodes.push(finalPlotCode);
+
+      processedPlots.push({
+        cemeteryName,
+        section,
+        block,
+        lot,
+        plotCode: finalPlotCode,
+        size,
+        latitude: latitude ? parseFloat(latitude) : null,
+        longitude: longitude ? parseFloat(longitude) : null,
+        status
+      });
+    }
+
+    // Check for existing plot codes in database
+    const existingPlots = await prisma.cemeteryPlot.findMany({
+      where: {
+        plotCode: {
+          in: plotCodes
+        }
+      },
+      select: { plotCode: true }
+    });
+
+    if (existingPlots.length > 0) {
+      const existingCodes = existingPlots.map(p => p.plotCode);
+      return res.status(400).json({
+        success: false,
+        error: `Plot codes already exist: ${existingCodes.join(', ')}`
+      });
+    }
+
+    // Create all plots in a transaction
+    const createdPlots = await prisma.$transaction(
+      processedPlots.map(plotData => 
+        prisma.cemeteryPlot.create({
+          data: plotData,
+          include: {
+            reserver: {
+              select: {
+                id: true,
+                fullNameFirst: true,
+                fullNameLast: true,
+                email: true
+              }
+            }
+          }
+        })
+      )
+    );
+
+    res.status(201).json({
+      success: true,
+      data: createdPlots,
+      message: `${createdPlots.length} cemetery plots created successfully`
+    });
+
+  } catch (error) {
+    console.error('Error creating cemetery plots:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create cemetery plots',
+      details: error.message
+    });
+  }
+});
+
 module.exports = router;

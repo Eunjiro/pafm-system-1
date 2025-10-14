@@ -295,6 +295,9 @@ export default function CemeteryMapPage() {
                     cemeteryLayout={null}
                     drawingMode={drawingMode}
                     currentDrawing={currentDrawing}
+                    zoom={18}
+                    height="h-96"
+                    mapType="satellite"
                     onMapClick={(coords) => {
                       if (isDrawing) {
                         setCurrentDrawing(prev => [...prev, coords])

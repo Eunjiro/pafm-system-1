@@ -223,6 +223,65 @@ class ApiClient {
   async assignPlot(id: number, data: any): Promise<ApiResponse> {
     return this.post(`/api/plots/${id}/assign`, data)
   }
+
+  // Cemetery Plot Management
+  async createPlot(data: {
+    cemeteryName?: string
+    section: string
+    block: string
+    lot: string
+    plotCode?: string
+    size?: string
+    latitude?: number
+    longitude?: number
+    coordinates?: [number, number][]
+    status?: 'VACANT' | 'RESERVED' | 'OCCUPIED' | 'BLOCKED'
+  }): Promise<ApiResponse> {
+    return this.post('/api/plots', data)
+  }
+
+  async createPlotsBulk(plots: any[]): Promise<ApiResponse> {
+    return this.post('/api/plots/bulk', { plots })
+  }
+
+  async getPlotStatistics(): Promise<ApiResponse> {
+    return this.get('/api/plots/statistics')
+  }
+
+  async getPlotCoordinates(): Promise<ApiResponse> {
+    return this.get('/api/plots/coordinates')
+  }
+
+  async reservePlot(id: number, data: any): Promise<ApiResponse> {
+    return this.post(`/api/plots/${id}/reserve`, data)
+  }
+
+  // Cemetery Layout Management (using localStorage for now, can be moved to backend later)
+  saveCemeteryLayout(cemetery: any): void {
+    const existing = this.getCemeteries()
+    const updated = existing.filter((c: any) => c.id !== cemetery.id)
+    updated.push(cemetery)
+    localStorage.setItem('cemeteries', JSON.stringify(updated))
+  }
+
+  getCemeteries(): any[] {
+    const data = localStorage.getItem('cemeteries')
+    return data ? JSON.parse(data) : []
+  }
+
+  getCemetery(id: string): any | null {
+    const cemeteries = this.getCemeteries()
+    return cemeteries.find((c: any) => c.id === id) || null
+  }
+
+  saveCemeterySections(cemeteryId: string, sections: any[]): void {
+    localStorage.setItem(`cemetery_${cemeteryId}_sections`, JSON.stringify(sections))
+  }
+
+  getCemeterySections(cemeteryId: string): any[] {
+    const data = localStorage.getItem(`cemetery_${cemeteryId}_sections`)
+    return data ? JSON.parse(data) : []
+  }
 }
 
 // Create a singleton instance
