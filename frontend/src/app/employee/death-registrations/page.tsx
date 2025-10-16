@@ -623,8 +623,8 @@ export default function DeathRegistrationsPage() {
 
         {/* Modern Status Update Modal */}
         {showStatusModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4">
+          <div className="fixed inset-0 flex items-center justify-center z-50 animate-fadeIn">
+            <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 animate-slideUp">
               <div className="p-6">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-xl font-semibold text-gray-900">Update Registration Status</h3>
@@ -707,8 +707,8 @@ export default function DeathRegistrationsPage() {
 
         {/* Modern Documents Modal */}
         {showDocumentsModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden">
+          <div className="fixed inset-0 flex items-center justify-center z-50 animate-fadeIn">
+            <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden animate-slideUp">
               <div className="p-6 border-b border-gray-100">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xl font-semibold text-gray-900">Registration Documents</h3>

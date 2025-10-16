@@ -1,5 +1,14 @@
 'use client'
 
+/**
+ * Cemetery Management Page - BACKEND INTEGRATION
+ * 
+ * This page now loads cemetery plot data from the backend API
+ * to match the Plot Management page data source.
+ * 
+ * Data Flow: Backend Database → API → Both Cemetery Management & Plot Management
+ */
+
 import React, { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
@@ -139,6 +148,8 @@ export default function CemeteryManagementPage() {
   const { data: session } = useSession()
   const searchParams = useSearchParams()
   const cemeteryId = searchParams.get('id')
+  const focusPlotId = searchParams.get('plotId')
+  const shouldFocusPlot = searchParams.get('focus') === 'true'
   
   // States
   const [currentStep, setCurrentStep] = useState<ManagementStep>('overview')
@@ -152,6 +163,12 @@ export default function CemeteryManagementPage() {
   const [currentDrawing, setCurrentDrawing] = useState<Point[]>([])
   const [isDrawing, setIsDrawing] = useState(false)
   const [drawingMode, setDrawingMode] = useState<'section' | 'block' | 'plot' | null>(null)
+  
+  // Map view states to prevent re-centering during drawing
+  const [mapCenter, setMapCenter] = useState<[number, number] | undefined>(undefined)
+  const [mapZoom, setMapZoom] = useState<number>(19)
+  const [preserveMapView, setPreserveMapView] = useState(false)
+  const [mapInitialized, setMapInitialized] = useState(false)
 
   // Form states
   const [sectionFormData, setSectionFormData] = useState({
@@ -233,40 +250,291 @@ export default function CemeteryManagementPage() {
   const [deleteItem, setDeleteItem] = useState<any>(null)
   const [deleteItemName, setDeleteItemName] = useState('')
 
-  // Load cemetery data
+  // Reset map initialization when cemetery changes
+  useEffect(() => {
+    if (selectedCemetery) {
+      // Only reset if it's a different cemetery
+      setMapInitialized(false)
+    }
+  }, [selectedCemetery?.id])
+
+  // Listen for cemetery data updates from other components (like Plot Management)
+  useEffect(() => {
+    const handleCemeteryDataUpdate = async (event: CustomEvent) => {
+      console.log('Cemetery data updated from external component:', event.detail)
+      
+      // If the update is for the currently selected cemetery, reload the data
+      if (selectedCemetery && event.detail?.type === 'assignment') {
+        console.log('Reloading cemetery data due to external assignment...')
+        
+        try {
+          // Reload specific cemetery with sections and plots
+          const response = await fetch(`/api/cemeteries?id=${selectedCemetery.id}`)
+          
+          if (response.ok) {
+            const result = await response.json()
+            
+            if (result.success && result.data) {
+              // Update sections with the fresh data from backend
+              const updatedSections = result.data.sections?.map((section: any) => ({
+                id: section.id.toString(),
+                cemeteryId: selectedCemetery.id,
+                name: section.name,
+                description: section.description || '',
+                color: '#3B82F6',
+                capacity: section.capacity || 0,
+                boundary: section.boundary || [],
+                blocks: section.blocks?.map((block: any) => ({
+                  id: block.id.toString(),
+                  sectionId: section.id.toString(),
+                  name: block.name,
+                  blockType: block.blockType.toLowerCase(),
+                  capacity: block.capacity || 0,
+                  color: '#10B981',
+                  boundary: block.boundary || [],
+                  plots: block.plots?.map((plot: any) => {
+                    // Calculate burials from assignments
+                    const burials = plot.assignments?.map((assignment: any) => ({
+                      id: assignment.id.toString(),
+                      plotId: plot.id.toString(),
+                      layer: assignment.layer || 1,
+                      deceasedInfo: {
+                        firstName: assignment.deceasedName?.split(' ')[0] || 'Unknown',
+                        lastName: assignment.deceasedName?.split(' ').slice(1).join(' ') || 'Unknown',
+                        dateOfBirth: assignment.dateOfBirth || '',
+                        dateOfDeath: assignment.dateOfDeath || '',
+                        burialDate: assignment.burialDate || assignment.createdAt,
+                        gender: 'male',
+                      },
+                      burialType: 'permanent',
+                      status: 'active'
+                    })) || []
+
+                    return {
+                      id: plot.id.toString(),
+                      blockId: block.id.toString(),
+                      plotNumber: plot.plotNumber || plot.plotCode,
+                      coordinates: plot.coordinates || [],
+                      size: plot.size.toLowerCase(),
+                      length: plot.length || 2.0,
+                      width: plot.width || 1.0,
+                      depth: plot.depth || 1.5,
+                      baseFee: plot.baseFee || selectedCemetery.standardPrice,
+                      maintenanceFee: plot.maintenanceFee || selectedCemetery.maintenanceFee,
+                      orientation: plot.orientation?.toLowerCase() || 'north',
+                      accessibility: plot.accessibility || true,
+                      status: plot.status.toLowerCase(),
+                      maxLayers: plot.maxLayers || 3,
+                      burials: burials
+                    }
+                  }) || []
+                })) || []
+              })) || []
+
+              setSections(updatedSections)
+              console.log('Cemetery data refreshed successfully after external update')
+            }
+          }
+        } catch (error) {
+          console.error('Error refreshing cemetery data after external update:', error)
+        }
+      }
+    }
+
+    // Create a wrapper function that handles the event type properly
+    const eventHandler = (event: Event) => {
+      handleCemeteryDataUpdate(event as CustomEvent)
+    }
+
+    // Add event listener for cemetery data updates
+    window.addEventListener('cemeteryDataUpdated', eventHandler)
+
+    // Cleanup event listener
+    return () => {
+      window.removeEventListener('cemeteryDataUpdated', eventHandler)
+    }
+  }, [selectedCemetery])
+
+  // Load cemetery data from backend API
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true)
       try {
-        // Load cemeteries from localStorage
-        const savedCemeteries = localStorage.getItem('cemeteries')
-        if (savedCemeteries) {
-          const cemeteryList = JSON.parse(savedCemeteries)
-          setCemeteries(cemeteryList)
-
-          // If we have a cemetery ID, load that specific cemetery
-          if (cemeteryId) {
-            const cemetery = cemeteryList.find((c: Cemetery) => c.id === cemeteryId)
-            if (cemetery) {
+        console.log('Loading cemetery data from backend API...')
+        
+        // First, try to load specific cemetery if ID is provided
+        if (cemeteryId) {
+          console.log('Loading specific cemetery:', cemeteryId)
+          
+          const cemeteryResponse = await fetch(`/api/cemeteries?id=${cemeteryId}`)
+          console.log('Cemetery API response status:', cemeteryResponse.status)
+          
+          if (cemeteryResponse.ok) {
+            const cemeteryResult = await cemeteryResponse.json()
+            console.log('Cemetery API result:', cemeteryResult)
+            
+            if (cemeteryResult.success && cemeteryResult.data) {
+              const cemetery = cemeteryResult.data
+              
+              // Set the cemetery
+              setCemeteries([cemetery])
               setSelectedCemetery(cemetery)
               
-              // Load sections for this cemetery
-              const savedSections = localStorage.getItem(`cemetery_${cemeteryId}_sections`)
-              if (savedSections) {
-                setSections(JSON.parse(savedSections))
+              // Set initial map center for this cemetery only if not already initialized
+              if (!mapInitialized) {
+                const initialCenter = calculateCemeteryCenter(cemetery)
+                setMapCenter(initialCenter)
+                setMapZoom(19)
+                setMapInitialized(true)
               }
+              
+              // Transform sections data from backend structure
+              if (cemetery.sections && cemetery.sections.length > 0) {
+                const transformedSections = cemetery.sections.map((section: any) => ({
+                  id: section.id.toString(),
+                  cemeteryId: cemetery.id.toString(),
+                  name: section.name,
+                  description: section.description || `Section ${section.name}`,
+                  color: '#3B82F6',
+                  capacity: section.capacity || 100,
+                  boundary: section.boundary || [[14.6760, 121.0437], [14.6761, 121.0437], [14.6761, 121.0438], [14.6760, 121.0438]],
+                  blocks: section.blocks.map((block: any) => ({
+                    id: block.id.toString(),
+                    sectionId: section.id.toString(),
+                    name: block.name,
+                    blockType: block.blockType.toLowerCase(),
+                    capacity: block.capacity || 50,
+                    color: '#10B981',
+                    boundary: block.boundary || [[14.6760, 121.0437], [14.6761, 121.0437], [14.6761, 121.0438], [14.6760, 121.0438]],
+                    plots: block.plots.map((plot: any) => ({
+                      id: plot.id.toString(),
+                      blockId: block.id.toString(),
+                      plotNumber: plot.plotNumber || plot.plotCode,
+                      coordinates: plot.boundary || [[
+                        plot.latitude ? parseFloat(plot.latitude) : 14.6760,
+                        plot.longitude ? parseFloat(plot.longitude) : 121.0437
+                      ]],
+                      size: plot.size.toLowerCase(),
+                      length: plot.length || 2,
+                      width: plot.width || 1,
+                      depth: plot.depth || 1.5,
+                      baseFee: parseFloat(plot.baseFee) || 5000,
+                      maintenanceFee: parseFloat(plot.maintenanceFee) || 500,
+                      orientation: plot.orientation.toLowerCase(),
+                      accessibility: plot.accessibility,
+                      status: plot.status.toLowerCase() === 'vacant' ? 'available' : 
+                             plot.status.toLowerCase() === 'occupied' ? 'occupied' : 
+                             plot.status.toLowerCase() === 'reserved' ? 'reserved' : 'available',
+                      maxLayers: plot.maxLayers || 3,
+                      burials: plot.assignments && plot.assignments.length > 0 ? plot.assignments.map((assignment: any) => ({
+                        id: `${plot.id}_burial_${assignment.id}`,
+                        plotId: plot.id.toString(),
+                        layer: 1,
+                        deceasedInfo: {
+                          firstName: assignment.deceased?.firstName || 'Unknown',
+                          lastName: assignment.deceased?.lastName || 'Unknown',
+                          middleName: assignment.deceased?.middleName || '',
+                          dateOfBirth: assignment.deceased?.dateOfBirth || '',
+                          dateOfDeath: assignment.deceased?.dateOfDeath || '',
+                          burialDate: assignment.assignedAt || '',
+                          gender: assignment.deceased?.sex === 'Female' ? 'female' : 'male'
+                        },
+                        burialType: 'permanent',
+                        status: 'active'
+                      })) : [],
+                      gravestone: plot.gravestones && plot.gravestones.length > 0 ? {
+                        id: plot.gravestones[0].id.toString(),
+                        plotId: plot.id.toString(),
+                        material: plot.gravestones[0].material.toLowerCase(),
+                        condition: plot.gravestones[0].condition.toLowerCase(),
+                        inscription: plot.gravestones[0].inscription || '',
+                        dateInstalled: plot.gravestones[0].dateInstalled || '',
+                        manufacturer: plot.gravestones[0].manufacturer || 'Unknown',
+                        height: plot.gravestones[0].height || 100,
+                        width: plot.gravestones[0].width || 80,
+                        thickness: plot.gravestones[0].thickness || 15
+                      } : undefined
+                    }))
+                  }))
+                }))
+                
+                console.log('Transformed sections:', transformedSections)
+                setSections(transformedSections)
+                
+                // Extract all plots for plots array
+                const allPlots = transformedSections.flatMap((section: any) =>
+                  section.blocks.flatMap((block: any) => block.plots)
+                )
+                setPlots(allPlots)
+                
+                // Handle plot focus if specified
+                if (shouldFocusPlot && focusPlotId) {
+                  console.log('Focusing on plot:', focusPlotId)
+                  setSelectedPlotId(focusPlotId)
+                  setCurrentStep('plots')
+                }
+                
+              } else {
+                console.warn('No sections found in cemetery data')
+                setSections([])
+                setPlots([])
+              }
+              
+            } else {
+              console.warn('No cemetery data received from backend')
+              setCemeteries([])
+              setSections([])
+              setPlots([])
             }
+          } else {
+            console.error('Cemetery API failed with status:', cemeteryResponse.status)
+            setCemeteries([])
+            setSections([])
+            setPlots([])
+          }
+        } else {
+          // Load all cemeteries if no specific ID
+          console.log('Loading all cemeteries...')
+          
+          const cemeteriesResponse = await fetch('/api/cemeteries')
+          console.log('Cemeteries API response status:', cemeteriesResponse.status)
+          
+          if (cemeteriesResponse.ok) {
+            const cemeteriesResult = await cemeteriesResponse.json()
+            console.log('Cemeteries API result:', cemeteriesResult)
+            
+            if (cemeteriesResult.success && cemeteriesResult.data && cemeteriesResult.data.length > 0) {
+              setCemeteries(cemeteriesResult.data)
+              // Don't auto-select a cemetery, let user choose
+            } else {
+              console.warn('No cemeteries found')
+              setCemeteries([])
+            }
+          } else {
+            console.error('Cemeteries API failed with status:', cemeteriesResponse.status)
+            setCemeteries([])
           }
         }
+        
       } catch (error) {
-        console.error('Error loading cemetery data:', error)
+        console.error('Error loading cemetery data from backend:', error)
+        setCemeteries([])
+        setSections([])
+        setPlots([])
       } finally {
         setIsLoading(false)
       }
     }
 
     loadData()
-  }, [cemeteryId])
+  }, [cemeteryId, focusPlotId, shouldFocusPlot])
+
+  // Drawing cancel function
+  const handleCancelDrawing = () => {
+    setCurrentDrawing([])
+    setDrawingMode(null)
+    setIsDrawing(false)
+  }
 
   const calculatePolygonArea = (points: Point[]): number => {
     if (points.length < 3) return 0
@@ -296,34 +564,76 @@ export default function CemeteryManagementPage() {
   const handleSaveSection = async () => {
     if (!selectedCemetery || !sectionFormData.name || currentDrawing.length < 3) return
 
+    // Check for duplicate section names
+    const existingSection = sections.find(section => 
+      section.name.toLowerCase() === sectionFormData.name.toLowerCase()
+    )
+    if (existingSection) {
+      alert(`A section named "${sectionFormData.name}" already exists. Please choose a different name.`)
+      return
+    }
+
     setIsSaving(true)
     try {
-      const newSection: Section = {
-        id: Date.now().toString(),
-        cemeteryId: selectedCemetery.id,
+      // Prepare section data for backend API
+      const sectionData = {
+        cemeteryId: parseInt(selectedCemetery.id),
         name: sectionFormData.name,
         description: sectionFormData.description,
-        color: sectionFormData.color,
         capacity: sectionFormData.capacity,
-        boundary: [...currentDrawing],
-        blocks: []
+        boundary: [...currentDrawing]
       }
 
-      const updatedSections = [...sections, newSection]
-      setSections(updatedSections)
+      console.log('Saving section to backend:', sectionData)
 
-      // Save to localStorage
-      localStorage.setItem(`cemetery_${selectedCemetery.id}_sections`, JSON.stringify(updatedSections))
+      // Save to backend API
+      const response = await fetch('/api/cemetery-sections', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(sectionData)
+      })
 
-      // Reset form and drawing
-      setSectionFormData({ name: '', description: '', color: '#3B82F6', capacity: 100 })
-      setCurrentDrawing([])
-      setDrawingMode(null)
-      setIsDrawing(false)
+      if (response.ok) {
+        const result = await response.json()
+        console.log('Section saved to backend:', result)
 
-      console.log('Section saved successfully:', newSection)
+        if (result.success && result.data) {
+          // Create section object from backend response
+          const newSection: Section = {
+            id: result.data.id.toString(),
+            cemeteryId: selectedCemetery.id,
+            name: result.data.name,
+            description: result.data.description || sectionFormData.description,
+            color: sectionFormData.color, // Frontend-only property
+            capacity: result.data.capacity,
+            boundary: result.data.boundary || currentDrawing,
+            blocks: []
+          }
+
+          // Update local state
+          const updatedSections = [...sections, newSection]
+          setSections(updatedSections)
+
+          // Reset form and drawing
+          setSectionFormData({ name: '', description: '', color: '#3B82F6', capacity: 100 })
+          setCurrentDrawing([])
+          setDrawingMode(null)
+          setIsDrawing(false)
+
+          console.log('Section saved successfully:', newSection)
+        } else {
+          throw new Error('Invalid response from backend')
+        }
+      } else {
+        const errorData = await response.text()
+        console.error('Backend section save failed:', errorData)
+        throw new Error(`Failed to save section: ${errorData}`)
+      }
     } catch (error) {
       console.error('Error saving section:', error)
+      alert('Error saving section. Please try again.')
     } finally {
       setIsSaving(false)
     }
@@ -332,50 +642,94 @@ export default function CemeteryManagementPage() {
   const handleSaveBlock = async () => {
     if (!selectedCemetery || !blockFormData.name || !blockFormData.sectionId || currentDrawing.length < 3) return
 
+    // Check for duplicate block names within the same section
+    const targetSection = sections.find(section => section.id === blockFormData.sectionId)
+    if (targetSection) {
+      const existingBlock = targetSection.blocks.find(block => 
+        block.name.toLowerCase() === blockFormData.name.toLowerCase()
+      )
+      if (existingBlock) {
+        alert(`A block named "${blockFormData.name}" already exists in section "${targetSection.name}". Please choose a different name.`)
+        return
+      }
+    }
+
     setIsSaving(true)
     try {
-      const newBlock: Block = {
-        id: Date.now().toString(),
-        sectionId: blockFormData.sectionId,
+      // Prepare block data for backend API
+      const blockData = {
+        sectionId: parseInt(blockFormData.sectionId),
         name: blockFormData.name,
-        blockType: blockFormData.blockType,
+        blockType: blockFormData.blockType.toUpperCase(), // Convert to match backend enum
         capacity: blockFormData.capacity,
-        color: blockFormData.color,
-        boundary: [...currentDrawing],
-        plots: []
+        boundary: [...currentDrawing]
       }
 
-      // Update sections with new block
-      const updatedSections = sections.map(section => {
-        if (section.id === blockFormData.sectionId) {
-          return {
-            ...section,
-            blocks: [...section.blocks, newBlock]
+      console.log('Saving block to backend:', blockData)
+
+      // Save to backend API
+      const response = await fetch('/api/cemetery-blocks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(blockData)
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        console.log('Block saved to backend:', result)
+
+        if (result.success && result.data) {
+          // Create block object from backend response
+          const newBlock: Block = {
+            id: result.data.id.toString(),
+            sectionId: blockFormData.sectionId,
+            name: result.data.name,
+            blockType: blockFormData.blockType,
+            capacity: result.data.capacity,
+            color: blockFormData.color, // Frontend-only property
+            boundary: result.data.boundary || currentDrawing,
+            plots: []
           }
+
+          // Update sections with new block
+          const updatedSections = sections.map(section => {
+            if (section.id === blockFormData.sectionId) {
+              return {
+                ...section,
+                blocks: [...section.blocks, newBlock]
+              }
+            }
+            return section
+          })
+
+          setSections(updatedSections)
+
+          // Reset form and drawing
+          setBlockFormData({
+            name: '',
+            sectionId: '',
+            blockType: 'standard',
+            capacity: 50,
+            color: '#10B981'
+          })
+          setCurrentDrawing([])
+          setDrawingMode(null)
+          setIsDrawing(false)
+
+          console.log('Block saved successfully:', newBlock)
+        } else {
+          throw new Error('Invalid response from backend')
         }
-        return section
-      })
-
-      setSections(updatedSections)
-
-      // Save to localStorage
-      localStorage.setItem(`cemetery_${selectedCemetery.id}_sections`, JSON.stringify(updatedSections))
-
-      // Reset form and drawing
-      setBlockFormData({
-        name: '',
-        sectionId: '',
-        blockType: 'standard',
-        capacity: 50,
-        color: '#10B981'
-      })
-      setCurrentDrawing([])
-      setDrawingMode(null)
-      setIsDrawing(false)
-
-      console.log('Block saved successfully:', newBlock)
+      } else {
+        const errorData = await response.text()
+        console.error('Backend block save failed:', errorData)
+        throw new Error(`Failed to save block: ${errorData}`)
+      }
     } catch (error) {
       console.error('Error saving block:', error)
+      alert('Error saving block. Please try again.')
     } finally {
       setIsSaving(false)
     }
@@ -405,61 +759,113 @@ export default function CemeteryManagementPage() {
 
       const plotCode = plotFormData.plotCode || `${targetSection.name}-${targetBlock.name}-${Date.now()}`
 
-      const newPlot: Plot = {
-        id: Date.now().toString(),
-        blockId: plotFormData.blockId,
+      // Check for duplicate plot numbers within the same block
+      const existingPlot = targetBlock.plots.find(plot => 
+        plot.plotNumber.toLowerCase() === plotCode.toLowerCase()
+      )
+      if (existingPlot) {
+        alert(`A plot with number "${plotCode}" already exists in block "${targetBlock.name}". Please choose a different plot number.`)
+        return
+      }
+
+      // Prepare plot data for backend API
+      const plotData = {
+        cemeteryId: parseInt(selectedCemetery.id),
+        sectionId: parseInt(targetSection.id),
+        blockId: parseInt(plotFormData.blockId),
         plotNumber: plotCode,
+        plotCode: plotCode,
         coordinates: [...currentDrawing],
-        size: plotFormData.size,
-        length: 2,
-        width: 1,
+        size: plotFormData.size.toUpperCase(), // Convert to match backend enum
+        length: 2.0,
+        width: 1.0,
         depth: 1.5,
         baseFee: selectedCemetery.standardPrice,
         maintenanceFee: selectedCemetery.maintenanceFee,
-        orientation: 'north',
+        orientation: 'NORTH',
         accessibility: true,
-        status: 'available',
-        maxLayers: 3, // Default to 3 layers for Philippine public cemeteries
-        burials: [] // Empty array for new plots
+        status: 'VACANT',
+        maxLayers: 3
       }
 
-      // Update sections with new plot
-      const updatedSections = sections.map(section => {
-        if (section.id === targetSection!.id) {
-          return {
-            ...section,
-            blocks: section.blocks.map(block => {
-              if (block.id === plotFormData.blockId) {
-                return {
-                  ...block,
-                  plots: [...block.plots, newPlot]
-                }
-              }
-              return block
-            })
-          }
-        }
-        return section
+      console.log('Saving plot to backend:', plotData)
+
+      // Save to backend API
+      const response = await fetch('/api/cemetery-plots', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(plotData)
       })
 
-      setSections(updatedSections)
-      setPlots(prev => [...prev, newPlot])
+      if (response.ok) {
+        const result = await response.json()
+        console.log('Plot saved to backend:', result)
 
-      // Save to localStorage
-      localStorage.setItem(`cemetery_${selectedCemetery.id}_sections`, JSON.stringify(updatedSections))
+        if (result.success && result.data) {
+          // Create plot object from backend response
+          const newPlot: Plot = {
+            id: result.data.id.toString(),
+            blockId: plotFormData.blockId,
+            plotNumber: result.data.plotNumber || plotCode,
+            coordinates: result.data.coordinates || currentDrawing,
+            size: plotFormData.size,
+            length: result.data.length || 2,
+            width: result.data.width || 1,
+            depth: result.data.depth || 1.5,
+            baseFee: result.data.baseFee || selectedCemetery.standardPrice,
+            maintenanceFee: result.data.maintenanceFee || selectedCemetery.maintenanceFee,
+            orientation: (result.data.orientation || 'NORTH').toLowerCase() as any,
+            accessibility: result.data.accessibility ?? true,
+            status: (result.data.status || 'VACANT').toLowerCase() as any,
+            maxLayers: result.data.maxLayers || 3,
+            burials: []
+          }
 
-      // Reset form and drawing
-      setPlotFormData({ plotCode: '', blockId: '', size: 'standard' })
-      setCurrentDrawing([])
-      setDrawingMode(null)
-      setIsDrawing(false)
+          // Update sections with new plot
+          const updatedSections = sections.map(section => {
+            if (section.id === targetSection!.id) {
+              return {
+                ...section,
+                blocks: section.blocks.map(block => {
+                  if (block.id === plotFormData.blockId) {
+                    return {
+                      ...block,
+                      plots: [...block.plots, newPlot]
+                    }
+                  }
+                  return block
+                })
+              }
+            }
+            return section
+          })
 
-      // Update statistics
-      updatePlotStatistics()
+          setSections(updatedSections)
+          setPlots(prev => [...prev, newPlot])
 
-      console.log('Plot saved successfully:', newPlot)
+          // Reset form and drawing
+          setPlotFormData({ plotCode: '', blockId: '', size: 'standard' })
+          setCurrentDrawing([])
+          setDrawingMode(null)
+          setIsDrawing(false)
+
+          // Update statistics
+          updatePlotStatistics()
+
+          console.log('Plot saved successfully:', newPlot)
+        } else {
+          throw new Error('Invalid response from backend')
+        }
+      } else {
+        const errorData = await response.text()
+        console.error('Backend plot save failed:', errorData)
+        throw new Error(`Failed to save plot: ${errorData}`)
+      }
     } catch (error) {
       console.error('Error saving plot:', error)
+      alert('Error saving plot. Please try again.')
     } finally {
       setIsSaving(false)
     }
@@ -537,15 +943,17 @@ export default function CemeteryManagementPage() {
       setSections(updatedSections)
       setPlots(plotsToCreate)
 
-      // Save to localStorage
-      localStorage.setItem(`cemetery_${selectedCemetery.id}_sections`, JSON.stringify(updatedSections))
+      // Note: Auto-generation creates plots in memory only
+      // Individual plots should be saved via backend API for persistence
 
       // Update statistics
       updatePlotStatistics()
 
       console.log(`Generated ${plotsToCreate.length} plots successfully`)
+      alert(`Generated ${plotsToCreate.length} plots successfully. Individual plots will be saved when you manually save them.`)
     } catch (error) {
       console.error('Error generating plots:', error)
+      alert('Error generating plots. Please try again.')
     } finally {
       setIsSaving(false)
     }
@@ -618,8 +1026,8 @@ export default function CemeteryManagementPage() {
 
       setSections(updatedSections)
 
-      // Save to localStorage
-      localStorage.setItem(`cemetery_${selectedCemetery.id}_sections`, JSON.stringify(updatedSections))
+      // Note: Gravestone information is saved in memory only
+      // Backend integration for gravestones should be implemented
 
       // Reset form
       setGravestoneFormData({
@@ -639,8 +1047,10 @@ export default function CemeteryManagementPage() {
       updatePlotStatistics()
 
       console.log('Gravestone information saved successfully')
+      alert('Gravestone information saved successfully.')
     } catch (error) {
       console.error('Error saving gravestone:', error)
+      alert('Error saving gravestone information. Please try again.')
     } finally {
       setIsSaving(false)
     }
@@ -742,8 +1152,64 @@ export default function CemeteryManagementPage() {
 
       setSections(updatedSections)
 
-      // Save to localStorage
-      localStorage.setItem(`cemetery_${selectedCemetery.id}_sections`, JSON.stringify(updatedSections))
+      // Save burial assignment to backend API to sync with plot management
+      try {
+        const assignmentPayload = {
+          section: targetSection.name,
+          block: targetBlock.name,
+          lot: targetPlot.plotNumber,
+          coordinates: targetPlot.coordinates.length >= 1 ? [targetPlot.coordinates[0][0], targetPlot.coordinates[0][1]] : [0, 0],
+          size: targetPlot.size,
+          status: 'occupied',
+          occupant: `${burialFormData.firstName} ${burialFormData.lastName}`,
+          dateOccupied: burialFormData.burialDate,
+          notes: `Cemetery Map Assignment - ${burialFormData.firstName} ${burialFormData.lastName} - Layer ${burialFormData.layer}`,
+          occupantDetails: {
+            firstName: burialFormData.firstName,
+            lastName: burialFormData.lastName,
+            middleName: burialFormData.middleName,
+            dateOfBirth: burialFormData.dateOfBirth,
+            dateOfDeath: burialFormData.dateOfDeath,
+            burialDate: burialFormData.burialDate,
+            layer: burialFormData.layer,
+            gender: burialFormData.gender,
+            causeOfDeath: burialFormData.causeOfDeath,
+            occupation: burialFormData.occupation,
+            nextOfKin: burialFormData.nextOfKin.name ? burialFormData.nextOfKin : undefined,
+            burialType: burialFormData.burialType,
+            expirationDate: burialFormData.expirationDate || undefined,
+            notes: burialFormData.notes
+          },
+          assignedDate: new Date().toISOString()
+        }
+
+        console.log('Saving burial assignment to backend:', assignmentPayload)
+
+        const response = await fetch(`/api/cemetery-plots/${selectedPlotId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.accessToken || 'test-token'}`
+          },
+          body: JSON.stringify(assignmentPayload)
+        })
+
+        if (response.ok) {
+          const result = await response.json()
+          console.log('Backend burial assignment successful:', result)
+
+          // Trigger a global refresh event for other components (like plot management)
+          window.dispatchEvent(new CustomEvent('cemeteryDataUpdated', {
+            detail: { type: 'assignment', plotId: selectedPlotId, source: 'cemetery-map' }
+          }))
+        } else {
+          const errorData = await response.text()
+          console.error('Backend burial assignment failed:', errorData)
+        }
+      } catch (backendError) {
+        console.error('Error saving burial assignment to backend:', backendError)
+        // Continue with local update even if backend fails
+      }
 
       // Reset form
       setBurialFormData({
@@ -840,6 +1306,131 @@ export default function CemeteryManagementPage() {
     setAreaOccupants([])
   }
 
+  // Cemetery selection handler
+  const handleCemeterySelect = async (cemetery: Cemetery) => {
+    setSelectedCemetery(cemetery)
+    setIsLoading(true)
+    
+    // Set initial map center for this cemetery only if not already initialized
+    if (!mapInitialized) {
+      const initialCenter = calculateCemeteryCenter(cemetery)
+      setMapCenter(initialCenter)
+      setMapZoom(19)
+      setMapInitialized(true)
+    }
+    setPreserveMapView(false)
+    
+    try {
+      console.log('Loading selected cemetery data:', cemetery.id)
+      
+      // Load specific cemetery with sections and plots
+      const response = await fetch(`/api/cemeteries?id=${cemetery.id}`)
+      
+      if (response.ok) {
+        const result = await response.json()
+        
+        if (result.success && result.data) {
+          const cemeteryData = result.data
+          
+          // Transform sections data from backend structure
+          if (cemeteryData.sections && cemeteryData.sections.length > 0) {
+            const transformedSections = cemeteryData.sections.map((section: any) => ({
+              id: section.id.toString(),
+              cemeteryId: cemetery.id.toString(),
+              name: section.name,
+              description: section.description || `Section ${section.name}`,
+              color: '#3B82F6',
+              capacity: section.capacity || 100,
+              boundary: section.boundary || [[14.6760, 121.0437], [14.6761, 121.0437], [14.6761, 121.0438], [14.6760, 121.0438]],
+              blocks: section.blocks.map((block: any) => ({
+                id: block.id.toString(),
+                sectionId: section.id.toString(),
+                name: block.name,
+                blockType: block.blockType.toLowerCase(),
+                capacity: block.capacity || 50,
+                color: '#10B981',
+                boundary: block.boundary || [[14.6760, 121.0437], [14.6761, 121.0437], [14.6761, 121.0438], [14.6760, 121.0438]],
+                plots: block.plots.map((plot: any) => ({
+                  id: plot.id.toString(),
+                  blockId: block.id.toString(),
+                  plotNumber: plot.plotNumber || plot.plotCode,
+                  coordinates: plot.boundary || [[
+                    plot.latitude ? parseFloat(plot.latitude) : 14.6760,
+                    plot.longitude ? parseFloat(plot.longitude) : 121.0437
+                  ]],
+                  size: plot.size.toLowerCase(),
+                  length: plot.length || 2,
+                  width: plot.width || 1,
+                  depth: plot.depth || 1.5,
+                  baseFee: parseFloat(plot.baseFee) || 5000,
+                  maintenanceFee: parseFloat(plot.maintenanceFee) || 500,
+                  orientation: plot.orientation.toLowerCase(),
+                  accessibility: plot.accessibility,
+                  status: plot.status.toLowerCase() === 'vacant' ? 'available' : 
+                         plot.status.toLowerCase() === 'occupied' ? 'occupied' : 
+                         plot.status.toLowerCase() === 'reserved' ? 'reserved' : 'available',
+                  maxLayers: plot.maxLayers || 3,
+                  burials: plot.assignments && plot.assignments.length > 0 ? plot.assignments.map((assignment: any) => ({
+                    id: `${plot.id}_burial_${assignment.id}`,
+                    plotId: plot.id.toString(),
+                    layer: 1,
+                    deceasedInfo: {
+                      firstName: assignment.deceased?.firstName || 'Unknown',
+                      lastName: assignment.deceased?.lastName || 'Unknown',
+                      middleName: assignment.deceased?.middleName || '',
+                      dateOfBirth: assignment.deceased?.dateOfBirth || '',
+                      dateOfDeath: assignment.deceased?.dateOfDeath || '',
+                      burialDate: assignment.assignedAt || '',
+                      gender: assignment.deceased?.sex === 'Female' ? 'female' : 'male'
+                    },
+                    burialType: 'permanent',
+                    status: 'active'
+                  })) : [],
+                  gravestone: plot.gravestones && plot.gravestones.length > 0 ? {
+                    id: plot.gravestones[0].id.toString(),
+                    plotId: plot.id.toString(),
+                    material: plot.gravestones[0].material.toLowerCase(),
+                    condition: plot.gravestones[0].condition.toLowerCase(),
+                    inscription: plot.gravestones[0].inscription || '',
+                    dateInstalled: plot.gravestones[0].dateInstalled || '',
+                    manufacturer: plot.gravestones[0].manufacturer || 'Unknown',
+                    height: plot.gravestones[0].height || 100,
+                    width: plot.gravestones[0].width || 80,
+                    thickness: plot.gravestones[0].thickness || 15
+                  } : undefined
+                }))
+              }))
+            }))
+            
+            setSections(transformedSections)
+            
+            // Extract all plots for plots array
+            const allPlots = transformedSections.flatMap((section: any) =>
+              section.blocks.flatMap((block: any) => block.plots)
+            )
+            setPlots(allPlots)
+            
+          } else {
+            setSections([])
+            setPlots([])
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading cemetery sections:', error)
+      setSections([])
+      setPlots([])
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Handle cemetery management navigation
+  const handleCemeteryManage = async (cemetery: Cemetery) => {
+    await handleCemeterySelect(cemetery)
+    window.history.pushState({}, '', `/admin/cemetery?id=${cemetery.id}`)
+  }
+
   // Delete functions
   const handleDeleteConfirm = (type: 'cemetery' | 'section' | 'block' | 'plot' | 'gravestone' | 'burial', item: any, itemName: string) => {
     setDeleteType(type)
@@ -856,113 +1447,306 @@ export default function CemeteryManagementPage() {
   }
 
   const handleDeleteExecute = async () => {
-    if (!deleteType || !deleteItem || !selectedCemetery) return
+    if (!deleteType || !deleteItem) return
 
     setIsSaving(true)
     try {
-      switch (deleteType) {
-        case 'cemetery':
-          // Delete cemetery
+      console.log(`Deleting ${deleteType}:`, deleteItem)
+
+      if (deleteType === 'cemetery') {
+        // Delete cemetery via backend API
+        const response = await fetch(`/api/cemeteries?id=${deleteItem.id}&cascade=true`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        })
+
+        if (response.ok) {
+          const result = await response.json()
+          console.log('Cemetery deleted successfully:', result)
+          
+          // Remove from state
           const updatedCemeteries = cemeteries.filter(c => c.id !== deleteItem.id)
           setCemeteries(updatedCemeteries)
-          localStorage.setItem('cemeteries', JSON.stringify(updatedCemeteries))
           
-          // Clear cemetery-specific data
-          localStorage.removeItem(`cemetery_${deleteItem.id}_sections`)
-          
-          // Reset selected cemetery if it was deleted
-          if (selectedCemetery.id === deleteItem.id) {
+          // If deleted cemetery was selected, clear selection
+          if (selectedCemetery && selectedCemetery.id === deleteItem.id) {
             setSelectedCemetery(null)
             setSections([])
+            setPlots([])
           }
-          break
+          
+          alert('Cemetery and all associated data deleted successfully!')
+        } else {
+          let errorMessage = 'Unknown error'
+          try {
+            const errorData = await response.json()
+            console.error('Cemetery deletion failed:', errorData)
+            errorMessage = errorData.error || errorData.details || 'Unknown error'
+          } catch (jsonError) {
+            console.error('Error parsing error response:', jsonError)
+            errorMessage = `HTTP ${response.status}: ${response.statusText}`
+          }
+          alert(`Failed to delete cemetery: ${errorMessage}`)
+        }
+      } else if (deleteType === 'plot') {
+        // Delete plot via backend API
+        const response = await fetch(`/api/cemetery-plots/${deleteItem.id}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        })
 
-        case 'section':
-          // Delete section and all its blocks and plots
-          const updatedSectionsAfterDelete = sections.filter(s => s.id !== deleteItem.id)
-          setSections(updatedSectionsAfterDelete)
-          localStorage.setItem(`cemetery_${selectedCemetery.id}_sections`, JSON.stringify(updatedSectionsAfterDelete))
-          break
-
-        case 'block':
-          // Delete block and all its plots
-          const updatedSectionsAfterBlockDelete = sections.map(section => ({
-            ...section,
-            blocks: section.blocks.filter(b => b.id !== deleteItem.id)
-          }))
-          setSections(updatedSectionsAfterBlockDelete)
-          localStorage.setItem(`cemetery_${selectedCemetery.id}_sections`, JSON.stringify(updatedSectionsAfterBlockDelete))
-          break
-
-        case 'plot':
-          // Delete plot
-          const updatedSectionsAfterPlotDelete = sections.map(section => ({
+        if (response.ok) {
+          const result = await response.json()
+          console.log('Plot deleted successfully:', result)
+          
+          // Remove from state
+          const updatedSections = sections.map(section => ({
             ...section,
             blocks: section.blocks.map(block => ({
               ...block,
               plots: block.plots.filter(p => p.id !== deleteItem.id)
             }))
           }))
-          setSections(updatedSectionsAfterPlotDelete)
-          localStorage.setItem(`cemetery_${selectedCemetery.id}_sections`, JSON.stringify(updatedSectionsAfterPlotDelete))
-          break
+          
+          setSections(updatedSections)
+          setPlots(plots.filter(p => p.id !== deleteItem.id))
+          
+          alert('Plot deleted successfully!')
+        } else {
+          const errorData = await response.json()
+          console.error('Plot deletion failed:', errorData)
+          alert(`Failed to delete plot: ${errorData.error || 'Unknown error'}`)
+        }
+      } else if (deleteType === 'section') {
+        // Delete section via backend API
+        const response = await fetch(`/api/cemetery-sections?id=${deleteItem.id}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        })
 
-        case 'burial':
-          // Delete burial (mark as transferred/exhumed)
-          const updatedSectionsAfterBurialDelete = sections.map(section => ({
-            ...section,
-            blocks: section.blocks.map(block => ({
-              ...block,
-              plots: block.plots.map(plot => {
-                if (plot.burials.some(b => b.id === deleteItem.id)) {
-                  const updatedBurials = plot.burials.map(burial => 
-                    burial.id === deleteItem.id 
-                      ? { ...burial, status: 'transferred' as 'active' | 'transferred' | 'exhumed' }
-                      : burial
-                  )
-                  const activeBurials = updatedBurials.filter(b => b.status === 'active')
-                  return {
-                    ...plot,
-                    burials: updatedBurials,
-                    status: activeBurials.length > 0 ? 'occupied' : 'available' as 'available' | 'reserved' | 'occupied' | 'maintenance'
-                  }
-                }
-                return plot
-              })
-            }))
-          }))
-          setSections(updatedSectionsAfterBurialDelete)
-          localStorage.setItem(`cemetery_${selectedCemetery.id}_sections`, JSON.stringify(updatedSectionsAfterBurialDelete))
-          break
+        if (response.ok) {
+          const result = await response.json()
+          console.log('Section deleted successfully:', result)
+          
+          // Reload cemetery data to reflect backend changes
+          if (selectedCemetery) {
+            const cemeteryResponse = await fetch(`/api/cemeteries?id=${selectedCemetery.id}`)
+            if (cemeteryResponse.ok) {
+              const cemeteryResult = await cemeteryResponse.json()
+              if (cemeteryResult.success && cemeteryResult.data) {
+                // Update sections with fresh data from backend
+                const updatedSections = cemeteryResult.data.sections?.map((section: any) => ({
+                  id: section.id.toString(),
+                  cemeteryId: selectedCemetery.id,
+                  name: section.name,
+                  description: section.description || '',
+                  color: '#3B82F6',
+                  capacity: section.capacity || 0,
+                  boundary: section.boundary || [],
+                  blocks: section.blocks?.map((block: any) => ({
+                    id: block.id.toString(),
+                    sectionId: section.id.toString(),
+                    name: block.name,
+                    blockType: block.blockType.toLowerCase(),
+                    capacity: block.capacity || 0,
+                    color: '#10B981',
+                    boundary: block.boundary || [],
+                    plots: block.plots?.map((plot: any) => ({
+                      id: plot.id.toString(),
+                      blockId: block.id.toString(),
+                      plotNumber: plot.plotNumber || plot.plotCode,
+                      coordinates: plot.coordinates || [],
+                      size: plot.size.toLowerCase(),
+                      length: plot.length || 2.0,
+                      width: plot.width || 1.0,
+                      depth: plot.depth || 1.5,
+                      baseFee: plot.baseFee || selectedCemetery.standardPrice,
+                      maintenanceFee: plot.maintenanceFee || selectedCemetery.maintenanceFee,
+                      orientation: plot.orientation?.toLowerCase() || 'north',
+                      accessibility: plot.accessibility || true,
+                      status: plot.status.toLowerCase(),
+                      maxLayers: plot.maxLayers || 3,
+                      burials: []
+                    })) || []
+                  })) || []
+                })) || []
 
-        case 'gravestone':
-          // Delete gravestone (keep burials but remove gravestone)
-          const updatedSectionsAfterGravestoneDelete = sections.map(section => ({
-            ...section,
-            blocks: section.blocks.map(block => ({
-              ...block,
-              plots: block.plots.map(plot => {
-                if (plot.id === deleteItem.plotId) {
-                  const { gravestone, ...plotWithoutGravestone } = plot
-                  // Keep plot as occupied if there are active burials
-                  const activeBurials = plot.burials?.filter(b => b.status === 'active') || []
-                  return {
-                    ...plotWithoutGravestone,
-                    status: activeBurials.length > 0 ? 'occupied' : 'available' as 'available' | 'reserved' | 'occupied' | 'maintenance'
+                setSections(updatedSections)
+              }
+            }
+          }
+          
+          alert('Section deleted successfully!')
+        } else {
+          const errorData = await response.text()
+          console.error('Section deletion failed:', errorData)
+          alert(`Failed to delete section: ${errorData}`)
+        }
+      } else if (deleteType === 'block') {
+        // Delete block via backend API
+        const response = await fetch(`/api/cemetery-blocks?id=${deleteItem.id}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        })
+
+        if (response.ok) {
+          const result = await response.json()
+          console.log('Block deleted successfully:', result)
+          
+          // Reload cemetery data to reflect backend changes
+          if (selectedCemetery) {
+            const cemeteryResponse = await fetch(`/api/cemeteries?id=${selectedCemetery.id}`)
+            if (cemeteryResponse.ok) {
+              const cemeteryResult = await cemeteryResponse.json()
+              if (cemeteryResult.success && cemeteryResult.data) {
+                // Update sections with fresh data from backend
+                const updatedSections = cemeteryResult.data.sections?.map((section: any) => ({
+                  id: section.id.toString(),
+                  cemeteryId: selectedCemetery.id,
+                  name: section.name,
+                  description: section.description || '',
+                  color: '#3B82F6',
+                  capacity: section.capacity || 0,
+                  boundary: section.boundary || [],
+                  blocks: section.blocks?.map((block: any) => ({
+                    id: block.id.toString(),
+                    sectionId: section.id.toString(),
+                    name: block.name,
+                    blockType: block.blockType.toLowerCase(),
+                    capacity: block.capacity || 0,
+                    color: '#10B981',
+                    boundary: block.boundary || [],
+                    plots: block.plots?.map((plot: any) => ({
+                      id: plot.id.toString(),
+                      blockId: block.id.toString(),
+                      plotNumber: plot.plotNumber || plot.plotCode,
+                      coordinates: plot.coordinates || [],
+                      size: plot.size.toLowerCase(),
+                      length: plot.length || 2.0,
+                      width: plot.width || 1.0,
+                      depth: plot.depth || 1.5,
+                      baseFee: plot.baseFee || selectedCemetery.standardPrice,
+                      maintenanceFee: plot.maintenanceFee || selectedCemetery.maintenanceFee,
+                      orientation: plot.orientation?.toLowerCase() || 'north',
+                      accessibility: plot.accessibility || true,
+                      status: plot.status.toLowerCase(),
+                      maxLayers: plot.maxLayers || 3,
+                      burials: []
+                    })) || []
+                  })) || []
+                })) || []
+
+                setSections(updatedSections)
+              }
+            }
+          }
+          
+          alert('Block deleted successfully!')
+        } else {
+          const errorData = await response.text()
+          console.error('Block deletion failed:', errorData)
+          alert(`Failed to delete block: ${errorData}`)
+        }
+      } else {
+        // Handle other delete types locally (burials, gravestones, etc.)
+        switch (deleteType) {
+          case 'burial':
+            // Delete burial (mark as transferred/exhumed)
+            const updatedSectionsAfterBurialDelete = sections.map(section => ({
+              ...section,
+              blocks: section.blocks.map(block => ({
+                ...block,
+                plots: block.plots.map(plot => {
+                  if (plot.burials && plot.burials.some(b => b.id === deleteItem.id)) {
+                    const updatedBurials = plot.burials.map(burial => 
+                      burial.id === deleteItem.id 
+                        ? { ...burial, status: 'transferred' as 'active' | 'transferred' | 'exhumed' }
+                        : burial
+                    )
+                    const activeBurials = updatedBurials.filter(b => b.status === 'active')
+                    return {
+                      ...plot,
+                      burials: updatedBurials,
+                      status: activeBurials.length > 0 ? 'occupied' : 'available' as 'available' | 'reserved' | 'occupied' | 'maintenance'
+                    }
                   }
-                }
-                return plot
-              })
+                  return plot
+                })
+              }))
             }))
-          }))
-          setSections(updatedSectionsAfterGravestoneDelete)
-          localStorage.setItem(`cemetery_${selectedCemetery.id}_sections`, JSON.stringify(updatedSectionsAfterGravestoneDelete))
-          break
+            setSections(updatedSectionsAfterBurialDelete)
+            
+            // Update plots array
+            setPlots(plots.map(plot => {
+              if (plot.burials && plot.burials.some(b => b.id === deleteItem.id)) {
+                const updatedBurials = plot.burials.map(burial => 
+                  burial.id === deleteItem.id 
+                    ? { ...burial, status: 'transferred' as 'active' | 'transferred' | 'exhumed' }
+                    : burial
+                )
+                const activeBurials = updatedBurials.filter(b => b.status === 'active')
+                return {
+                  ...plot,
+                  burials: updatedBurials,
+                  status: activeBurials.length > 0 ? 'occupied' : 'available' as 'available' | 'reserved' | 'occupied' | 'maintenance'
+                }
+              }
+              return plot
+            }))
+            break
+
+          case 'gravestone':
+            // Delete gravestone (keep burials but remove gravestone)
+            const updatedSectionsAfterGravestoneDelete = sections.map(section => ({
+              ...section,
+              blocks: section.blocks.map(block => ({
+                ...block,
+                plots: block.plots.map(plot => {
+                  if (plot.id === deleteItem.plotId) {
+                    const { gravestone, ...plotWithoutGravestone } = plot
+                    // Keep plot as occupied if there are active burials
+                    const activeBurials = plot.burials?.filter(b => b.status === 'active') || []
+                    return {
+                      ...plotWithoutGravestone,
+                      status: activeBurials.length > 0 ? 'occupied' : 'available' as 'available' | 'reserved' | 'occupied' | 'maintenance'
+                    }
+                  }
+                  return plot
+                })
+              }))
+            }))
+            setSections(updatedSectionsAfterGravestoneDelete)
+            
+            // Update plots array
+            setPlots(plots.map(plot => {
+              if (plot.id === deleteItem.plotId) {
+                const activeBurials = plot.burials?.filter(b => b.status === 'active') || []
+                return {
+                  ...plot,
+                  gravestone: undefined,
+                  status: activeBurials.length > 0 ? 'occupied' : 'available' as 'available' | 'reserved' | 'occupied' | 'maintenance'
+                }
+              }
+              return plot
+            }))
+            break
+        }
+        
+        alert(`${deleteType.charAt(0).toUpperCase() + deleteType.slice(1)} deleted successfully!`)
       }
 
       console.log(`${deleteType} deleted successfully:`, deleteItem)
     } catch (error) {
       console.error(`Error deleting ${deleteType}:`, error)
+      alert(`Error deleting ${deleteType}. Please try again.`)
     } finally {
       setIsSaving(false)
       handleDeleteCancel()
@@ -1068,10 +1852,7 @@ export default function CemeteryManagementPage() {
                     
                     <div className="flex space-x-2">
                       <button
-                        onClick={() => {
-                          setSelectedCemetery(cemetery)
-                          window.history.pushState({}, '', `/admin/cemetery?id=${cemetery.id}`)
-                        }}
+                        onClick={() => handleCemeteryManage(cemetery)}
                         className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2"
                       >
                         <FiEdit2 size={16} />
@@ -1114,6 +1895,16 @@ export default function CemeteryManagementPage() {
               </h1>
             </div>
             <p className="text-gray-600 ml-9">Manage sections, blocks, plots, and gravestones</p>
+          </div>
+          
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => window.open(`/admin/cemetery/plots`, '_blank')}
+              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-lg"
+            >
+              <FiGrid size={16} />
+              <span>Plot Management</span>
+            </button>
           </div>
         </div>
 
@@ -1215,13 +2006,58 @@ export default function CemeteryManagementPage() {
                   drawingMode={drawingMode}
                   currentDrawing={currentDrawing}
                   showPlots={currentStep === 'plots' || currentStep === 'burials'}
-                  center={selectedCemetery ? calculateCemeteryCenter(selectedCemetery) : undefined}
-                  zoom={19}
+                  center={mapInitialized ? mapCenter : (selectedCemetery ? calculateCemeteryCenter(selectedCemetery) : undefined)}
+                  zoom={mapInitialized ? mapZoom : (selectedPlotId ? 20 : 19)} // Zoom in more when focusing on a plot
                   height="h-[600px]"
                   mapType="satellite"
+                  focusPlot={selectedPlotId ? (() => {
+                    // Find the focused plot data
+                    let focusedPlot = null
+                    if (selectedCemetery && sections) {
+                      for (const section of sections) {
+                        for (const block of section.blocks) {
+                          const plot = block.plots.find(p => p.id === selectedPlotId)
+                          if (plot) {
+                            // Calculate center of plot coordinates
+                            let centerLat = 14.6760, centerLng = 121.0437 // Default fallback
+                            if (plot.coordinates && plot.coordinates.length > 0) {
+                              const lats = plot.coordinates.map(coord => coord[0])
+                              const lngs = plot.coordinates.map(coord => coord[1])
+                              centerLat = lats.reduce((a, b) => a + b, 0) / lats.length
+                              centerLng = lngs.reduce((a, b) => a + b, 0) / lngs.length
+                            }
+                            
+                            focusedPlot = {
+                              id: plot.id,
+                              plotNumber: plot.plotNumber,
+                              coordinates: { lat: centerLat, lng: centerLng },
+                              section: section.name,
+                              block: block.name,
+                              status: plot.status,
+                              occupiedBy: plot.burials && plot.burials.length > 0 ? 
+                                `${plot.burials[0].deceasedInfo.firstName} ${plot.burials[0].deceasedInfo.lastName}` : 
+                                undefined,
+                              reservedBy: plot.status === 'reserved' ? 'Reserved' : undefined
+                            }
+                            break
+                          }
+                        }
+                        if (focusedPlot) break
+                      }
+                    }
+                    return focusedPlot
+                  })() : undefined}
                   onMapClick={(coords) => {
                     if (isDrawing) {
                       setCurrentDrawing(prev => [...prev, coords])
+                    }
+                  }}
+                  onViewChange={(center, zoom) => {
+                    // Always update map center and zoom when user moves the map
+                    setMapCenter(center)
+                    setMapZoom(zoom)
+                    if (!mapInitialized) {
+                      setMapInitialized(true)
                     }
                   }}
                   onPolygonClick={(type, id) => {
@@ -1483,23 +2319,32 @@ export default function CemeteryManagementPage() {
                         <span>Draw Section</span>
                       </button>
                     ) : (
-                      <button
-                        onClick={handleSaveSection}
-                        disabled={currentDrawing.length < 3 || !sectionFormData.name || isSaving}
-                        className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 transition-colors"
-                      >
-                        {isSaving ? (
-                          <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                            <span>Saving...</span>
-                          </>
-                        ) : (
-                          <>
-                            <FiCheck size={16} />
-                            <span>Save Section</span>
-                          </>
-                        )}
-                      </button>
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={handleCancelDrawing}
+                          className="flex items-center space-x-2 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                        >
+                          <MdCancel size={16} />
+                          <span>Cancel</span>
+                        </button>
+                        <button
+                          onClick={handleSaveSection}
+                          disabled={currentDrawing.length < 3 || !sectionFormData.name || isSaving}
+                          className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 transition-colors"
+                        >
+                          {isSaving ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                              <span>Saving...</span>
+                            </>
+                          ) : (
+                            <>
+                              <FiCheck size={16} />
+                              <span>Save Section</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -1645,23 +2490,32 @@ export default function CemeteryManagementPage() {
                           <span>Draw Block</span>
                         </button>
                       ) : (
-                        <button
-                          onClick={handleSaveBlock}
-                          disabled={currentDrawing.length < 3 || !blockFormData.name || !blockFormData.sectionId || isSaving}
-                          className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 transition-colors"
-                        >
-                          {isSaving ? (
-                            <>
-                              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                              <span>Saving...</span>
-                            </>
-                          ) : (
-                            <>
-                              <FiCheck size={16} />
-                              <span>Save Block</span>
-                            </>
-                          )}
-                        </button>
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={handleCancelDrawing}
+                            className="flex items-center space-x-2 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                          >
+                            <MdCancel size={16} />
+                            <span>Cancel</span>
+                          </button>
+                          <button
+                            onClick={handleSaveBlock}
+                            disabled={currentDrawing.length < 3 || !blockFormData.name || !blockFormData.sectionId || isSaving}
+                            className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 transition-colors"
+                          >
+                            {isSaving ? (
+                              <>
+                                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                                <span>Saving...</span>
+                              </>
+                            ) : (
+                              <>
+                                <FiCheck size={16} />
+                                <span>Save Block</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
                       )}
                     </div>
                   )}
@@ -1812,23 +2666,32 @@ export default function CemeteryManagementPage() {
                                 <span>Draw Plot</span>
                               </button>
                             ) : (
-                              <button
-                                onClick={handleSavePlot}
-                                disabled={currentDrawing.length < 3 || !plotFormData.blockId || isSaving}
-                                className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-300 transition-colors text-sm"
-                              >
-                                {isSaving ? (
-                                  <>
-                                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                                    <span>Saving...</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <FiCheck size={16} />
-                                    <span>Save Plot</span>
-                                  </>
-                                )}
-                              </button>
+                              <div className="flex space-x-2">
+                                <button
+                                  onClick={handleCancelDrawing}
+                                  className="flex items-center space-x-2 px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors text-sm"
+                                >
+                                  <MdCancel size={16} />
+                                  <span>Cancel</span>
+                                </button>
+                                <button
+                                  onClick={handleSavePlot}
+                                  disabled={currentDrawing.length < 3 || !plotFormData.blockId || isSaving}
+                                  className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-300 transition-colors text-sm"
+                                >
+                                  {isSaving ? (
+                                    <>
+                                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                                      <span>Saving...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <FiCheck size={16} />
+                                      <span>Save Plot</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -2282,21 +3145,21 @@ export default function CemeteryManagementPage() {
       </div>
 
       {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && (
+      {showDeleteConfirm ? (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]"
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] animate-fadeIn"
           onClick={handleDeleteCancel}
           style={{ 
-            pointerEvents: 'auto',
             position: 'fixed',
             top: 0,
             left: 0,
             right: 0,
-            bottom: 0
+            bottom: 0,
+            zIndex: 9999
           }}
         >
           <div 
-            className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4"
+            className="bg-white rounded-lg shadow-2xl border border-gray-300 max-w-md w-full mx-4 animate-slideUp"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-6">
@@ -2327,9 +3190,18 @@ export default function CemeteryManagementPage() {
                   </p>
                 )}
                 {deleteType === 'cemetery' && (
-                  <p className="text-sm text-red-600 mt-2">
-                    ⚠️ This will delete the entire cemetery and all its data (sections, blocks, plots, gravestones).
-                  </p>
+                  <div className="text-sm text-red-600 mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="font-semibold mb-1">⚠️ CASCADE DELETION WARNING</p>
+                    <p>This will permanently delete:</p>
+                    <ul className="list-disc list-inside mt-1 text-xs">
+                      <li>The entire cemetery</li>
+                      <li>All sections and blocks</li>
+                      <li>All plots (could be 1000+)</li>
+                      <li>All gravestones and assignments</li>
+                      <li>All associated burial records</li>
+                    </ul>
+                    <p className="mt-2 font-semibold">This action cannot be undone!</p>
+                  </div>
                 )}
               </div>
               
@@ -2362,12 +3234,12 @@ export default function CemeteryManagementPage() {
             </div>
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* Occupants List Modal */}
       {showOccupantsList && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]"
+          className="fixed inset-0 flex items-center justify-center z-[9999] animate-fadeIn"
           onClick={handleCloseOccupantsList}
           style={{ 
             pointerEvents: 'auto',
@@ -2379,7 +3251,7 @@ export default function CemeteryManagementPage() {
           }}
         >
           <div 
-            className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[80vh] mx-4 overflow-hidden"
+            className="bg-white rounded-lg shadow-2xl border border-gray-300 max-w-4xl w-full max-h-[80vh] mx-4 overflow-hidden animate-slideUp"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-6 border-b border-gray-200">

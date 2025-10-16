@@ -59,21 +59,90 @@ async function main() {
       },
     });
 
+    // Create sample cemetery
+    const cemetery = await prisma.cemetery.upsert({
+      where: { id: 1 },
+      update: {},
+      create: {
+        name: 'Quezon City Public Cemetery',
+        description: 'Main public cemetery serving Quezon City residents',
+        address: 'Araneta Avenue, Quezon City',
+        city: 'Quezon City',
+        postalCode: '1100',
+        establishedDate: new Date('1950-01-01'),
+        totalArea: 50000.0, // 50,000 square meters
+        standardPrice: 5000.00,
+        largePrice: 8000.00,
+        familyPrice: 15000.00,
+        nichePrice: 3000.00,
+        maintenanceFee: 500.00,
+        isActive: true,
+      },
+    });
+
+    // Create cemetery sections
+    const sections = [];
+    for (let i = 1; i <= 5; i++) {
+      const section = await prisma.cemeterySection.upsert({
+        where: { id: i },
+        update: {},
+        create: {
+          cemeteryId: cemetery.id,
+          name: `Section ${i}`,
+          description: `Cemetery Section ${i} - Ground burial plots`,
+          capacity: 200, // 200 plots per section
+        },
+      });
+      sections.push(section);
+    }
+
+    // Create cemetery blocks
+    const blocks = [];
+    for (const section of sections) {
+      for (let j = 1; j <= 10; j++) {
+        const block = await prisma.cemeteryBlock.upsert({
+          where: { id: (section.id - 1) * 10 + j },
+          update: {},
+          create: {
+            sectionId: section.id,
+            name: `Block ${j}`,
+            blockType: j <= 8 ? 'STANDARD' : j === 9 ? 'PREMIUM' : 'FAMILY',
+            capacity: 20, // 20 plots per block
+          },
+        });
+        blocks.push(block);
+      }
+    }
+
     // Create sample cemetery plots
     const plots = [];
     for (let section = 1; section <= 5; section++) {
+      const sectionRecord = sections[section - 1];
       for (let block = 1; block <= 10; block++) {
+        const blockRecord = blocks[(section - 1) * 10 + (block - 1)];
         for (let lot = 1; lot <= 20; lot++) {
           plots.push({
-            cemeteryName: 'Quezon City Public Cemetery',
-            section: `Section ${section}`,
-            block: `Block ${block}`,
+            cemeteryId: cemetery.id,
+            sectionId: sectionRecord.id,
+            blockId: blockRecord.id,
+            plotNumber: `LOT${lot.toString().padStart(2, '0')}`,
+            section: `Section ${section}`, // Keep for backward compatibility
+            block: `Block ${block}`, // Keep for backward compatibility
             lot: `Lot ${lot}`,
             plotCode: `SEC${section}-BLK${block}-LOT${lot.toString().padStart(2, '0')}`,
-            size: lot % 3 === 0 ? 'Family' : lot % 2 === 0 ? 'Adult' : 'Child',
+            size: lot % 3 === 0 ? 'FAMILY' : lot % 2 === 0 ? 'LARGE' : 'STANDARD',
+            length: lot % 3 === 0 ? 3.0 : lot % 2 === 0 ? 2.5 : 2.0,
+            width: lot % 3 === 0 ? 2.0 : 1.0,
+            depth: 1.5,
             latitude: 14.6760 + (Math.random() - 0.5) * 0.01, // Random coords around Quezon City
             longitude: 121.0437 + (Math.random() - 0.5) * 0.01,
             status: Math.random() > 0.7 ? 'OCCUPIED' : 'VACANT',
+            baseFee: lot % 3 === 0 ? 15000.00 : lot % 2 === 0 ? 8000.00 : 5000.00,
+            maintenanceFee: 500.00,
+            orientation: ['NORTH', 'SOUTH', 'EAST', 'WEST'][lot % 4],
+            accessibility: true,
+            maxLayers: 3,
+            notes: `Plot in ${sectionRecord.name}, ${blockRecord.name}`,
           });
         }
       }
@@ -645,16 +714,20 @@ async function main() {
     console.log(`📋 Death Registrations: ${await prisma.deathRegistration.count()}`);
     console.log(`🏛️  Permits: ${await prisma.permitRequest.count()}`);
     console.log(`📜 Certificate Requests: ${await prisma.certificateRequest.count()}`);
-    console.log(`�️  Cemetery Plots: ${await prisma.cemeteryPlot.count()}`);
+    console.log(`🏞️  Cemeteries: ${await prisma.cemetery.count()}`);
+    console.log(`📍 Cemetery Sections: ${await prisma.cemeterySection.count()}`);
+    console.log(`🏢 Cemetery Blocks: ${await prisma.cemeteryBlock.count()}`);
+    console.log(`🗺️  Cemetery Plots: ${await prisma.cemeteryPlot.count()}`);
+    console.log(`🪦 Gravestones: ${await prisma.gravestone.count()}`);
     console.log(`📝 Audit Logs: ${await prisma.auditLog.count()}`);
     
-    // Show status breakdown
-    const statusCounts = await prisma.deathRegistration.groupBy({
+    // Show plot status breakdown
+    const plotStatusCounts = await prisma.cemeteryPlot.groupBy({
       by: ['status'],
       _count: { status: true }
     });
-    console.log('\n📊 Death Registration Status Breakdown:');
-    statusCounts.forEach(item => {
+    console.log('\n�️  Cemetery Plot Status Breakdown:');
+    plotStatusCounts.forEach(item => {
       console.log(`   ${item.status}: ${item._count.status}`);
     });
     
