@@ -1,35 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 
-// Get all deceased records (GET)
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3001';
+
+// Proxy GET to backend /api/deceased
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search');
-
-    const where: any = {};
-
+    
+    let backendUrl = `${BACKEND_URL}/api/deceased`;
     if (search) {
-      where.OR = [
-        { firstName: { contains: search, mode: 'insensitive' } },
-        { lastName: { contains: search, mode: 'insensitive' } },
-        { middleName: { contains: search, mode: 'insensitive' } }
-      ];
+      backendUrl += `?search=${encodeURIComponent(search)}`;
     }
 
-    const deceased = await prisma.deceasedRecord.findMany({
-      where,
-      include: {
-        plotAssignments: {
-          include: {
-            plot: true
-          }
-        }
-      },
-      orderBy: { lastName: 'asc' }
-    });
+    const response = await fetch(backendUrl);
+    const data = await response.json();
 
-    return NextResponse.json({ success: true, data: deceased });
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to fetch from backend');
+    }
+
+    return NextResponse.json({ success: true, data: data.data || data });
   } catch (error) {
     console.error("Deceased records fetch error:", error);
     return NextResponse.json(
@@ -39,71 +30,26 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Create deceased record (POST)
+// Proxy POST to backend
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     
-    if (!body.firstName || !body.lastName || !body.dateOfBirth || !body.dateOfDeath) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "First name, last name, date of birth, and date of death are required",
-        },
-        { status: 400 }
-      );
-    }
-
-    // Calculate age if not provided
-    const age = body.age || Math.floor((new Date(body.dateOfDeath).getTime() - new Date(body.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-
-    const deceased = await prisma.deceasedRecord.create({
-      data: {
-        firstName: body.firstName,
-        middleName: body.middleName,
-        lastName: body.lastName,
-        suffix: body.suffix,
-        dateOfBirth: new Date(body.dateOfBirth),
-        dateOfDeath: new Date(body.dateOfDeath),
-        age: age,
-        sex: body.gender || body.sex, // Support both field names
-        causeOfDeath: body.causeOfDeath,
-        placeOfDeath: body.placeOfDeath,
-        residenceAddress: body.residenceAddress,
-        citizenship: body.citizenship,
-        civilStatus: body.civilStatus,
-        occupation: body.occupation,
-        covidRelated: body.covidRelated || false,
+    const response = await fetch(`${BACKEND_URL}/api/deceased`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
-      include: {
-        plotAssignments: {
-          include: {
-            plot: true
-          }
-        }
-      }
+      body: JSON.stringify(body),
     });
 
-    // If plotId is provided, create a plot assignment
-    if (body.plotId) {
-      await prisma.plotAssignment.create({
-        data: {
-          plotId: parseInt(body.plotId),
-          deceasedId: deceased.id,
-          status: 'ASSIGNED'
-        }
-      });
+    const data = await response.json();
 
-      // Update plot status to occupied
-      await prisma.cemeteryPlot.update({
-        where: { id: parseInt(body.plotId) },
-        data: { 
-          status: 'OCCUPIED'
-        }
-      });
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to create deceased record');
     }
 
-    return NextResponse.json({ success: true, data: deceased });
+    return NextResponse.json({ success: true, data: data.data || data });
   } catch (error) {
     console.error("Deceased record create error:", error);
     return NextResponse.json(
@@ -113,40 +59,26 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Update deceased record (PUT)
+// Proxy PUT to backend
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, ...updateData } = body;
     
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: "Deceased ID is required" },
-        { status: 400 }
-      );
-    }
-
-    // Convert date strings to Date objects if provided
-    if (updateData.dateOfBirth) {
-      updateData.dateOfBirth = new Date(updateData.dateOfBirth);
-    }
-    if (updateData.dateOfDeath) {
-      updateData.dateOfDeath = new Date(updateData.dateOfDeath);
-    }
-
-    const deceased = await prisma.deceasedRecord.update({
-      where: { id: parseInt(id) },
-      data: updateData,
-      include: {
-        plotAssignments: {
-          include: {
-            plot: true
-          }
-        }
-      }
+    const response = await fetch(`${BACKEND_URL}/api/deceased`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
     });
 
-    return NextResponse.json({ success: true, data: deceased });
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to update deceased record');
+    }
+
+    return NextResponse.json({ success: true, data: data.data || data });
   } catch (error) {
     console.error("Deceased record update error:", error);
     return NextResponse.json(
@@ -156,7 +88,7 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// Delete deceased record (DELETE)
+// Proxy DELETE to backend
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -169,37 +101,15 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Get the deceased record and find associated plot assignments
-    const deceased = await prisma.deceasedRecord.findUnique({
-      where: { id: parseInt(id) },
-      include: {
-        plotAssignments: {
-          include: {
-            plot: true
-          }
-        }
-      }
+    const response = await fetch(`${BACKEND_URL}/api/deceased?id=${id}`, {
+      method: 'DELETE',
     });
 
-    if (deceased && deceased.plotAssignments.length > 0) {
-      // Update plot status to vacant and remove assignments
-      for (const assignment of deceased.plotAssignments) {
-        await prisma.cemeteryPlot.update({
-          where: { id: assignment.plotId },
-          data: { 
-            status: 'VACANT'
-          }
-        });
-        
-        await prisma.plotAssignment.delete({
-          where: { id: assignment.id }
-        });
-      }
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to delete deceased record');
     }
-
-    await prisma.deceasedRecord.delete({
-      where: { id: parseInt(id) },
-    });
 
     return NextResponse.json({ success: true, message: "Deceased record deleted successfully" });
   } catch (error) {

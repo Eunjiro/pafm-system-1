@@ -36,7 +36,7 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen" style={{backgroundColor: '#FBFBFB'}}>
       {/* Modern Header with Gradient Accent */}
-      <div className="bg-white shadow-sm border-b border-gray-200">
+      <div className="bg-white shadow-sm border-b border-gray-200 mx-6 rounded-lg">
         <div 
           className="h-1 w-full"
           style={{

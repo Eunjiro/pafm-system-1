@@ -67,7 +67,6 @@ interface CemeteryMapComponentProps {
   currentDrawing: [number, number][]
   onMapClick: (coords: [number, number]) => void
   onPolygonClick: (type: 'cemetery' | 'section' | 'block' | 'plot', id: string) => void
-  onViewChange?: (center: [number, number], zoom: number) => void
   showPlots?: boolean
   center?: [number, number]
   zoom?: number
@@ -92,24 +91,12 @@ function calculateCenterFromBoundary(boundary: [number, number][]): [number, num
 
 function MapController({ center, zoom }: { center: [number, number], zoom: number }) {
   const map = useMap();
-  const [lastCenter, setLastCenter] = useState<[number, number] | null>(null);
-  const [lastZoom, setLastZoom] = useState<number | null>(null);
   
   useEffect(() => {
-    if (center && zoom) {
-      // Only set view if center or zoom has actually changed significantly
-      const centerChanged = !lastCenter || 
-        Math.abs(center[0] - lastCenter[0]) > 0.0001 || 
-        Math.abs(center[1] - lastCenter[1]) > 0.0001;
-      const zoomChanged = !lastZoom || Math.abs(zoom - lastZoom) > 0.5;
-      
-      if (centerChanged || zoomChanged) {
-        map.setView(center, zoom, { animate: false, duration: 0 });
-        setLastCenter(center);
-        setLastZoom(zoom);
-      }
+    if (center) {
+      map.setView(center, zoom, { animate: true, duration: 1 });
     }
-  }, [center, zoom, map, lastCenter, lastZoom]);
+  }, [center, zoom, map]);
   
   return null;
 }
@@ -123,50 +110,12 @@ function MapClickHandler({ onMapClick }: { onMapClick: (coords: [number, number]
   return null
 }
 
-function MapViewTracker({ onViewChange }: { onViewChange?: (center: [number, number], zoom: number) => void }) {
-  const map = useMap();
-  const [updateTimeout, setUpdateTimeout] = useState<NodeJS.Timeout | null>(null);
-  
-  useEffect(() => {
-    if (!onViewChange) return;
-    
-    const handleViewChange = () => {
-      // Throttle updates to prevent excessive re-renders
-      if (updateTimeout) {
-        clearTimeout(updateTimeout);
-      }
-      
-      const newTimeout = setTimeout(() => {
-        const center = map.getCenter();
-        const zoom = map.getZoom();
-        onViewChange([center.lat, center.lng], zoom);
-      }, 150); // Wait 150ms after movement stops
-      
-      setUpdateTimeout(newTimeout);
-    };
-    
-    map.on('moveend', handleViewChange);
-    map.on('zoomend', handleViewChange);
-    
-    return () => {
-      if (updateTimeout) {
-        clearTimeout(updateTimeout);
-      }
-      map.off('moveend', handleViewChange);
-      map.off('zoomend', handleViewChange);
-    };
-  }, [map, onViewChange, updateTimeout]);
-  
-  return null;
-}
-
 export default function CemeteryMapComponent({
   cemeteryLayout,
   drawingMode,
   currentDrawing,
   onMapClick,
   onPolygonClick,
-  onViewChange,
   showPlots = false,
   center,
   zoom = 18,
@@ -457,7 +406,6 @@ export default function CemeteryMapComponent({
         zoom={initialView ? initialView.zoom : zoom} 
       />
       <MapClickHandler onMapClick={onMapClick} />
-      <MapViewTracker onViewChange={onViewChange} />
     </MapContainer>
     
     {/* Enhanced Zoom Info */}

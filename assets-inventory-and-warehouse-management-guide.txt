@@ -1,0 +1,396 @@
+MODULE: ASSET INVENTORY & WAREHOUSE MANAGEMENT
+A. RECEIVING OF SUPPLIES & MATERIALS
+ Initiated by: Supplier Delivery
+Upload / Encode (by Receiving Staff):
+Purchase Order (PO):
+image located at frontend/public/po.png
+
+Delivery Receipt (DR):
+image located at frontend/public/dr.png
+
+Notice of Delivery (if applicable)
+Procedures:
+Verify delivered items against PO and DR
+Encode delivery details into System
+Transfer items to Storage & Processing Section
+
+
+System Status Flow:
+ Pending Verification → Verified → Stored / Recorded
+B. STORAGE & PROCESSING
+ Handled by: Storage & Processing Section
+Procedures:
+Tag / label items with system-generated identifiers
+Organize items in designated racks or storage zones
+Track quantity and location via system dashboard
+
+
+System Status:
+ In Stock / Available or Reserved (if tagged for pending issuance)
+
+C. INTER-DEPARTMENTAL ASSET REQUEST & ISSUANCE
+ Requesting Party: Any Government Office / Department
+ Required Document: Requisition and Issue Slip (RIS)
+Request Submission (via System):
+Select items → Submit RIS → Status: Pending Approval
+Validation & Approval:
+Warehouse Officer reviews request
+Status Options:
+Approved – For Issuance
+Rejected – Invalid / Insufficient Justification
+Pending – No Stock Available
+Release / Transfer of Items:
+Staff prepares and releases supplies
+Requesting party signs digital or physical acknowledgment
+System logs issuance
+
+
+Final Status:
+ Issued / Completed
+
+
+
+
+D. PHYSICAL INVENTORY & STOCK VALIDATION
+ Performed by: Warehouse Staff
+Procedures:
+Conduct scheduled physical stock count
+Compare actual count with system records
+Update discrepancies if found
+System Status:
+ Balanced or Discrepancy Found
+
+E. REPORTING & MONITORING
+Weekly: Internal accomplishment/activity logs
+Monthly / Quarterly / Annual: Consolidated inventory reports submitted to:
+City Accounting Office
+Commission on Audit (COA)
+
+
+
+
+
+Asset Inventory & Warehouse Management schema
+
+CREATE DATABASE asset_inventory;
+
+
+-- === ENUMS ===
+CREATE TYPE delivery_status AS ENUM ('pending_verification','verified','stored');
+CREATE TYPE stock_status AS ENUM ('in_stock','reserved','issued','disposed');
+CREATE TYPE ris_status AS ENUM ('pending_approval','approved','rejected','pending_no_stock','completed');
+CREATE TYPE physical_count_status AS ENUM ('balanced','discrepancy_found','in_progress');
+CREATE TYPE movement_type AS ENUM ('receive','store','issue','adjustment','transfer');
+
+-- === CORE REFERENCE TABLES ===
+CREATE TABLE departments (
+  id BIGSERIAL PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  code TEXT
+);
+
+CREATE TABLE users (
+  id BIGSERIAL PRIMARY KEY,
+  username TEXT NOT NULL UNIQUE,
+  full_name TEXT NOT NULL,
+  email TEXT,
+  department_id BIGINT REFERENCES departments(id),
+  role TEXT, -- e.g., 'warehouse_staff','approver','admin','requester'
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+CREATE TABLE suppliers (
+  id BIGSERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  contact_info TEXT
+);
+
+-- File/document store reference (PO, DR, RIS scans etc.)
+CREATE TABLE documents (
+  id BIGSERIAL PRIMARY KEY,
+  filename TEXT NOT NULL,
+  file_url TEXT, -- path or URL to stored file
+  uploaded_by BIGINT REFERENCES users(id),
+  uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  metadata JSONB
+);
+
+-- === ITEM CATALOG ===
+CREATE TABLE items (
+  id BIGSERIAL PRIMARY KEY,
+  sku TEXT UNIQUE,           -- optional stock code
+  name TEXT NOT NULL,
+  description TEXT,
+  unit TEXT NOT NULL,        -- e.g., bag, pc, box
+  is_consumable BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+-- Storage locations / warehouse layout
+CREATE TABLE storage_locations (
+  id BIGSERIAL PRIMARY KEY,
+  code TEXT NOT NULL UNIQUE,   -- e.g., WH-A-01
+  name TEXT,
+  description TEXT
+);
+
+-- === RECEIVE / DELIVERY ===
+CREATE TABLE purchase_orders (
+  id BIGSERIAL PRIMARY KEY,
+  po_number TEXT NOT NULL UNIQUE,
+  supplier_id BIGINT REFERENCES suppliers(id),
+  created_by BIGINT REFERENCES users(id),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  notes TEXT
+);
+
+CREATE TABLE delivery_receipts (
+  id BIGSERIAL PRIMARY KEY,
+  dr_number TEXT NOT NULL UNIQUE,
+  po_id BIGINT REFERENCES purchase_orders(id) ON DELETE SET NULL,
+  supplier_id BIGINT REFERENCES suppliers(id),
+  delivered_at TIMESTAMP WITH TIME ZONE,
+  received_by BIGINT REFERENCES users(id),
+  status delivery_status DEFAULT 'pending_verification',
+  document_id BIGINT REFERENCES documents(id),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+-- Delivery line items (what was delivered)
+CREATE TABLE delivery_lines (
+  id BIGSERIAL PRIMARY KEY,
+  delivery_receipt_id BIGINT REFERENCES delivery_receipts(id) ON DELETE CASCADE,
+  item_id BIGINT REFERENCES items(id),
+  description TEXT,
+  unit TEXT,
+  qty_delivered NUMERIC NOT NULL CHECK (qty_delivered >= 0),
+  unit_cost NUMERIC, -- optional
+  remarks TEXT
+);
+
+-- === INVENTORY MOVEMENTS (ledger) ===
+-- This table keeps the authoritative movement log used to calculate on-hand quantity.
+CREATE TABLE stock_movements (
+  id BIGSERIAL PRIMARY KEY,
+  movement_type movement_type NOT NULL, -- receive, issue, adjustment, transfer
+  related_document_type TEXT, -- e.g., 'DR','RIS','ADJUSTMENT'
+  related_document_id BIGINT,  -- id from the related table (delivery_receipts, ris_requests, etc.)
+  item_id BIGINT REFERENCES items(id) NOT NULL,
+  qty NUMERIC NOT NULL,
+  unit TEXT,
+  from_location_id BIGINT REFERENCES storage_locations(id),
+  to_location_id BIGINT REFERENCES storage_locations(id),
+  created_by BIGINT REFERENCES users(id),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  remarks TEXT
+);
+
+-- === CURRENT STOCK VIEW (materialized optionally) ===
+-- We'll create view after tables.
+
+-- === REQUISITION / ISSUANCE (RIS) ===
+CREATE TABLE ris_requests (
+  id BIGSERIAL PRIMARY KEY,
+  ris_number TEXT UNIQUE,
+  requesting_dept_id BIGINT REFERENCES departments(id),
+  requested_by BIGINT REFERENCES users(id),
+  purpose TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  status ris_status DEFAULT 'pending_approval',
+  reviewed_by BIGINT REFERENCES users(id),
+  reviewed_at TIMESTAMP WITH TIME ZONE,
+  notes TEXT,
+  document_id BIGINT REFERENCES documents(id) -- scanned RIS if uploaded
+);
+
+CREATE TABLE ris_lines (
+  id BIGSERIAL PRIMARY KEY,
+  ris_request_id BIGINT REFERENCES ris_requests(id) ON DELETE CASCADE,
+  item_id BIGINT REFERENCES items(id) NOT NULL,
+  qty_requested NUMERIC NOT NULL CHECK (qty_requested >= 0),
+  unit TEXT,
+  justification TEXT
+);
+
+-- Issuance record (when items are actually released)
+CREATE TABLE issuances (
+  id BIGSERIAL PRIMARY KEY,
+  ris_request_id BIGINT REFERENCES ris_requests(id) ON DELETE SET NULL,
+  issued_by BIGINT REFERENCES users(id),
+  issued_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  document_id BIGINT REFERENCES documents(id), -- signed acknowledgment
+  remarks TEXT
+);
+
+CREATE TABLE issuance_lines (
+  id BIGSERIAL PRIMARY KEY,
+  issuance_id BIGINT REFERENCES issuances(id) ON DELETE CASCADE,
+  item_id BIGINT REFERENCES items(id) NOT NULL,
+  qty_issued NUMERIC NOT NULL CHECK (qty_issued >= 0),
+  unit TEXT,
+  from_location_id BIGINT REFERENCES storage_locations(id)
+);
+
+-- === PHYSICAL COUNT (inventory audit) ===
+CREATE TABLE physical_counts (
+  id BIGSERIAL PRIMARY KEY,
+  name TEXT,
+  initiated_by BIGINT REFERENCES users(id),
+  started_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  completed_at TIMESTAMP WITH TIME ZONE,
+  status physical_count_status DEFAULT 'in_progress',
+  notes TEXT
+);
+
+CREATE TABLE physical_count_lines (
+  id BIGSERIAL PRIMARY KEY,
+  physical_count_id BIGINT REFERENCES physical_counts(id) ON DELETE CASCADE,
+  item_id BIGINT REFERENCES items(id),
+  expected_qty NUMERIC,
+  counted_qty NUMERIC,
+  remarks TEXT
+);
+
+-- === REPORT LOGS ===
+CREATE TABLE report_logs (
+  id BIGSERIAL PRIMARY KEY,
+  report_type TEXT, -- weekly, monthly, quarterly, annual, custom
+  generated_by BIGINT REFERENCES users(id),
+  generated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  payload JSONB -- saved report snapshot or metadata
+);
+
+-- === INDEXES & HELPERS ===
+CREATE INDEX idx_delivery_receipts_status ON delivery_receipts(status);
+CREATE INDEX idx_stock_movements_item ON stock_movements(item_id);
+CREATE INDEX idx_ris_status ON ris_requests(status);
+CREATE INDEX idx_physical_counts_status ON physical_counts(status);
+
+-- === VIEW: current_stock (aggregated from stock_movements) ===
+CREATE OR REPLACE VIEW vw_current_stock AS
+SELECT
+  s.item_id,
+  i.sku,
+  i.name,
+  COALESCE(SUM(
+    CASE WHEN movement_type = 'receive' THEN qty
+         WHEN movement_type = 'store' THEN qty
+         WHEN movement_type = 'transfer' AND to_location_id IS NOT NULL THEN qty
+         WHEN movement_type = 'issue' THEN -qty
+         WHEN movement_type = 'adjustment' THEN qty
+         ELSE 0 END
+  ),0) AS on_hand_qty
+FROM stock_movements s
+JOIN items i ON s.item_id = i.id
+GROUP BY s.item_id, i.sku, i.name;
+
+-- === VIEW: location_stock ===
+CREATE OR REPLACE VIEW vw_location_stock AS
+SELECT
+  item_id,
+  COALESCE(to_location_id, from_location_id) AS location_id,
+  SUM(CASE WHEN movement_type IN ('receive','store','transfer') AND COALESCE(to_location_id,0) > 0 THEN qty
+           WHEN movement_type = 'issue' AND from_location_id IS NOT NULL THEN -qty
+           WHEN movement_type = 'adjustment' THEN qty
+           ELSE 0 END) AS qty
+FROM stock_movements
+GROUP BY item_id, COALESCE(to_location_id, from_location_id);
+
+-- === SAMPLE FUNCTION to create a receive movement (optional)
+-- (Developers may instead perform this logic in application code or via stored procedures)
+CREATE OR REPLACE FUNCTION receive_delivery(delivery_id BIGINT, acting_user BIGINT) RETURNS VOID AS $$
+BEGIN
+  -- Insert a movement for each delivery_line mapped to 'receive'
+  INSERT INTO stock_movements (movement_type, related_document_type, related_document_id, item_id, qty, unit, to_location_id, created_by)
+  SELECT 'receive', 'DR', delivery_id, dl.item_id, dl.qty_delivered, dl.unit, NULL, acting_user
+  FROM delivery_lines dl
+  WHERE dl.delivery_receipt_id = delivery_id;
+  -- Update delivery_receipt status to verified
+  UPDATE delivery_receipts SET status = 'verified' WHERE id = delivery_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Grant basic privileges (example, adjust for your environment)
+-- GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO your_app_role;
+
+-- End of schema
+
+
+INSERTION SEEDS
+
+-- === SEED: Departments ===
+INSERT INTO departments (name, code) VALUES
+('General Services Office', 'GSO'),
+('City Engineering Office', 'ENG'),
+('City Accounting Office', 'ACC');
+
+-- === SEED: Users ===
+INSERT INTO users (username, full_name, email, department_id, role) VALUES
+('john_doe', 'John Doe', 'john@gso.gov', 1, 'warehouse_staff'),
+('eng_requester', 'Maria Santos', 'maria@eng.gov', 2, 'requester'),
+('gso_chief', 'Roberto Cruz', 'roberto@gso.gov', 1, 'approver');
+
+-- === SEED: Suppliers ===
+INSERT INTO suppliers (name, contact_info) VALUES
+('ABC Construction Supply', '0917-123-4567 / abc@example.com');
+
+-- === SEED: Storage Locations ===
+INSERT INTO storage_locations (code, name, description) VALUES
+('WH-A-01', 'Main Rack', 'Primary Storage Rack'),
+('WH-A-02', 'Overflow Rack', 'Secondary Storage');
+
+-- === SEED: Items ===
+INSERT INTO items (sku, name, description, unit, is_consumable) VALUES
+('CEM-001', 'Cement', 'Ordinary Portland Cement', 'bag', TRUE),
+('REB-012', 'Steel Rebar 12mm', 'Deformed Steel Bar', 'pc', TRUE),
+('INK-680', 'Printer Ink HP 680', 'Black + Tri-color Combo Pack', 'box', TRUE);
+
+-- === SEED: Purchase Order ===
+INSERT INTO purchase_orders (po_number, supplier_id, created_by, notes)
+VALUES ('PO-2025-001', 1, 1, 'Initial stock request for Q1');
+
+-- === SEED: Delivery Receipt ===
+INSERT INTO delivery_receipts (dr_number, po_id, supplier_id, delivered_at, received_by, status)
+VALUES ('DR-2025-045', 1, 1, NOW(), 1, 'pending_verification');
+
+-- === SEED: Delivery Line Items ===
+INSERT INTO delivery_lines (delivery_receipt_id, item_id, description, unit, qty_delivered, unit_cost)
+VALUES
+(1, 1, 'Cement Bags', 'bag', 100, 250.00),
+(1, 2, 'Steel Rebars 12mm', 'pc', 50, 180.00);
+
+-- === Apply stock movement for receive (manual example instead of function call) ===
+INSERT INTO stock_movements (movement_type, related_document_type, related_document_id, item_id, qty, unit, to_location_id, created_by, remarks)
+VALUES
+('receive', 'DR', 1, 1, 100, 'bag', 1, 1, 'Initial stock upload'),
+('receive', 'DR', 1, 2, 50, 'pc', 1, 1, 'Initial stock upload');
+
+-- === SEED: RIS Request ===
+INSERT INTO ris_requests (ris_number, requesting_dept_id, requested_by, purpose, status)
+VALUES ('RIS-2025-010', 2, 2, 'Repair of barangay hall', 'approved');
+
+-- === SEED: RIS Line ===
+INSERT INTO ris_lines (ris_request_id, item_id, qty_requested, unit, justification)
+VALUES (1, 1, 20, 'bag', 'For cementing walkway');
+
+-- === SEED: Issuance ===
+INSERT INTO issuances (ris_request_id, issued_by, remarks)
+VALUES (1, 1, 'Released to Engineering team');
+
+-- === SEED: Issuance Line ===
+INSERT INTO issuance_lines (issuance_id, item_id, qty_issued, unit, from_location_id)
+VALUES (1, 1, 20, 'bag', 1);
+
+-- === Apply stock movement for issuance ===
+INSERT INTO stock_movements (movement_type, related_document_type, related_document_id, item_id, qty, unit, from_location_id, created_by, remarks)
+VALUES
+('issue', 'RIS', 1, 1, 20, 'bag', 1, 1, 'Issued per RIS-2025-010');
+
+
+
+
+
+Sampled documents
+PO
+DR
+RIS

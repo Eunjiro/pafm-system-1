@@ -13,9 +13,6 @@ const deathRegistrationRoutes = require('./routes/death-registrations');
 const permitRoutes = require('./routes/permits');
 const certificateRoutes = require('./routes/certificates');
 const plotRoutes = require('./routes/plots-simple');
-const cemeteryRoutes = require('./routes/cemeteries');
-const cemeterySectionRoutes = require('./routes/cemetery-sections');
-const cemeteryBlockRoutes = require('./routes/cemetery-blocks');
 const errorHandler = require('./middleware/errorHandler');
 const { authenticateToken } = require('./middleware/auth');
 
@@ -69,9 +66,6 @@ app.use('/api/death-registrations', authenticateToken, deathRegistrationRoutes);
 app.use('/api/permits', authenticateToken, permitRoutes);
 app.use('/api/certificates', authenticateToken, certificateRoutes);
 app.use('/api/plots', authenticateToken, plotRoutes);
-app.use('/api/cemeteries', authenticateToken, cemeteryRoutes);
-app.use('/api/cemetery-sections', authenticateToken, cemeterySectionRoutes);
-app.use('/api/cemetery-blocks', authenticateToken, cemeteryBlockRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
