@@ -1,161 +1,185 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = 'http://localhost:3001'
-
+// GET - Search for deceased persons in cemetery burial records
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const query = searchParams.get('query') || searchParams.get('q')
+    console.log('=== Cemetery Search API Called ===');
+    
+    const { searchParams } = new URL(request.url);
+    const query = searchParams.get('query');
     
     if (!query || query.trim().length < 2) {
       return NextResponse.json({
         success: false,
-        error: 'Search query must be at least 2 characters long'
-      }, { status: 400 })
+        error: 'Please enter at least 2 characters to search',
+        results: []
+      });
     }
 
-    // Try to search in the backend burial-cemetery service
-    try {
-      const response = await fetch(`${BACKEND_URL}/api/plots/search?name=${encodeURIComponent(query)}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
+    console.log('Searching for:', query);
+
+    // Search in backend database for burial records
+    // Use test-token for development since this is a public citizen service
+    const authToken = 'test-token';
+
+    // Get all cemeteries with their complete structure (sections, blocks, plots, assignments)
+    const cemeteriesResponse = await fetch('http://localhost:3001/api/cemeteries', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!cemeteriesResponse.ok) {
+      console.error('Backend cemeteries API failed:', cemeteriesResponse.status);
+      return NextResponse.json({
+        success: false,
+        error: 'Cemetery search service temporarily unavailable',
+        results: []
+      });
+    }
+
+    const cemeteriesData = await cemeteriesResponse.json();
+    console.log('Cemeteries data received:', cemeteriesData.success ? 'Success' : 'Failed');
+
+    if (!cemeteriesData.success || !cemeteriesData.data) {
+      return NextResponse.json({
+        success: false,
+        error: 'No burial records found',
+        results: []
+      });
+    }
+
+    // Process search results from cemetery structure
+    const searchResults: any[] = [];
+    const searchTerms = query.toLowerCase().split(' ').filter(term => term.length > 1);
+
+    // Search through all cemeteries, sections, blocks, and plots
+    for (const cemetery of cemeteriesData.data) {
+      if (cemetery.sections && cemetery.sections.length > 0) {
+        for (const section of cemetery.sections) {
+          if (section.blocks && section.blocks.length > 0) {
+            for (const block of section.blocks) {
+              if (block.plots && block.plots.length > 0) {
+                for (const plot of block.plots) {
+                  if (plot.assignments && plot.assignments.length > 0) {
+                    for (const assignment of plot.assignments) {
+                      if (assignment.deceased) {
+                        const deceased = assignment.deceased;
+                        const fullName = `${deceased.firstName || ''} ${deceased.middleName || ''} ${deceased.lastName || ''}`.toLowerCase();
+                        
+                        // Check if search terms match any part of the name
+                        const matches = searchTerms.some(term => 
+                          fullName.includes(term) ||
+                          (deceased.firstName && deceased.firstName.toLowerCase().includes(term)) ||
+                          (deceased.lastName && deceased.lastName.toLowerCase().includes(term)) ||
+                          (deceased.middleName && deceased.middleName.toLowerCase().includes(term))
+                        );
+
+                        if (matches) {
+                          // Calculate age
+                          let age = 0;
+                          if (deceased.dateOfBirth && deceased.dateOfDeath) {
+                            const birth = new Date(deceased.dateOfBirth);
+                            const death = new Date(deceased.dateOfDeath);
+                            age = Math.floor((death.getTime() - birth.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+                          }
+
+                          // Get plot coordinates
+                          let coordinates: [number, number] = [14.6760, 121.0437]; // Default to Quezon City
+                          if (plot.latitude && plot.longitude) {
+                            coordinates = [parseFloat(plot.latitude), parseFloat(plot.longitude)];
+                          } else if (plot.coordinates && plot.coordinates.length > 0) {
+                            coordinates = [plot.coordinates[0][0], plot.coordinates[0][1]];
+                          }
+
+                          const result: any = {
+                            id: assignment.id.toString(),
+                            deceasedName: `${deceased.firstName || ''} ${deceased.middleName || ''} ${deceased.lastName || ''}`.trim(),
+                            firstName: deceased.firstName || '',
+                            lastName: deceased.lastName || '',
+                            middleName: deceased.middleName || '',
+                            dateOfBirth: deceased.dateOfBirth || '',
+                            dateOfDeath: deceased.dateOfDeath || '',
+                            burialDate: assignment.assignedAt || deceased.dateOfDeath || '',
+                            age: age,
+                            gender: deceased.sex || deceased.gender || 'unknown',
+                            plotLocation: {
+                              section: section.name || 'Unknown Section',
+                              block: block.name || 'Unknown Block', 
+                              plotNumber: plot.plotNumber || plot.plotCode || 'Unknown Plot',
+                              coordinates: coordinates
+                            },
+                            cemetery: {
+                              id: cemetery.id,
+                              name: cemetery.name || 'Unknown Cemetery'
+                            },
+                            plotDetails: {
+                              size: plot.size || 'standard',
+                              type: plot.type || 'ground_burial',
+                              baseFee: parseFloat(plot.baseFee) || 0,
+                              maintenanceFee: parseFloat(plot.maintenanceFee) || 0
+                            }
+                          };
+
+                          // Add gravestone information if available
+                          if (plot.gravestones && plot.gravestones.length > 0) {
+                            const gravestone = plot.gravestones[0];
+                            result.gravestone = {
+                              material: gravestone.material || 'unknown',
+                              inscription: gravestone.inscription || '',
+                              condition: gravestone.condition || 'unknown'
+                            };
+                          }
+
+                          searchResults.push(result);
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
-      })
-      
-      if (response.ok) {
-        const backendResults = await response.json()
-        
-        // Transform backend data to match frontend interface
-        const results = (backendResults.data || []).map((plot: any) => ({
-          id: plot.id.toString(),
-          deceasedName: plot.deceased_name || `${plot.deceased_first_name || ''} ${plot.deceased_last_name || ''}`.trim() || 'Unknown',
-          firstName: plot.deceased_first_name || '',
-          lastName: plot.deceased_last_name || '',
-          dateOfBirth: plot.deceased_date_of_birth || '1900-01-01',
-          dateOfDeath: plot.deceased_date_of_death || '1900-01-01',
-          burialDate: plot.burial_date || plot.deceased_date_of_death || '1900-01-01',
-          age: plot.deceased_age || 0,
-          gender: plot.deceased_gender || 'unknown',
-          plotLocation: {
-            section: plot.section || 'Unknown',
-            block: plot.block || 'Unknown',
-            plotNumber: plot.plot_number || 'Unknown',
-            coordinates: [
-              parseFloat(plot.position_x) || 14.6760,
-              parseFloat(plot.position_y) || 121.0437
-            ] as [number, number]
-          },
-          gravestone: plot.gravestone_material ? {
-            material: plot.gravestone_material,
-            inscription: plot.gravestone_inscription || '',
-            condition: plot.gravestone_condition || 'good'
-          } : undefined,
-          permitNumber: plot.permit_number,
-          registrationNumber: plot.registration_number
-        }))
-        
-        return NextResponse.json({
-          success: true,
-          results
-        })
       }
-    } catch (backendError) {
-      console.warn('Backend search failed, using mock data:', backendError)
     }
 
-    // Fallback mock data for demonstration
-    const mockResults = [
-      {
-        id: '1',
-        deceasedName: 'Maria Santos',
-        firstName: 'Maria',
-        lastName: 'Santos',
-        dateOfBirth: '1950-03-15',
-        dateOfDeath: '2020-08-22',
-        burialDate: '2020-08-25',
-        age: 70,
-        gender: 'female',
-        plotLocation: {
-          section: 'Section A',
-          block: 'Block 1',
-          plotNumber: 'A1-001',
-          coordinates: [14.6760, 121.0437] as [number, number]
-        },
-        gravestone: {
-          material: 'Granite',
-          inscription: 'Beloved Wife and Mother - Rest in Peace',
-          condition: 'good'
-        },
-        permitNumber: 'P-2020-001',
-        registrationNumber: 'R-2020-001'
-      },
-      {
-        id: '2',
-        deceasedName: 'Juan Dela Cruz',
-        firstName: 'Juan',
-        lastName: 'Dela Cruz',
-        dateOfBirth: '1945-12-03',
-        dateOfDeath: '2019-05-14',
-        burialDate: '2019-05-17',
-        age: 73,
-        gender: 'male',
-        plotLocation: {
-          section: 'Section B',
-          block: 'Block 2',
-          plotNumber: 'B2-025',
-          coordinates: [14.6765, 121.0442] as [number, number]
-        },
-        gravestone: {
-          material: 'Marble',
-          inscription: 'Loving Father - Forever in our Hearts',
-          condition: 'excellent'
-        },
-        permitNumber: 'P-2019-045',
-        registrationNumber: 'R-2019-045'
-      },
-      {
-        id: '3',
-        deceasedName: 'Ana Rodriguez',
-        firstName: 'Ana',
-        lastName: 'Rodriguez',
-        dateOfBirth: '1960-07-20',
-        dateOfDeath: '2021-11-10',
-        burialDate: '2021-11-13',
-        age: 61,
-        gender: 'female',
-        plotLocation: {
-          section: 'Garden Area',
-          block: 'Memorial Block',
-          plotNumber: 'G1-012',
-          coordinates: [14.6755, 121.0440] as [number, number]
-        },
-        gravestone: {
-          material: 'Bronze',
-          inscription: 'Cherished Mother and Grandmother',
-          condition: 'good'
-        },
-        permitNumber: 'P-2021-078',
-        registrationNumber: 'R-2021-078'
-      }
-    ]
+    // Remove duplicates and sort by relevance
+    const uniqueResults = searchResults.filter((result: any, index: any, self: any) => 
+      index === self.findIndex((r: any) => r.id === result.id)
+    );
 
-    // Filter results based on search query
-    const filteredResults = mockResults.filter(result => 
-      result.deceasedName.toLowerCase().includes(query.toLowerCase()) ||
-      result.firstName.toLowerCase().includes(query.toLowerCase()) ||
-      result.lastName.toLowerCase().includes(query.toLowerCase())
-    )
+    // Sort by name similarity (exact matches first)
+    uniqueResults.sort((a: any, b: any) => {
+      const aName = a.deceasedName.toLowerCase();
+      const bName = b.deceasedName.toLowerCase();
+      const queryLower = query.toLowerCase();
+      
+      // Exact matches first
+      if (aName.includes(queryLower) && !bName.includes(queryLower)) return -1;
+      if (!aName.includes(queryLower) && bName.includes(queryLower)) return 1;
+      
+      // Then alphabetical
+      return aName.localeCompare(bName);
+    });
+
+    console.log(`Found ${uniqueResults.length} search results for: ${query}`);
 
     return NextResponse.json({
       success: true,
-      results: filteredResults
-    })
+      results: uniqueResults,
+      total: uniqueResults.length,
+      query: query
+    });
+
   } catch (error) {
-    console.error('Cemetery search error:', error)
+    console.error('Cemetery search error:', error);
     return NextResponse.json({
       success: false,
-      error: 'Failed to search cemetery records'
-    }, { status: 500 })
+      error: 'Search service error. Please try again.',
+      results: []
+    });
   }
 }

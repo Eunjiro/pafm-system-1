@@ -3,7 +3,7 @@
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { FiShield, FiFileText, FiClock, FiAlertTriangle, FiCheckCircle, FiDollarSign, FiRefreshCw, FiFilter, FiUser, FiCalendar } from "react-icons/fi";
+import { FiShield, FiFileText, FiClock, FiAlertTriangle, FiCheckCircle, FiDollarSign, FiRefreshCw, FiFilter, FiUser, FiCalendar, FiPlus, FiEye, FiDownload, FiUpload } from "react-icons/fi";
 
 interface Permit {
   id: number;
@@ -12,6 +12,8 @@ interface Permit {
   amountDue?: number;
   orNumber?: string;
   createdAt: string;
+  issuedAt?: string;
+  pickupStatus?: 'not_ready' | 'ready_for_pickup' | 'claimed';
   deceased?: {
     id: number;
     firstName: string;
@@ -26,6 +28,19 @@ interface Permit {
     fullNameLast: string;
     email: string;
   };
+  remarks?: string;
+}
+
+type PermitSubmodule = 'all' | 'burial' | 'exhumation' | 'cremation';
+
+interface PermitWorkflowStep {
+  step: string;
+  status: string;
+  description: string;
+  icon: React.ReactNode;
+  color: string;
+  isActive: boolean;
+  isCompleted: boolean;
 }
 
 export default function AdminPermitsIndex() {
@@ -33,9 +48,11 @@ export default function AdminPermitsIndex() {
   const router = useRouter();
   const [permits, setPermits] = useState<Permit[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeSubmodule, setActiveSubmodule] = useState<PermitSubmodule>('all');
   const [filter, setFilter] = useState('all');
   const [selectedPermit, setSelectedPermit] = useState<Permit | null>(null);
   const [showOverrideModal, setShowOverrideModal] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   const [overrideAction, setOverrideAction] = useState('approve');
   const [overrideReason, setOverrideReason] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -110,15 +127,61 @@ export default function AdminPermitsIndex() {
     }
   };
 
-  const filteredPermits = permits.filter(permit => {
-    if (filter === 'all') return true;
-    if (filter === 'burial') return permit.permitType === 'burial';
-    if (filter === 'exhumation') return permit.permitType === 'exhumation';
-    if (filter === 'cremation') return permit.permitType === 'cremation';
-    if (filter === 'pending') return ['pending_review', 'submitted'].includes(permit.status);
-    if (filter === 'issues') return ['rejected', 'returned'].includes(permit.status);
-    return true;
-  });
+  const getFilteredPermits = () => {
+    let filtered = permits;
+    
+    // Filter by permit type (submodule)
+    if (activeSubmodule !== 'all') {
+      filtered = filtered.filter(permit => permit.permitType === activeSubmodule);
+    }
+    
+    // Filter by status
+    if (filter !== 'all') {
+      switch (filter) {
+        case 'pending':
+          filtered = filtered.filter(permit => ['submitted', 'pending_verification', 'for_payment'].includes(permit.status));
+          break;
+        case 'processing':
+          filtered = filtered.filter(permit => ['paid', 'processing'].includes(permit.status));
+          break;
+        case 'issued':
+          filtered = filtered.filter(permit => ['issued', 'for_pickup'].includes(permit.status));
+          break;
+        case 'completed':
+          filtered = filtered.filter(permit => permit.status === 'claimed');
+          break;
+        case 'issues':
+          filtered = filtered.filter(permit => ['rejected', 'cancelled'].includes(permit.status));
+          break;
+        default:
+          break;
+      }
+    }
+    
+    return filtered;
+  };
+
+  const getPermitWorkflowSteps = (permit: Permit): PermitWorkflowStep[] => {
+    const baseSteps = [
+      { step: 'submitted', status: 'Submitted', description: 'Application submitted by citizen', icon: <FiFileText />, color: 'blue' },
+      { step: 'pending_verification', status: 'Document Review', description: 'Documents under verification', icon: <FiEye />, color: 'yellow' },
+      { step: 'for_payment', status: 'Payment Required', description: 'Payment order generated', icon: <FiDollarSign />, color: 'orange' },
+      { step: 'paid', status: 'Payment Confirmed', description: 'Payment verified', icon: <FiCheckCircle />, color: 'green' },
+      { step: 'issued', status: 'Permit Issued', description: 'Permit ready for pickup', icon: <FiShield />, color: 'purple' },
+      { step: 'claimed', status: 'Completed', description: 'Document claimed by citizen', icon: <FiCheckCircle />, color: 'green' }
+    ];
+
+    return baseSteps.map(step => ({
+      ...step,
+      isActive: permit.status === step.step,
+      isCompleted: getStepIndex(permit.status) > getStepIndex(step.step)
+    }));
+  };
+
+  const getStepIndex = (status: string): number => {
+    const stepOrder = ['submitted', 'pending_verification', 'for_payment', 'paid', 'issued', 'claimed'];
+    return stepOrder.indexOf(status);
+  };
 
   const getPermitTypeIcon = (type: string) => {
     switch (type) {
@@ -137,6 +200,35 @@ export default function AdminPermitsIndex() {
     };
     return colors[type as keyof typeof colors] || 'bg-gray-100 text-gray-800';
   };
+
+  const getPermitTypeDetails = (type: string) => {
+    const details = {
+      burial: {
+        title: 'Burial Permits',
+        description: 'Cemetery burial authorization',
+        requirements: ['Certified Death Certificate', 'Valid ID', 'Transfer Permit (if applicable)', 'Affidavit of Undertaking (Bagbag/Novaliches)'],
+        fees: '₱100 - ₱1,500',
+        processTime: '1-2 working days'
+      },
+      exhumation: {
+        title: 'Exhumation Permits',
+        description: 'Authorization for remains removal',
+        requirements: ['Exhumation Letter (QC Health Dept)', 'Certified Death Certificate', 'Valid ID'],
+        fees: '₱100',
+        processTime: '1-2 working days'
+      },
+      cremation: {
+        title: 'Cremation Permits',
+        description: 'Crematorium authorization',
+        requirements: ['Death Certificate', 'Cremation Form (QCHD)', 'Transfer Permit (if applicable)', 'Valid ID'],
+        fees: '₱100 - ₱200',
+        processTime: '1-2 working days'
+      }
+    };
+    return details[type as keyof typeof details] || details.burial;
+  };
+
+  const filteredPermits = getFilteredPermits();
 
   if (status === "loading" || loading) {
     return (
@@ -224,6 +316,154 @@ export default function AdminPermitsIndex() {
             </div>
           </div>
         )}
+
+        {/* Permit Type Submodules Navigation */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h3 className="text-lg font-bold text-gray-900">Permit Categories</h3>
+            <p className="text-sm text-gray-500">Select permit type to view specific workflows and requirements</p>
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {/* All Permits */}
+              <button
+                onClick={() => setActiveSubmodule('all')}
+                className={`p-4 rounded-xl border-2 transition-all duration-300 ${
+                  activeSubmodule === 'all' 
+                    ? 'border-purple-500 bg-purple-50' 
+                    : 'border-gray-200 hover:border-purple-300 hover:bg-purple-25'
+                }`}
+              >
+                <div className="flex flex-col items-center space-y-2">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                    activeSubmodule === 'all' ? 'bg-purple-500 text-white' : 'bg-gray-100 text-gray-600'
+                  }`}>
+                    <FiFileText size={24} />
+                  </div>
+                  <div className="text-center">
+                    <p className="font-semibold text-gray-900">All Permits</p>
+                    <p className="text-sm text-gray-500">{permits.length} total</p>
+                  </div>
+                </div>
+              </button>
+
+              {/* Burial Permits */}
+              <button
+                onClick={() => setActiveSubmodule('burial')}
+                className={`p-4 rounded-xl border-2 transition-all duration-300 ${
+                  activeSubmodule === 'burial' 
+                    ? 'border-blue-500 bg-blue-50' 
+                    : 'border-gray-200 hover:border-blue-300 hover:bg-blue-25'
+                }`}
+              >
+                <div className="flex flex-col items-center space-y-2">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                    activeSubmodule === 'burial' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600'
+                  }`}>
+                    <FiUser size={24} />
+                  </div>
+                  <div className="text-center">
+                    <p className="font-semibold text-gray-900">Burial Permits</p>
+                    <p className="text-sm text-gray-500">{permits.filter(p => p.permitType === 'burial').length} permits</p>
+                  </div>
+                </div>
+              </button>
+
+              {/* Exhumation Permits */}
+              <button
+                onClick={() => setActiveSubmodule('exhumation')}
+                className={`p-4 rounded-xl border-2 transition-all duration-300 ${
+                  activeSubmodule === 'exhumation' 
+                    ? 'border-purple-500 bg-purple-50' 
+                    : 'border-gray-200 hover:border-purple-300 hover:bg-purple-25'
+                }`}
+              >
+                <div className="flex flex-col items-center space-y-2">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                    activeSubmodule === 'exhumation' ? 'bg-purple-500 text-white' : 'bg-gray-100 text-gray-600'
+                  }`}>
+                    <FiFileText size={24} />
+                  </div>
+                  <div className="text-center">
+                    <p className="font-semibold text-gray-900">Exhumation</p>
+                    <p className="text-sm text-gray-500">{permits.filter(p => p.permitType === 'exhumation').length} permits</p>
+                  </div>
+                </div>
+              </button>
+
+              {/* Cremation Permits */}
+              <button
+                onClick={() => setActiveSubmodule('cremation')}
+                className={`p-4 rounded-xl border-2 transition-all duration-300 ${
+                  activeSubmodule === 'cremation' 
+                    ? 'border-orange-500 bg-orange-50' 
+                    : 'border-gray-200 hover:border-orange-300 hover:bg-orange-25'
+                }`}
+              >
+                <div className="flex flex-col items-center space-y-2">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                    activeSubmodule === 'cremation' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600'
+                  }`}>
+                    <FiAlertTriangle size={24} />
+                  </div>
+                  <div className="text-center">
+                    <p className="font-semibold text-gray-900">Cremation</p>
+                    <p className="text-sm text-gray-500">{permits.filter(p => p.permitType === 'cremation').length} permits</p>
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Current Submodule Information */}
+        {activeSubmodule !== 'all' && (
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-100">
+            <div className="p-6">
+              <div className="flex items-start space-x-4">
+                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${
+                  activeSubmodule === 'burial' ? 'bg-blue-500' :
+                  activeSubmodule === 'exhumation' ? 'bg-purple-500' : 'bg-orange-500'
+                }`}>
+                  <div className="text-white">
+                    {activeSubmodule === 'burial' && <FiUser size={24} />}
+                    {activeSubmodule === 'exhumation' && <FiFileText size={24} />}
+                    {activeSubmodule === 'cremation' && <FiAlertTriangle size={24} />}
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-gray-900 capitalize">
+                    {getPermitTypeDetails(activeSubmodule).title}
+                  </h3>
+                  <p className="text-gray-600 mt-1">
+                    {getPermitTypeDetails(activeSubmodule).description}
+                  </p>
+                  <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-700">Required Documents:</p>
+                      <ul className="text-xs text-gray-600 mt-1 space-y-1">
+                        {getPermitTypeDetails(activeSubmodule).requirements.map((req, idx) => (
+                          <li key={idx} className="flex items-center space-x-1">
+                            <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
+                            <span>{req}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-700">Fees:</p>
+                      <p className="text-xs text-gray-600 mt-1">{getPermitTypeDetails(activeSubmodule).fees}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-700">Processing Time:</p>
+                      <p className="text-xs text-gray-600 mt-1">{getPermitTypeDetails(activeSubmodule).processTime}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         {/* Filters */}
         <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
           <div className="flex items-center justify-between">
@@ -238,7 +478,7 @@ export default function AdminPermitsIndex() {
               </div>
               <div>
                 <h3 className="text-lg font-bold text-gray-900">Filter Permits</h3>
-                <p className="text-sm text-gray-500">Filter by type or status</p>
+                <p className="text-sm text-gray-500">Filter by status and workflow stage</p>
               </div>
             </div>
             <select 
@@ -247,11 +487,11 @@ export default function AdminPermitsIndex() {
               className="px-4 py-3 border border-gray-300 rounded-xl font-medium focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
               style={{minWidth: '200px'}}
             >
-              <option value="all">All Permits</option>
-              <option value="burial">Burial Permits</option>
-              <option value="exhumation">Exhumation Permits</option>
-              <option value="cremation">Cremation Permits</option>
+              <option value="all">All Status</option>
               <option value="pending">Pending Review</option>
+              <option value="processing">Processing</option>
+              <option value="issued">Issued/Ready</option>
+              <option value="completed">Completed</option>
               <option value="issues">Issues/Rejected</option>
             </select>
           </div>
@@ -263,8 +503,10 @@ export default function AdminPermitsIndex() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Total Permits</p>
-                <p className="text-3xl font-bold text-gray-900 mt-2">{permits.length}</p>
-                <p className="text-sm text-gray-500 mt-1">All permit types</p>
+                <p className="text-3xl font-bold text-gray-900 mt-2">{filteredPermits.length}</p>
+                <p className="text-sm text-gray-500 mt-1">
+                  {activeSubmodule === 'all' ? 'All permit types' : `${activeSubmodule} permits`}
+                </p>
               </div>
               <div 
                 className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-md"
@@ -280,58 +522,58 @@ export default function AdminPermitsIndex() {
           <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-all duration-300">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Burial Permits</p>
-                <p className="text-3xl font-bold text-blue-600 mt-2">
-                  {permits.filter(p => p.permitType === 'burial').length}
+                <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Pending Review</p>
+                <p className="text-3xl font-bold text-yellow-600 mt-2">
+                  {filteredPermits.filter(p => ['submitted', 'pending_verification', 'for_payment'].includes(p.status)).length}
                 </p>
-                <p className="text-sm text-gray-500 mt-1">Cemetery burials</p>
-              </div>
-              <div 
-                className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-md"
-                style={{backgroundColor: '#4A90E2'}}
-              >
-                <div className="text-white">
-                  <FiUser size={24} />
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-all duration-300">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Exhumation</p>
-                <p className="text-3xl font-bold mt-2" style={{color: '#9C27B0'}}>
-                  {permits.filter(p => p.permitType === 'exhumation').length}
-                </p>
-                <p className="text-sm text-gray-500 mt-1">Remains removal</p>
-              </div>
-              <div 
-                className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-md"
-                style={{backgroundColor: '#9C27B0'}}
-              >
-                <div className="text-white">
-                  <FiFileText size={24} />
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-all duration-300">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Cremation</p>
-                <p className="text-3xl font-bold mt-2" style={{color: '#FDA811'}}>
-                  {permits.filter(p => p.permitType === 'cremation').length}
-                </p>
-                <p className="text-sm text-gray-500 mt-1">Crematorium permits</p>
+                <p className="text-sm text-gray-500 mt-1">Needs attention</p>
               </div>
               <div 
                 className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-md"
                 style={{backgroundColor: '#FDA811'}}
               >
                 <div className="text-white">
-                  <FiAlertTriangle size={24} />
+                  <FiClock size={24} />
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-all duration-300">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Ready for Pickup</p>
+                <p className="text-3xl font-bold text-green-600 mt-2">
+                  {filteredPermits.filter(p => ['issued', 'for_pickup'].includes(p.status)).length}
+                </p>
+                <p className="text-sm text-gray-500 mt-1">Awaiting collection</p>
+              </div>
+              <div 
+                className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-md"
+                style={{backgroundColor: '#4CAF50'}}
+              >
+                <div className="text-white">
+                  <FiCheckCircle size={24} />
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-all duration-300">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Revenue</p>
+                <p className="text-3xl font-bold mt-2" style={{color: '#9C27B0'}}>
+                  ₱{filteredPermits.reduce((sum, p) => sum + (p.amountDue || 0), 0).toLocaleString()}
+                </p>
+                <p className="text-sm text-gray-500 mt-1">Total fees</p>
+              </div>
+              <div 
+                className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-md"
+                style={{backgroundColor: '#9C27B0'}}
+              >
+                <div className="text-white">
+                  <FiDollarSign size={24} />
                 </div>
               </div>
             </div>
@@ -353,14 +595,13 @@ export default function AdminPermitsIndex() {
                 </div>
                 <div>
                   <h3 className="text-xl font-bold text-gray-900">
-                    {filter === 'all' ? 'All Permits' : 
-                     filter === 'burial' ? 'Burial Permits' :
-                     filter === 'exhumation' ? 'Exhumation Permits' :
-                     filter === 'cremation' ? 'Cremation Permits' :
-                     filter === 'pending' ? 'Pending Review' : 'Issues & Rejections'}
+                    {activeSubmodule === 'all' ? 'All Permits' : 
+                     activeSubmodule === 'burial' ? 'Burial Permits' :
+                     activeSubmodule === 'exhumation' ? 'Exhumation Permits' :
+                     activeSubmodule === 'cremation' ? 'Cremation Permits' : 'Permits'}
                   </h3>
                   <p className="text-sm text-gray-500">
-                    {filteredPermits.length} permits • Admin override available
+                    {filteredPermits.length} permits • Admin oversight and workflow management
                   </p>
                 </div>
               </div>
@@ -370,69 +611,305 @@ export default function AdminPermitsIndex() {
               </div>
             </div>
           </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Deceased Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Death Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Admin Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredPermits.map((permit) => (
-                <tr key={permit.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{permit.id}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center space-x-2">
-                      <span className={`px-3 py-2 text-xs font-semibold rounded-full flex items-center space-x-1 ${getPermitTypeBadge(permit.permitType)}`}>
-                        {getPermitTypeIcon(permit.permitType)}
-                        <span>{permit.permitType.toUpperCase()}</span>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Deceased Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Requester</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Workflow</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredPermits.map((permit) => (
+                  <tr key={permit.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#{permit.id}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center space-x-2">
+                        <span className={`px-3 py-2 text-xs font-semibold rounded-full flex items-center space-x-1 ${getPermitTypeBadge(permit.permitType)}`}>
+                          {getPermitTypeIcon(permit.permitType)}
+                          <span>{permit.permitType.toUpperCase()}</span>
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {permit.deceased ? `${permit.deceased.firstName} ${permit.deceased.middleName || ''} ${permit.deceased.lastName}`.trim() : 'N/A'}
+                      {permit.deceased?.dateOfDeath && (
+                        <div className="text-xs text-gray-500">
+                          Died: {new Date(permit.deceased.dateOfDeath).toLocaleDateString()}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {permit.requester ? `${permit.requester.fullNameFirst} ${permit.requester.fullNameLast}` : 'N/A'}
+                      {permit.requester?.email && (
+                        <div className="text-xs text-gray-500">{permit.requester.email}</div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 py-1 text-xs rounded-full ${
+                        ['issued', 'for_pickup', 'claimed'].includes(permit.status) ? 'bg-green-100 text-green-800' :
+                        ['rejected', 'cancelled'].includes(permit.status) ? 'bg-red-100 text-red-800' :
+                        ['submitted', 'pending_verification', 'for_payment'].includes(permit.status) ? 'bg-yellow-100 text-yellow-800' :
+                        ['paid', 'processing'].includes(permit.status) ? 'bg-blue-100 text-blue-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {permit.status.replace('_', ' ').toUpperCase()}
                       </span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {permit.deceased ? `${permit.deceased.firstName} ${permit.deceased.middleName || ''} ${permit.deceased.lastName}`.trim() : 'N/A'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {permit.deceased?.dateOfDeath ? new Date(permit.deceased.dateOfDeath).toLocaleDateString() : 'N/A'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 text-xs rounded-full ${
-                      permit.status === 'issued' || permit.status === 'for_pickup' ? 'bg-green-100 text-green-800' :
-                      permit.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                      permit.status === 'pending_review' || permit.status === 'submitted' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-gray-100 text-gray-800'
+                      {permit.pickupStatus && permit.pickupStatus !== 'not_ready' && (
+                        <div className="mt-1">
+                          <span className="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800">
+                            {permit.pickupStatus.replace('_', ' ').toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      ₱{permit.amountDue || 0}
+                      {permit.orNumber && (
+                        <div className="text-xs text-gray-500">OR: {permit.orNumber}</div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center space-x-1">
+                        {getPermitWorkflowSteps(permit).slice(0, 3).map((step, idx) => (
+                          <div
+                            key={idx}
+                            className={`w-3 h-3 rounded-full ${
+                              step.isCompleted ? 'bg-green-500' :
+                              step.isActive ? 'bg-blue-500' : 'bg-gray-300'
+                            }`}
+                            title={step.description}
+                          />
+                        ))}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                      <button
+                        onClick={() => {
+                          setSelectedPermit(permit);
+                          setShowDetailModal(true);
+                        }}
+                        className="text-blue-600 hover:text-blue-900 font-medium"
+                      >
+                        View
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedPermit(permit);
+                          setShowOverrideModal(true);
+                        }}
+                        className="text-red-600 hover:text-red-900 font-medium"
+                      >
+                        Override
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            
+            {filteredPermits.length === 0 && (
+              <div className="text-center py-12">
+                <div className="text-gray-400 mb-4">
+                  <FiFileText size={48} className="mx-auto" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No permits found</h3>
+                <p className="text-gray-500">
+                  {activeSubmodule === 'all' 
+                    ? 'No permits match the current filter criteria.'
+                    : `No ${activeSubmodule} permits found for the current filter.`}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Permit Detail Modal */}
+        {showDetailModal && selectedPermit && (
+          <div className="fixed inset-0 flex items-center justify-center z-50 animate-fadeIn bg-black bg-opacity-50">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto animate-slideUp">
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 rounded-t-2xl">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                      selectedPermit.permitType === 'burial' ? 'bg-blue-500' :
+                      selectedPermit.permitType === 'exhumation' ? 'bg-purple-500' : 'bg-orange-500'
                     }`}>
-                      {permit.status.replace('_', ' ').toUpperCase()}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{permit.amountDue || 0}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="text-white">
+                        {getPermitTypeIcon(selectedPermit.permitType)}
+                      </div>
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900">
+                        {selectedPermit.permitType.charAt(0).toUpperCase() + selectedPermit.permitType.slice(1)} Permit #{selectedPermit.id}
+                      </h3>
+                      <p className="text-sm text-gray-500">Permit workflow and details</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowDetailModal(false)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <FiAlertTriangle size={24} className="rotate-45" />
+                  </button>
+                </div>
+              </div>
+              
+              {/* Modal Body */}
+              <div className="px-6 py-6 space-y-6">
+                {/* Workflow Progress */}
+                <div>
+                  <h4 className="text-lg font-semibold text-gray-900 mb-4">Workflow Progress</h4>
+                  <div className="space-y-4">
+                    {getPermitWorkflowSteps(selectedPermit).map((step, idx) => (
+                      <div key={idx} className="flex items-center space-x-4">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                          step.isCompleted ? `bg-green-500` :
+                          step.isActive ? `bg-${step.color}-500` : 'bg-gray-300'
+                        }`}>
+                          <div className="text-white text-sm">
+                            {step.isCompleted ? <FiCheckCircle size={16} /> : step.icon}
+                          </div>
+                        </div>
+                        <div className="flex-1">
+                          <p className={`font-medium ${
+                            step.isActive ? 'text-gray-900' : step.isCompleted ? 'text-green-700' : 'text-gray-500'
+                          }`}>
+                            {step.status}
+                          </p>
+                          <p className="text-sm text-gray-500">{step.description}</p>
+                        </div>
+                        {step.isActive && (
+                          <div className="text-blue-500 animate-pulse">
+                            <FiClock size={16} />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Permit Details */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="text-lg font-semibold text-gray-900 mb-4">Permit Information</h4>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">Permit Type</label>
+                        <p className="text-gray-900 capitalize">{selectedPermit.permitType}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">Current Status</label>
+                        <p className="text-gray-900">{selectedPermit.status.replace('_', ' ')}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">Amount Due</label>
+                        <p className="text-gray-900">₱{selectedPermit.amountDue || 0}</p>
+                      </div>
+                      {selectedPermit.orNumber && (
+                        <div>
+                          <label className="text-sm font-medium text-gray-700">OR Number</label>
+                          <p className="text-gray-900">{selectedPermit.orNumber}</p>
+                        </div>
+                      )}
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">Submitted</label>
+                        <p className="text-gray-900">{new Date(selectedPermit.createdAt).toLocaleString()}</p>
+                      </div>
+                      {selectedPermit.issuedAt && (
+                        <div>
+                          <label className="text-sm font-medium text-gray-700">Issued</label>
+                          <p className="text-gray-900">{new Date(selectedPermit.issuedAt).toLocaleString()}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-lg font-semibold text-gray-900 mb-4">Deceased Information</h4>
+                    {selectedPermit.deceased ? (
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-sm font-medium text-gray-700">Full Name</label>
+                          <p className="text-gray-900">
+                            {`${selectedPermit.deceased.firstName} ${selectedPermit.deceased.middleName || ''} ${selectedPermit.deceased.lastName} ${selectedPermit.deceased.suffix || ''}`.trim()}
+                          </p>
+                        </div>
+                        {selectedPermit.deceased.dateOfDeath && (
+                          <div>
+                            <label className="text-sm font-medium text-gray-700">Date of Death</label>
+                            <p className="text-gray-900">{new Date(selectedPermit.deceased.dateOfDeath).toLocaleDateString()}</p>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-gray-500">No deceased information available</p>
+                    )}
+
+                    <h4 className="text-lg font-semibold text-gray-900 mb-4 mt-6">Requester Information</h4>
+                    {selectedPermit.requester ? (
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-sm font-medium text-gray-700">Full Name</label>
+                          <p className="text-gray-900">{`${selectedPermit.requester.fullNameFirst} ${selectedPermit.requester.fullNameLast}`}</p>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-gray-700">Email</label>
+                          <p className="text-gray-900">{selectedPermit.requester.email}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-gray-500">No requester information available</p>
+                    )}
+                  </div>
+                </div>
+
+                {selectedPermit.remarks && (
+                  <div>
+                    <h4 className="text-lg font-semibold text-gray-900 mb-4">Remarks</h4>
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <p className="text-gray-700">{selectedPermit.remarks}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Modal Footer */}
+              <div className="px-6 py-4 bg-gray-50 rounded-b-2xl border-t border-gray-200">
+                <div className="flex justify-between items-center">
+                  <div className="flex space-x-3">
                     <button
                       onClick={() => {
-                        setSelectedPermit(permit);
+                        setShowDetailModal(false);
                         setShowOverrideModal(true);
                       }}
-                      className="text-red-600 hover:text-red-900 font-medium"
+                      className="px-4 py-2 text-red-600 border border-red-300 rounded-lg font-medium hover:bg-red-50 transition-all duration-200"
                     >
-                      Override
+                      Admin Override
                     </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                  </div>
+                  <button
+                    onClick={() => setShowDetailModal(false)}
+                    className="px-6 py-2 text-gray-600 border border-gray-300 rounded-lg font-medium hover:bg-gray-100 transition-all duration-200"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Admin Override Modal */}
-        {showOverrideModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-1 flex items-center justify-center z-50 animate-fadeIn">
+        {showOverrideModal && selectedPermit && (
+          <div className="fixed inset-0 flex items-center justify-center z-50 animate-fadeIn bg-black bg-opacity-50">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-slideUp">
               {/* Modal Header */}
               <div className="px-6 py-4 border-b border-gray-200">
@@ -447,7 +924,7 @@ export default function AdminPermitsIndex() {
                   </div>
                   <div>
                     <h3 className="text-xl font-bold text-gray-900">Admin Override</h3>
-                    <p className="text-sm text-gray-500">Permit ID: {selectedPermit?.id}</p>
+                    <p className="text-sm text-gray-500">Permit #{selectedPermit?.id} - {selectedPermit?.permitType}</p>
                   </div>
                 </div>
               </div>
@@ -516,6 +993,7 @@ export default function AdminPermitsIndex() {
                   </div>
                 </div>
               </div>
+              
               {/* Modal Footer */}
               <div className="px-6 py-4 bg-gray-50 rounded-b-2xl border-t border-gray-200">
                 <div className="flex justify-end space-x-3">

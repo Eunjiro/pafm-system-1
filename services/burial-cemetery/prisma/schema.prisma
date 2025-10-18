@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,277 +8,347 @@ datasource db {
 }
 
 model User {
-  id            Int      @id @default(autoincrement())
-  email         String   @unique
-  passwordHash  String?
-  role          Role     @default(CITIZEN)
-  fullNameFirst String
-  fullNameMiddle String?
-  fullNameLast  String
-  nameSuffix    String?
-  contactNo     String?
-  address       String?
-  organization  String?
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  // Social login providers
-  googleId      String?
-  facebookId    String?
-
-  // Relations
-  deathRegistrations    DeathRegistration[]
-  permitRequests        PermitRequest[]
-  certificateRequests   CertificateRequest[]
-  auditLogs             AuditLog[]
-  notifications         Notification[]
-  payments              Payment[]
-  plotAssignments       PlotAssignment[]
-  uploadedDocuments     Document[] @relation("DocumentUploader")
-  reservedPlots         CemeteryPlot[] @relation("PlotReserver")
+  id                  Int                  @id @default(autoincrement())
+  email               String               @unique
+  passwordHash        String?
+  role                Role                 @default(CITIZEN)
+  fullNameFirst       String
+  fullNameMiddle      String?
+  fullNameLast        String
+  nameSuffix          String?
+  contactNo           String?
+  address             String?
+  organization        String?
+  isActive            Boolean              @default(true)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  googleId            String?
+  facebookId          String?
+  auditLogs           AuditLog[]
+  reservedPlots       CemeteryPlot[]       @relation("PlotReserver")
+  certificateRequests CertificateRequest[]
+  deathRegistrations  DeathRegistration[]
+  uploadedDocuments   Document[]           @relation("DocumentUploader")
+  notifications       Notification[]
+  payments            Payment[]
+  permitRequests      PermitRequest[]
+  plotAssignments     PlotAssignment[]
 
   @@map("users")
 }
 
 model DeathRegistration {
-  id                  Int      @id @default(autoincrement())
-  registrationType    RegistrationType
-  deceasedId          Int?
-  submittedBy         Int?
-  informantName       String?
+  id                    Int                         @id @default(autoincrement())
+  registrationType      RegistrationType
+  deceasedId            Int?
+  submittedBy           Int?
+  informantName         String?
   informantRelationship String?
-  informantContact    String?
-  status              DeathRegistrationStatus @default(SUBMITTED)
-  amountDue           Decimal  @default(0.00)
-  paymentId           Int?
-  paymentOrderNo      String?
-  orNumber            String?
-  processingDueAt     DateTime?
-  registeredAt        DateTime?
-  registeredBy        Int?
-  pickupRequired      Boolean  @default(true)
-  pickupStatus        PickupStatus @default(NOT_READY)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  remarks             String?
-
-  // Relations
-  submitter           User?    @relation(fields: [submittedBy], references: [id])
-  deceased            DeceasedRecord? @relation(fields: [deceasedId], references: [id])
-  payment             Payment? @relation(fields: [paymentId], references: [id])
-  documents           DeathRegistrationDocument[]
+  informantContact      String?
+  status                DeathRegistrationStatus     @default(SUBMITTED)
+  amountDue             Decimal                     @default(0.00)
+  paymentId             Int?
+  paymentOrderNo        String?
+  orNumber              String?
+  processingDueAt       DateTime?
+  registeredAt          DateTime?
+  registeredBy          Int?
+  pickupRequired        Boolean                     @default(true)
+  pickupStatus          PickupStatus                @default(NOT_READY)
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
+  remarks               String?
+  documents             DeathRegistrationDocument[]
+  deceased              DeceasedRecord?             @relation(fields: [deceasedId], references: [id])
+  payment               Payment?                    @relation(fields: [paymentId], references: [id])
+  submitter             User?                       @relation(fields: [submittedBy], references: [id])
 
   @@map("death_registrations")
 }
 
 model DeceasedRecord {
-  id              Int      @id @default(autoincrement())
-  firstName       String
-  middleName      String?
-  lastName        String
-  suffix          String?
-  sex             String?
-  dateOfBirth     DateTime?
-  dateOfDeath     DateTime?
-  age             Int?
-  placeOfDeath    String?
-  residenceAddress String?
-  citizenship     String?
-  civilStatus     String?
-  occupation      String?
-  causeOfDeath    String?
-  covidRelated    Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  // Relations
-  deathRegistrations DeathRegistration[]
-  permitRequests     PermitRequest[]
+  id                  Int                  @id @default(autoincrement())
+  firstName           String
+  middleName          String?
+  lastName            String
+  suffix              String?
+  sex                 String?
+  dateOfBirth         DateTime?
+  dateOfDeath         DateTime?
+  age                 Int?
+  placeOfDeath        String?
+  residenceAddress    String?
+  citizenship         String?
+  civilStatus         String?
+  occupation          String?
+  causeOfDeath        String?
+  covidRelated        Boolean              @default(false)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  burials             burials[]
   certificateRequests CertificateRequest[]
-  plotAssignments    PlotAssignment[]
+  deathRegistrations  DeathRegistration[]
+  permitRequests      PermitRequest[]
+  plotAssignments     PlotAssignment[]
 
   @@map("deceased_records")
 }
 
 model PermitRequest {
-  id              Int      @id @default(autoincrement())
+  id              Int              @id @default(autoincrement())
   permitType      PermitType
   citizenUserId   Int?
   deathId         Int?
-  status          PermitStatus @default(SUBMITTED)
-  amountDue       Decimal  @default(0.00)
+  status          PermitStatus     @default(SUBMITTED)
+  amountDue       Decimal          @default(0.00)
   paymentId       Int?
   paymentOrderNo  String?
   orNumber        String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
   issuedAt        DateTime?
   issuedBy        Int?
-  pickupRequired  Boolean  @default(true)
-  pickupStatus    PickupStatus @default(NOT_READY)
+  pickupRequired  Boolean          @default(true)
+  pickupStatus    PickupStatus     @default(NOT_READY)
   remarks         String?
-
-  // Relations
-  citizen         User?    @relation(fields: [citizenUserId], references: [id])
-  deceased        DeceasedRecord? @relation(fields: [deathId], references: [id])
-  payment         Payment? @relation(fields: [paymentId], references: [id])
   documents       PermitDocument[]
+  citizen         User?            @relation(fields: [citizenUserId], references: [id])
+  deceased        DeceasedRecord?  @relation(fields: [deathId], references: [id])
+  payment         Payment?         @relation(fields: [paymentId], references: [id])
   plotAssignments PlotAssignment[]
 
   @@map("permit_requests")
 }
 
 model CertificateRequest {
-  id                      Int      @id @default(autoincrement())
-  certRequestType         CertificateType
-  deathId                 Int?
-  requesterUserId         Int?
-  relationshipToDeceased  String?
-  purpose                 String?
-  copies                  Int      @default(1)
-  status                  CertificateStatus @default(SUBMITTED)
-  amountDue               Decimal  @default(0.00)
-  paymentId               Int?
-  paymentOrderNo          String?
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
-  processedBy             Int?
-  pickupRequired          Boolean  @default(true)
-  pickupStatus            PickupStatus @default(NOT_READY)
-  remarks                 String?
-
-  // Relations
-  requester               User?    @relation(fields: [requesterUserId], references: [id])
-  deceased                DeceasedRecord? @relation(fields: [deathId], references: [id])
-  payment                 Payment? @relation(fields: [paymentId], references: [id])
-  documents               CertificateRequestDocument[]
+  id                     Int                          @id @default(autoincrement())
+  certRequestType        CertificateType
+  deathId                Int?
+  requesterUserId        Int?
+  relationshipToDeceased String?
+  purpose                String?
+  copies                 Int                          @default(1)
+  status                 CertificateStatus            @default(SUBMITTED)
+  amountDue              Decimal                      @default(0.00)
+  paymentId              Int?
+  paymentOrderNo         String?
+  createdAt              DateTime                     @default(now())
+  updatedAt              DateTime                     @updatedAt
+  processedBy            Int?
+  pickupRequired         Boolean                      @default(true)
+  pickupStatus           PickupStatus                 @default(NOT_READY)
+  remarks                String?
+  documents              CertificateRequestDocument[]
+  deceased               DeceasedRecord?              @relation(fields: [deathId], references: [id])
+  payment                Payment?                     @relation(fields: [paymentId], references: [id])
+  requester              User?                        @relation(fields: [requesterUserId], references: [id])
 
   @@map("certificate_requests")
 }
 
 model Document {
-  id                Int      @id @default(autoincrement())
+  id                Int                          @id @default(autoincrement())
   uploadedBy        Int?
   fileName          String
   filePath          String
   mimeType          String?
   fileSizeBytes     BigInt?
-  createdAt         DateTime @default(now())
-
-  // Relations
-  uploader          User?    @relation(fields: [uploadedBy], references: [id], name: "DocumentUploader")
-  deathRegDocuments DeathRegistrationDocument[]
-  permitDocuments   PermitDocument[]
+  createdAt         DateTime                     @default(now())
   certReqDocuments  CertificateRequestDocument[]
+  deathRegDocuments DeathRegistrationDocument[]
+  uploader          User?                        @relation("DocumentUploader", fields: [uploadedBy], references: [id])
+  permitDocuments   PermitDocument[]
 
   @@map("documents")
 }
 
 model DeathRegistrationDocument {
-  id               Int      @id @default(autoincrement())
-  registrationId   Int
-  documentId       Int
-  docType          String
-  uploadedAt       DateTime @default(now())
-
-  // Relations
-  registration     DeathRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
-  document         Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  id             Int               @id @default(autoincrement())
+  registrationId Int
+  documentId     Int
+  docType        String
+  uploadedAt     DateTime          @default(now())
+  document       Document          @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  registration   DeathRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
 
   @@map("death_registration_documents")
 }
 
 model PermitDocument {
-  id         Int      @id @default(autoincrement())
+  id         Int           @id @default(autoincrement())
   permitId   Int
   documentId Int
   docType    String
-  uploadedAt DateTime @default(now())
-
-  // Relations
+  uploadedAt DateTime      @default(now())
+  document   Document      @relation(fields: [documentId], references: [id], onDelete: Cascade)
   permit     PermitRequest @relation(fields: [permitId], references: [id], onDelete: Cascade)
-  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   @@map("permit_documents")
 }
 
 model CertificateRequestDocument {
-  id            Int      @id @default(autoincrement())
+  id            Int                @id @default(autoincrement())
   certRequestId Int
   documentId    Int
   docType       String
-  uploadedAt    DateTime @default(now())
-
-  // Relations
+  uploadedAt    DateTime           @default(now())
   certRequest   CertificateRequest @relation(fields: [certRequestId], references: [id], onDelete: Cascade)
-  document      Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  document      Document           @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   @@map("certificate_request_documents")
 }
 
 model Payment {
-  id            Int      @id @default(autoincrement())
-  moduleRef     String
-  moduleId      Int
-  amount        Decimal
-  currency      String   @default("PHP")
-  paymentStatus PaymentStatus @default(UNPAID)
-  paymentMethod String?
-  orNumber      String?
-  proofDocumentId Int?
-  paidBy        Int?
-  paidAt        DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  // Relations
-  payer         User?    @relation(fields: [paidBy], references: [id])
-  deathRegistrations DeathRegistration[]
-  permitRequests     PermitRequest[]
+  id                  Int                  @id @default(autoincrement())
+  moduleRef           String
+  moduleId            Int
+  amount              Decimal
+  currency            String               @default("PHP")
+  paymentStatus       PaymentStatus        @default(UNPAID)
+  paymentMethod       String?
+  orNumber            String?
+  proofDocumentId     Int?
+  paidBy              Int?
+  paidAt              DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
   certificateRequests CertificateRequest[]
+  deathRegistrations  DeathRegistration[]
+  payer               User?                @relation(fields: [paidBy], references: [id])
+  permitRequests      PermitRequest[]
 
   @@map("payments")
 }
 
-model CemeteryPlot {
-  id            Int      @id @default(autoincrement())
-  cemeteryName  String   @default("Quezon City Public Cemetery")
-  section       String?
-  block         String?
-  lot           String?
-  plotCode      String?  @unique
-  size          String?
-  latitude      Decimal?
-  longitude     Decimal?
-  status        PlotStatus @default(VACANT)
-  reservedBy    Int?
-  reservedUntil DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+model Cemetery {
+  id              Int               @id @default(autoincrement())
+  name            String
+  description     String?
+  address         String
+  city            String            @default("Quezon City")
+  postalCode      String?
+  establishedDate DateTime?
+  totalArea       String?
+  boundary        Json?
+  standardPrice   Decimal           @default(0.00)
+  largePrice      Decimal           @default(0.00)
+  familyPrice     Decimal           @default(0.00)
+  nichePrice      Decimal           @default(0.00)
+  maintenanceFee  Decimal           @default(0.00)
+  latitude        Decimal?
+  longitude       Decimal?
+  isActive        Boolean           @default(true)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  plots           CemeteryPlot[]
+  sections        CemeterySection[]
 
-  // Relations
-  reserver      User?    @relation(fields: [reservedBy], references: [id], name: "PlotReserver")
-  assignments   PlotAssignment[]
+  @@map("cemeteries")
+}
+
+model CemeterySection {
+  id          Int             @id @default(autoincrement())
+  cemeteryId  Int
+  name        String
+  description String?
+  color       String          @default("#3B82F6")
+  capacity    Int?
+  boundary    Json?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  blocks      CemeteryBlock[]
+  cemetery    Cemetery        @relation(fields: [cemeteryId], references: [id], onDelete: Cascade)
+
+  @@map("cemetery_sections")
+}
+
+model CemeteryBlock {
+  id          Int             @id @default(autoincrement())
+  sectionId   Int
+  name        String
+  description String?
+  blockType   String          @default("standard")
+  color       String          @default("#10B981")
+  capacity    Int?
+  boundary    Json?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  section     CemeterySection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  plots       CemeteryPlot[]
+
+  @@map("cemetery_blocks")
+}
+
+model CemeteryPlot {
+  id             Int              @id @default(autoincrement())
+  cemeteryName   String           @default("Quezon City Public Cemetery")
+  section        String?
+  block          String?
+  lot            String?
+  plotCode       String?          @unique
+  size           String?
+  latitude       Decimal?
+  longitude      Decimal?
+  status         PlotStatus       @default(VACANT)
+  reservedBy     Int?
+  reservedUntil  DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  accessibility  Boolean          @default(false)
+  baseFee        Decimal          @default(0.00)
+  blockId        Int?
+  cemeteryId     Int?
+  coordinates    Json?
+  depth          Decimal?
+  length         Decimal?
+  maintenanceFee Decimal          @default(0.00)
+  maxLayers      Int              @default(3)
+  orientation    String?
+  plotNumber     String?
+  type           String           @default("ground_burial")
+  width          Decimal?
+  burials        burials[]
+  block_rel      CemeteryBlock?   @relation(fields: [blockId], references: [id])
+  cemetery       Cemetery?        @relation(fields: [cemeteryId], references: [id])
+  reserver       User?            @relation("PlotReserver", fields: [reservedBy], references: [id])
+  gravestones    Gravestone?
+  assignments    PlotAssignment[]
 
   @@map("cemetery_plots")
 }
 
-model PlotAssignment {
-  id          Int      @id @default(autoincrement())
-  plotId      Int
-  deceasedId  Int?
-  permitId    Int?
-  assignedBy  Int?
-  assignedAt  DateTime @default(now())
-  status      AssignmentStatus @default(ASSIGNED)
-  notes       String?
+model Gravestone {
+  id             Int          @id @default(autoincrement())
+  plotId         Int          @unique
+  material       String?
+  condition      String?
+  inscription    String?
+  dateInstalled  DateTime?
+  manufacturer   String?
+  height         Decimal?
+  width          Decimal?
+  thickness      Decimal?
+  listedDeceased Json?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  plot           CemeteryPlot @relation(fields: [plotId], references: [id], onDelete: Cascade)
 
-  // Relations
-  plot        CemeteryPlot @relation(fields: [plotId], references: [id], onDelete: Cascade)
-  deceased    DeceasedRecord? @relation(fields: [deceasedId], references: [id])
-  permit      PermitRequest? @relation(fields: [permitId], references: [id])
-  assigner    User? @relation(fields: [assignedBy], references: [id])
+  @@map("gravestones")
+}
+
+model PlotAssignment {
+  id         Int              @id @default(autoincrement())
+  plotId     Int
+  deceasedId Int?
+  permitId   Int?
+  assignedBy Int?
+  assignedAt DateTime         @default(now())
+  status     AssignmentStatus @default(ASSIGNED)
+  notes      String?
+  assigner   User?            @relation(fields: [assignedBy], references: [id])
+  deceased   DeceasedRecord?  @relation(fields: [deceasedId], references: [id])
+  permit     PermitRequest?   @relation(fields: [permitId], references: [id])
+  plot       CemeteryPlot     @relation(fields: [plotId], references: [id], onDelete: Cascade)
 
   @@map("plot_assignments")
 }
@@ -294,28 +361,44 @@ model AuditLog {
   referenceId Int?
   details     String?
   createdAt   DateTime @default(now())
-
-  // Relations
   actor       User?    @relation(fields: [actorUserId], references: [id])
 
   @@map("audit_logs")
 }
 
 model Notification {
-  id         Int      @id @default(autoincrement())
-  userId     Int
-  title      String
-  message    String
-  isRead     Boolean  @default(false)
-  createdAt  DateTime @default(now())
-
-  // Relations
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notifications")
 }
 
-// Enums
+model burials {
+  id                 Int            @id @default(autoincrement())
+  plotId             Int
+  deceasedId         Int
+  layer              Int            @default(1)
+  burialType         String         @default("permanent")
+  burialDate         DateTime
+  expirationDate     DateTime?
+  status             String         @default("active")
+  permitNumber       String?
+  registrationNumber String?
+  nextOfKinName      String?
+  nextOfKinRelation  String?
+  nextOfKinContact   String?
+  notes              String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime
+  deceased_records   DeceasedRecord @relation(fields: [deceasedId], references: [id])
+  cemetery_plots     CemeteryPlot   @relation(fields: [plotId], references: [id], onDelete: Cascade)
+}
+
 enum Role {
   CITIZEN
   EMPLOYEE

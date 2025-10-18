@@ -101,7 +101,7 @@ export default function CemeteryMapPage() {
   const [cemeteryLayout, setCemeteryLayout] = useState<CemeteryLayout | null>(null)
   const [existingCemeteries, setExistingCemeteries] = useState<CemeteryLayout[]>([])
 
-  // Handle plot focus from URL parameters and localStorage
+  // Handle plot focus from URL parameters only (no localStorage)
   useEffect(() => {
     const urlPlotId = searchParams.get('plotId')
     const urlLat = searchParams.get('lat')
@@ -109,35 +109,20 @@ export default function CemeteryMapPage() {
     const urlZoom = searchParams.get('zoom')
     const shouldFocus = searchParams.get('focus') === 'true'
     
-    // Check localStorage for focus plot data
-    const focusPlotFromStorage = localStorage.getItem('focusPlot')
-    const sessionFocusPlot = sessionStorage.getItem('mapFocusPlot')
-    
     if (shouldFocus && urlPlotId) {
-      let plotData = null
-      
-      // Try to get plot data from various sources
-      if (focusPlotFromStorage) {
-        try {
-          plotData = JSON.parse(focusPlotFromStorage)
-        } catch (e) {
-          console.warn('Error parsing focus plot from localStorage:', e)
-        }
+      // Set basic focus plot data from URL parameters
+      const plotData = {
+        id: urlPlotId,
+        plotNumber: searchParams.get('plotNumber') || urlPlotId,
+        section: searchParams.get('section') || 'Unknown Section',
+        block: searchParams.get('block') || 'Unknown Block',
+        status: searchParams.get('status') || 'unknown',
+        occupiedBy: searchParams.get('occupiedBy') || null,
+        reservedBy: searchParams.get('reservedBy') || null
       }
       
-      if (!plotData && sessionFocusPlot) {
-        try {
-          plotData = JSON.parse(sessionFocusPlot)
-        } catch (e) {
-          console.warn('Error parsing focus plot from sessionStorage:', e)
-        }
-      }
-      
-      // Set the focus plot data
-      if (plotData && plotData.id === urlPlotId) {
-        setFocusPlot(plotData)
-        console.log('Focusing on plot:', plotData)
-      }
+      setFocusPlot(plotData)
+      console.log('Focusing on plot from URL:', plotData)
       
       // Set initial map view from URL parameters
       if (urlLat && urlLng) {
@@ -146,15 +131,7 @@ export default function CemeteryMapPage() {
         const zoom = urlZoom ? parseInt(urlZoom, 10) : 18
         
         setMapInitialView({ lat, lng, zoom })
-        console.log('Setting map initial view:', { lat, lng, zoom })
-      }
-    }
-    
-    // Clean up storage after using the data
-    return () => {
-      if (shouldFocus) {
-        localStorage.removeItem('focusPlot')
-        sessionStorage.removeItem('mapFocusPlot')
+        console.log('Setting map initial view from URL:', { lat, lng, zoom })
       }
     }
   }, [searchParams])
@@ -203,7 +180,7 @@ export default function CemeteryMapPage() {
       const totalArea = currentDrawing.length >= 3 ? 
         calculatePolygonArea(currentDrawing) : 0
 
-      const layoutData = {
+      const cemeteryData = {
         name: cemeteryFormData.name,
         description: cemeteryFormData.description,
         address: cemeteryFormData.address,
@@ -216,47 +193,124 @@ export default function CemeteryMapPage() {
         largePrice: cemeteryFormData.largePrice,
         familyPrice: cemeteryFormData.familyPrice,
         nichePrice: cemeteryFormData.nichePrice,
-        maintenanceFee: cemeteryFormData.maintenanceFee,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        maintenanceFee: cemeteryFormData.maintenanceFee
       }
 
-      // Create a cemetery layout object
-      const newCemetery: CemeteryLayout = {
-        id: Date.now().toString(),
-        ...layoutData
-      }
+      console.log('Saving cemetery to backend API:', cemeteryData)
 
-      setCemeteryLayout(newCemetery)
-      
-      // Add to existing cemeteries list
-      setExistingCemeteries(prev => [...prev, newCemetery])
-      
-      console.log('Cemetery layout created:', newCemetery)
+      // Save to backend API
+      const response = await fetch('/api/cemeteries', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(cemeteryData)
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        console.log('Cemetery saved to backend:', result)
+
+        if (result.success && result.data) {
+          // Create a cemetery layout object from backend response
+          const newCemetery: CemeteryLayout = {
+            id: result.data.id.toString(),
+            name: result.data.name,
+            description: result.data.description || '',
+            address: result.data.address || '',
+            city: result.data.city || '',
+            postalCode: result.data.postalCode || '',
+            establishedDate: result.data.establishedDate || '',
+            totalArea: result.data.totalArea || totalArea,
+            boundary: result.data.boundary || currentDrawing,
+            standardPrice: result.data.standardPrice || cemeteryFormData.standardPrice,
+            largePrice: result.data.largePrice || cemeteryFormData.largePrice,
+            familyPrice: result.data.familyPrice || cemeteryFormData.familyPrice,
+            nichePrice: result.data.nichePrice || cemeteryFormData.nichePrice,
+            maintenanceFee: result.data.maintenanceFee || cemeteryFormData.maintenanceFee,
+            createdAt: result.data.createdAt || new Date().toISOString(),
+            updatedAt: result.data.updatedAt || new Date().toISOString()
+          }
+
+          setCemeteryLayout(newCemetery)
+          
+          // Add to existing cemeteries list
+          setExistingCemeteries(prev => [...prev, newCemetery])
+          
+          console.log('Cemetery layout created successfully:', newCemetery)
+        } else {
+          throw new Error('Invalid response from backend')
+        }
+      } else {
+        const errorData = await response.text()
+        console.error('Backend cemetery save failed:', errorData)
+        throw new Error(`Failed to save cemetery: ${errorData}`)
+      }
       
     } catch (error) {
-      console.error('Error saving cemetery:', error)
+      console.error('Error saving cemetery to backend:', error)
       alert('Error saving cemetery layout. Please try again.')
     } finally {
       setIsSaving(false)
     }
   }
 
-  // Load existing cemeteries on mount
+  // Load existing cemeteries on mount from backend API
   useEffect(() => {
-    // In a real app, this would fetch from API
-    // For now, we'll use localStorage to persist data
-    const savedCemeteries = localStorage.getItem('cemeteries')
-    if (savedCemeteries) {
-      setExistingCemeteries(JSON.parse(savedCemeteries))
+    const loadCemeteries = async () => {
+      try {
+        console.log('Loading cemeteries from backend API...')
+        
+        const response = await fetch('/api/cemeteries')
+        
+        if (response.ok) {
+          const result = await response.json()
+          console.log('Cemetery Map API result:', result)
+          
+          if (result.success && result.data && result.data.length > 0) {
+            // Transform backend cemetery data to our interface
+            const transformedCemeteries: CemeteryLayout[] = result.data.map((cemetery: any) => ({
+              id: cemetery.id.toString(),
+              name: cemetery.name,
+              description: cemetery.description || '',
+              address: cemetery.address || '',
+              city: cemetery.city || '',
+              postalCode: cemetery.postalCode || '',
+              establishedDate: cemetery.establishedDate || '',
+              totalArea: cemetery.totalArea || 0,
+              boundary: cemetery.boundary || [],
+              standardPrice: cemetery.standardPrice || 15000,
+              largePrice: cemetery.largePrice || 25000,
+              familyPrice: cemetery.familyPrice || 40000,
+              nichePrice: cemetery.nichePrice || 8000,
+              maintenanceFee: cemetery.maintenanceFee || 2000,
+              createdAt: cemetery.createdAt || new Date().toISOString(),
+              updatedAt: cemetery.updatedAt || new Date().toISOString()
+            }))
+            
+            console.log('Transformed cemeteries for map:', transformedCemeteries)
+            setExistingCemeteries(transformedCemeteries)
+          } else {
+            console.log('No cemeteries found in backend')
+            setExistingCemeteries([])
+          }
+        } else {
+          console.error('Failed to load cemeteries from backend:', response.status)
+          setExistingCemeteries([])
+        }
+      } catch (error) {
+        console.error('Error loading cemeteries from backend:', error)
+        setExistingCemeteries([])
+      }
     }
+
+    loadCemeteries()
   }, [])
 
-  // Save to localStorage whenever cemeteries change
+  // Save cemetery to backend API instead of localStorage
   useEffect(() => {
-    if (existingCemeteries.length > 0) {
-      localStorage.setItem('cemeteries', JSON.stringify(existingCemeteries))
-    }
+    // No longer saving to localStorage - using backend API only
+    // Cemetery data will be saved via the backend API when created
   }, [existingCemeteries])
 
   return (

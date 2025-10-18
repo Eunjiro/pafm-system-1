@@ -1,9 +1,133 @@
 const express = require('express');
+const multer = require('multer');
+const path = require('path');
 const { PrismaClient } = require('@prisma/client');
 const { requireCitizen, requireEmployee, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 const prisma = new PrismaClient();
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadPath = path.join(__dirname, '../../uploads/permits');
+    cb(null, uploadPath);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit
+  },
+  fileFilter: function (req, file, cb) {
+    // Accept images and PDFs
+    if (file.mimetype.startsWith('image/') || file.mimetype === 'application/pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only images and PDF files are allowed'));
+    }
+  }
+});
+
+// Debug endpoint - no auth required (place before auth middleware)
+router.get('/debug', async (req, res) => {
+  try {
+    console.log('=== DEBUG: Fetching all permits without auth ===');
+    
+    const permits = await prisma.permitRequest.findMany({
+      include: {
+        deceased: {
+          select: {
+            id: true,
+            firstName: true,
+            middleName: true,
+            lastName: true,
+            suffix: true,
+            dateOfDeath: true
+          }
+        },
+        citizen: {
+          select: {
+            id: true,
+            fullNameFirst: true,
+            fullNameLast: true,
+            email: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    console.log(`Found ${permits.length} permits in database`);
+
+    const transformedPermits = permits.map(permit => ({
+      ...permit,
+      permitType: permit.permitType.toLowerCase(),
+      status: permit.status.toLowerCase(),
+      requester: permit.citizen
+    }));
+
+    res.json({
+      success: true,
+      count: permits.length,
+      permits: transformedPermits,
+      message: 'Debug data retrieved successfully'
+    });
+  } catch (error) {
+    console.error('Debug endpoint error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch debug data',
+      details: error.message 
+    });
+  }
+});
+
+// Get citizen's own permits
+router.get('/citizen/:citizenId', requireCitizen, async (req, res) => {
+  try {
+    const citizenId = parseInt(req.params.citizenId);
+    
+    // Ensure citizen can only access their own permits
+    if (req.user.id !== citizenId && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const permits = await prisma.permitRequest.findMany({
+      where: { citizenUserId: citizenId },
+      include: {
+        deceased: {
+          select: {
+            id: true,
+            firstName: true,
+            middleName: true,
+            lastName: true,
+            suffix: true,
+            dateOfDeath: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // Transform the data to match frontend expectations
+    const transformedPermits = permits.map(permit => ({
+      ...permit,
+      permitType: permit.permitType.toLowerCase(),
+      status: permit.status.toLowerCase()
+    }));
+
+    res.json({ permits: transformedPermits });
+  } catch (error) {
+    console.error('Error fetching citizen permits:', error);
+    res.status(500).json({ error: 'Failed to fetch permits' });
+  }
+});
 
 // Get all permits (employee/admin access)
 router.get('/', requireEmployee, async (req, res) => {
@@ -120,25 +244,77 @@ router.get('/:id', requireEmployee, async (req, res) => {
 });
 
 // Create new permit request
-router.post('/', requireCitizen, async (req, res) => {
+router.post('/', requireCitizen, upload.any(), async (req, res) => {
   try {
-    const { permitType, deceasedId, documents } = req.body;
+    console.log('Creating permit with form data...');
+    console.log('Body:', req.body);
+    console.log('Files:', req.files);
+
+    const { 
+      permitType, 
+      deceasedId, 
+      requestedDate,
+      requestedTime,
+      plotPreference,
+      specialRequests,
+      contactPerson,
+      contactNumber,
+      submittedBy
+    } = req.body;
     
     // Validate permit type
-    if (!['burial', 'exhumation', 'cremation'].includes(permitType.toLowerCase())) {
-      return res.status(400).json({ error: 'Invalid permit type' });
+    if (!['BURIAL', 'EXHUMATION', 'CREMATION'].includes(permitType?.toUpperCase())) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Invalid permit type. Must be BURIAL, EXHUMATION, or CREMATION' 
+      });
     }
 
-    // Create the permit
+    // Validate required fields
+    if (!deceasedId) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Deceased ID is required' 
+      });
+    }
+
+    // Create the permit with additional fields
+    const permitData = {
+      permitType: permitType.toUpperCase(),
+      status: 'SUBMITTED',
+      amountDue: getPermitFee(permitType.toLowerCase()),
+      deathId: parseInt(deceasedId),
+      citizenUserId: req.user.id,
+      remarks: 'New permit request submitted',
+    };
+
+    // Add optional fields if provided
+    if (requestedDate) {
+      // Store additional data in remarks for now (you may want to add these fields to schema)
+      permitData.remarks += `\nRequested Date: ${requestedDate}`;
+      if (requestedTime) {
+        permitData.remarks += ` at ${requestedTime}`;
+      }
+    }
+    
+    if (plotPreference) {
+      permitData.remarks += `\nPlot Preference: ${plotPreference}`;
+    }
+    
+    if (specialRequests) {
+      permitData.remarks += `\nSpecial Requests: ${specialRequests}`;
+    }
+    
+    if (contactPerson) {
+      permitData.remarks += `\nContact Person: ${contactPerson}`;
+    }
+    
+    if (contactNumber) {
+      permitData.remarks += `\nContact Number: ${contactNumber}`;
+    }
+
     const permit = await prisma.permitRequest.create({
-      data: {
-        permitType: permitType.toUpperCase(),
-        status: 'SUBMITTED',
-        amountDue: getPermitFee(permitType.toLowerCase()),
-        deathId: parseInt(deceasedId),
-        citizenUserId: req.user.id,
-        remarks: 'New permit request submitted'
-      },
+      data: permitData,
       include: {
         deceased: {
           select: {
@@ -161,6 +337,38 @@ router.post('/', requireCitizen, async (req, res) => {
       }
     });
 
+    // Handle file uploads if any
+    if (req.files && req.files.length > 0) {
+      console.log(`Processing ${req.files.length} uploaded files...`);
+      
+      for (const file of req.files) {
+        console.log(`Saving document: ${file.originalname} (${file.mimetype})`);
+        
+        // Extract document type from fieldname (e.g., "document_death_certificate" -> "death_certificate")
+        const documentType = file.fieldname.replace('document_', '');
+        
+        // First, create the Document record
+        const document = await prisma.document.create({
+          data: {
+            uploadedBy: req.user.id,
+            fileName: file.originalname,
+            filePath: file.path,
+            mimeType: file.mimetype,
+            fileSizeBytes: BigInt(file.size)
+          }
+        });
+
+        // Then, create the PermitDocument link
+        await prisma.permitDocument.create({
+          data: {
+            permitId: permit.id,
+            documentId: document.id,
+            docType: documentType
+          }
+        });
+      }
+    }
+
     // Transform for frontend compatibility
     const transformedPermit = {
       ...permit,
@@ -169,10 +377,20 @@ router.post('/', requireCitizen, async (req, res) => {
       requester: permit.citizen
     };
 
-    res.status(201).json({ permit: transformedPermit });
+    console.log(`Created permit: ${permit.id} for deceased: ${permit.deceased.firstName} ${permit.deceased.lastName}`);
+
+    res.status(201).json({ 
+      success: true,
+      data: transformedPermit,
+      message: 'Permit request created successfully'
+    });
   } catch (error) {
     console.error('Error creating permit:', error);
-    res.status(500).json({ error: 'Failed to create permit' });
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to create permit',
+      details: error.message
+    });
   }
 });
 

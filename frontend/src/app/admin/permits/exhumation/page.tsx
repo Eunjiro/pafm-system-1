@@ -3,7 +3,7 @@
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { FiShield, FiFileText, FiUser, FiAlertTriangle, FiCheckCircle, FiDollarSign, FiRefreshCw, FiEye, FiArrowLeft } from "react-icons/fi";
+import { FiShield, FiFileText, FiXCircle, FiAlertTriangle, FiCheckCircle, FiDollarSign, FiRefreshCw, FiEye, FiArrowLeft } from "react-icons/fi";
 import Link from "next/link";
 
 interface Permit {
@@ -32,7 +32,7 @@ interface Permit {
   remarks?: string;
 }
 
-export default function BurialPermitsPage() {
+export default function ExhumationPermitsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [permits, setPermits] = useState<Permit[]>([]);
@@ -47,23 +47,23 @@ export default function BurialPermitsPage() {
       router.replace("/auth/signin");
       return;
     }
-    fetchBurialPermits();
+    fetchExhumationPermits();
   }, [session, status, router]);
 
-  const fetchBurialPermits = async () => {
+  const fetchExhumationPermits = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/permits?permitType=burial');
+      const response = await fetch('/api/permits?permitType=exhumation');
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to fetch burial permits');
+        throw new Error(errorData.error || 'Failed to fetch exhumation permits');
       }
       const data = await response.json();
       setPermits(data.permits || []);
     } catch (error) {
-      console.error('Error fetching burial permits:', error);
-      setError(error instanceof Error ? error.message : 'Failed to fetch burial permits');
+      console.error('Error fetching exhumation permits:', error);
+      setError(error instanceof Error ? error.message : 'Failed to fetch exhumation permits');
       setPermits([]);
     } finally {
       setLoading(false);
@@ -95,7 +95,7 @@ export default function BurialPermitsPage() {
   if (status === "loading" || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{backgroundColor: '#FBFBFB'}}>
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2" style={{borderColor: '#4CAF50'}}></div>
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2" style={{borderColor: '#FF6B6B'}}></div>
       </div>
     );
   }
@@ -107,7 +107,7 @@ export default function BurialPermitsPage() {
         <div 
           className="h-1 w-full"
           style={{
-            background: 'linear-gradient(135deg, #4A90E2 0%, #357ABD 100%)'
+            background: 'linear-gradient(135deg, #FF6B6B 0%, #E55B5B 100%)'
           }}
         />
         <div className="px-6 py-8">
@@ -118,33 +118,33 @@ export default function BurialPermitsPage() {
               </Link>
               <div 
                 className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg"
-                style={{backgroundColor: '#4A90E2'}}
+                style={{backgroundColor: '#FF6B6B'}}
               >
                 <div className="text-white">
-                  <FiUser size={24} />
+                  <FiXCircle size={24} />
                 </div>
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">Burial Permits</h1>
+                <h1 className="text-3xl font-bold text-gray-900">Exhumation Permits</h1>
                 <div className="flex items-center space-x-2 mt-2">
                   <div className="flex items-center space-x-1">
-                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
-                    <span className="text-sm text-gray-600 font-medium">Cemetery Burial Authorization</span>
+                    <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse"></div>
+                    <span className="text-sm text-gray-600 font-medium">Cemetery Exhumation Authorization</span>
                   </div>
                   <span className="text-gray-400">•</span>
-                  <span className="text-sm text-gray-500">{permits.length} Burial Permits</span>
+                  <span className="text-sm text-gray-500">{permits.length} Exhumation Permits</span>
                 </div>
               </div>
             </div>
             <div className="flex items-center space-x-4">
               <div className="text-right">
                 <p className="text-sm text-gray-500">Fee Range</p>
-                <p className="text-sm font-medium text-gray-900">₱100 - ₱1,500</p>
+                <p className="text-sm font-medium text-gray-900">₱500 - ₱2,000</p>
               </div>
               <button 
-                onClick={fetchBurialPermits}
-                className="group px-6 py-3 rounded-xl font-medium transition-all duration-300 hover:shadow-lg hover:scale-105 flex items-center space-x-2 border border-blue-200"
-                style={{backgroundColor: '#4A90E2', color: 'white'}}
+                onClick={fetchExhumationPermits}
+                className="group px-6 py-3 rounded-xl font-medium transition-all duration-300 hover:shadow-lg hover:scale-105 flex items-center space-x-2 border border-red-200"
+                style={{backgroundColor: '#FF6B6B', color: 'white'}}
               >
                 <div className="group-hover:rotate-180 transition-transform duration-300">
                   <FiRefreshCw size={16} />
@@ -170,53 +170,62 @@ export default function BurialPermitsPage() {
           </div>
         )}
 
-        {/* Burial Permit Requirements */}
+        {/* Exhumation Permit Requirements */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100">
           <div className="p-6">
             <div className="flex items-start space-x-4">
-              <div className="w-16 h-16 rounded-2xl flex items-center justify-center bg-blue-500">
+              <div className="w-16 h-16 rounded-2xl flex items-center justify-center bg-red-500">
                 <div className="text-white">
-                  <FiUser size={24} />
+                  <FiXCircle size={24} />
                 </div>
               </div>
               <div className="flex-1">
-                <h3 className="text-xl font-bold text-gray-900">Burial Permit Requirements</h3>
-                <p className="text-gray-600 mt-1">Authorization for cemetery burial services</p>
+                <h3 className="text-xl font-bold text-gray-900">Exhumation Permit Requirements</h3>
+                <p className="text-gray-600 mt-1">Authorization for cemetery exhumation services</p>
                 <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <p className="text-sm font-semibold text-gray-700">Required Documents:</p>
                     <ul className="text-xs text-gray-600 mt-1 space-y-1">
                       <li className="flex items-center space-x-1">
-                        <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
+                        <span className="w-1 h-1 bg-red-400 rounded-full"></span>
+                        <span>Court Order for Exhumation</span>
+                      </li>
+                      <li className="flex items-center space-x-1">
+                        <span className="w-1 h-1 bg-red-400 rounded-full"></span>
                         <span>Certified Death Certificate</span>
                       </li>
                       <li className="flex items-center space-x-1">
-                        <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
+                        <span className="w-1 h-1 bg-red-400 rounded-full"></span>
                         <span>Valid ID of Applicant</span>
                       </li>
                       <li className="flex items-center space-x-1">
-                        <span className="w-1 h-1 bg-yellow-400 rounded-full"></span>
-                        <span>Transfer Permit (if from outside QC)</span>
+                        <span className="w-1 h-1 bg-red-400 rounded-full"></span>
+                        <span>Burial Permit (Original)</span>
                       </li>
                       <li className="flex items-center space-x-1">
                         <span className="w-1 h-1 bg-yellow-400 rounded-full"></span>
-                        <span>Affidavit of Undertaking (Bagbag/Novaliches)</span>
+                        <span>Clearance from DOH (if required)</span>
+                      </li>
+                      <li className="flex items-center space-x-1">
+                        <span className="w-1 h-1 bg-yellow-400 rounded-full"></span>
+                        <span>Consent from next of kin</span>
                       </li>
                     </ul>
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-gray-700">Fees:</p>
                     <ul className="text-xs text-gray-600 mt-1 space-y-1">
-                      <li>Burial Permit: ₱100</li>
-                      <li>Entrance Permit: ₱100</li>
-                      <li>Child Niche: ₱750</li>
-                      <li>Adult Niche: ₱1,500</li>
+                      <li>Exhumation Permit: ₱500</li>
+                      <li>Processing Fee: ₱250</li>
+                      <li>Site Inspection: ₱300</li>
+                      <li>Additional Services: ₱950</li>
                     </ul>
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-gray-700">Processing:</p>
-                    <p className="text-xs text-gray-600 mt-1">1-2 working days</p>
-                    <p className="text-xs text-gray-600">Pickup only at Civil Registry</p>
+                    <p className="text-xs text-gray-600 mt-1">5-7 working days</p>
+                    <p className="text-xs text-gray-600">Requires site inspection</p>
+                    <p className="text-xs text-gray-600">Court order verification</p>
                   </div>
                 </div>
               </div>
@@ -229,13 +238,13 @@ export default function BurialPermitsPage() {
           <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Total Burial Permits</p>
-                <p className="text-3xl font-bold text-blue-600 mt-2">{permits.length}</p>
-                <p className="text-sm text-gray-500 mt-1">All burial requests</p>
+                <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Total Exhumation Permits</p>
+                <p className="text-3xl font-bold text-red-600 mt-2">{permits.length}</p>
+                <p className="text-sm text-gray-500 mt-1">All exhumation requests</p>
               </div>
-              <div className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-md bg-blue-500">
+              <div className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-md bg-red-500">
                 <div className="text-white">
-                  <FiUser size={24} />
+                  <FiXCircle size={24} />
                 </div>
               </div>
             </div>
@@ -282,7 +291,7 @@ export default function BurialPermitsPage() {
                 <p className="text-3xl font-bold text-purple-600 mt-2">
                   ₱{permits.reduce((sum, p) => sum + (p.amountDue || 0), 0).toLocaleString()}
                 </p>
-                <p className="text-sm text-gray-500 mt-1">Total burial fees</p>
+                <p className="text-sm text-gray-500 mt-1">Total exhumation fees</p>
               </div>
               <div className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-md bg-purple-500">
                 <div className="text-white">
@@ -293,25 +302,25 @@ export default function BurialPermitsPage() {
           </div>
         </div>
 
-        {/* Burial Permits Table */}
+        {/* Exhumation Permits Table */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100">
           <div className="px-8 py-6 border-b border-gray-200">
             <div className="flex justify-between items-center">
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-blue-500">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-red-500">
                   <div className="text-white">
-                    <FiUser size={18} />
+                    <FiXCircle size={18} />
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-gray-900">Burial Permit Requests</h3>
+                  <h3 className="text-xl font-bold text-gray-900">Exhumation Permit Requests</h3>
                   <p className="text-sm text-gray-500">
-                    {permits.length} burial permits • Cemetery authorization workflow
+                    {permits.length} exhumation permits • Court order required
                   </p>
                 </div>
               </div>
               <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 bg-blue-400 rounded-full animate-pulse"></div>
+                <div className="w-3 h-3 bg-red-400 rounded-full animate-pulse"></div>
                 <span className="text-sm font-medium text-gray-600">Live Data</span>
               </div>
             </div>
@@ -353,7 +362,7 @@ export default function BurialPermitsPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="w-full bg-gray-200 rounded-full h-2">
                         <div 
-                          className="bg-blue-500 h-2 rounded-full transition-all duration-300" 
+                          className="bg-red-500 h-2 rounded-full transition-all duration-300" 
                           style={{ width: `${getWorkflowProgress(permit.status)}%` }}
                         ></div>
                       </div>
@@ -366,7 +375,7 @@ export default function BurialPermitsPage() {
                           setSelectedPermit(permit);
                           setShowDetailModal(true);
                         }}
-                        className="text-blue-600 hover:text-blue-900 font-medium"
+                        className="text-red-600 hover:text-red-900 font-medium"
                       >
                         View Details
                       </button>
@@ -379,10 +388,10 @@ export default function BurialPermitsPage() {
             {permits.length === 0 && (
               <div className="text-center py-12">
                 <div className="text-gray-400 mb-4">
-                  <FiUser size={48} className="mx-auto" />
+                  <FiXCircle size={48} className="mx-auto" />
                 </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No burial permits found</h3>
-                <p className="text-gray-500">No burial permit requests have been submitted yet.</p>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No exhumation permits found</h3>
+                <p className="text-gray-500">No exhumation permit requests have been submitted yet.</p>
               </div>
             )}
           </div>

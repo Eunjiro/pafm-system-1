@@ -393,7 +393,7 @@ export default function AdminCertificatesIndex() {
 
       {/* Enhanced Admin Override Modal */}
       {showOverrideModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-1 flex items-center justify-center z-50 p-4 animate-fadeIn">
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4 animate-fadeIn">
           <div className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl animate-slideUp">
             <div className="flex items-center space-x-3 mb-6">
               <div className="p-3 rounded-xl bg-red-50">

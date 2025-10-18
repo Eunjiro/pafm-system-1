@@ -522,7 +522,7 @@ export default function AdminDeathRegistrationIndex() {
 
         {/* Enhanced Admin Override Modal */}
         {showOverrideModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-1 flex items-center justify-center z-50 animate-fadeIn">
+          <div className="fixed inset-0 flex items-center justify-center z-50 animate-fadeIn">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-slideUp">
               {/* Modal Header */}
               <div className="px-8 py-6 border-b border-gray-200">

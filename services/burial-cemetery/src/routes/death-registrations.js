@@ -677,4 +677,75 @@ router.post('/:id/override', requireAdmin, async (req, res) => {
   }
 });
 
+// POST /deceased - Create deceased record only (for burial assignments)
+router.post('/deceased', requireEmployee, async (req, res) => {
+  try {
+    const {
+      firstName,
+      middleName,
+      lastName,
+      suffix,
+      dateOfBirth,
+      dateOfDeath,
+      age,
+      sex,
+      causeOfDeath,
+      placeOfDeath,
+      residenceAddress,
+      citizenship,
+      civilStatus,
+      occupation,
+      covidRelated
+    } = req.body;
+
+    // Validate required fields
+    if (!firstName || !lastName || !dateOfBirth || !dateOfDeath) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Missing required fields: firstName, lastName, dateOfBirth, dateOfDeath' 
+      });
+    }
+
+    // Calculate age if not provided
+    const calculatedAge = age || Math.floor((new Date(dateOfDeath).getTime() - new Date(dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+
+    // Create deceased record
+    const deceasedRecord = await prisma.deceasedRecord.create({
+      data: {
+        firstName,
+        middleName: middleName || null,
+        lastName,
+        suffix: suffix || null,
+        sex: sex || 'MALE',
+        dateOfBirth: new Date(dateOfBirth),
+        dateOfDeath: new Date(dateOfDeath),
+        age: calculatedAge,
+        placeOfDeath: placeOfDeath || null,
+        residenceAddress: residenceAddress || null,
+        citizenship: citizenship || 'Filipino',
+        civilStatus: civilStatus || 'Single',
+        occupation: occupation || null,
+        causeOfDeath: causeOfDeath || null,
+        covidRelated: covidRelated || false
+      }
+    });
+
+    console.log('Deceased record created:', deceasedRecord);
+
+    res.json({
+      success: true,
+      data: deceasedRecord,
+      message: `Deceased record created for ${firstName} ${lastName}`
+    });
+
+  } catch (error) {
+    console.error('Error creating deceased record:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to create deceased record',
+      details: error.message
+    });
+  }
+});
+
 module.exports = router;

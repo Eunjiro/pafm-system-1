@@ -151,12 +151,12 @@ export default function ServicesPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <button className="w-full bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 transition-colors text-sm text-center">
-                    Search Cemetery Plots
-                  </button>
-                  <button className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 transition-colors text-sm text-center">
-                    Interactive Cemetery Map
-                  </button>
+                  <Link href="/citizen/services/cemetery-search" className="block w-full bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 transition-colors text-sm text-center">
+                    Search Cemetery Records
+                  </Link>
+                  <Link href="/citizen/cemetery-search" className="block w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 transition-colors text-sm text-center">
+                    Find Burial Locations
+                  </Link>
                 </div>
               </div>
             </div>

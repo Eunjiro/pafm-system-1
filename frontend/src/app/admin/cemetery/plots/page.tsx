@@ -58,6 +58,16 @@ interface CemeteryPlot {
     dateInstalled: string
     condition: string
   }
+  maxLayers?: number
+  assignments?: Array<{
+    id: string
+    layer: number
+    deceasedName: string
+    dateOfBirth: string
+    dateOfDeath: string
+    burialDate?: string
+    status: string
+  }>
 }
 
 interface PlotAssignment {
@@ -81,16 +91,25 @@ interface CemeteryStatistics {
   occupancyRate: number
 }
 
-interface AssignmentFormData {
-  deceasedName: string
+
+
+interface BurialFormData {
+  firstName: string
+  lastName: string
+  middleName: string
   dateOfBirth: string
   dateOfDeath: string
   burialDate: string
+  gender: 'male' | 'female' | ''
+  causeOfDeath: string
+  occupation: string
   permitNumber: string
   registrationNumber: string
   contactPerson: string
   contactNumber: string
   relationship: string
+  layer: number
+  notes: string
 }
 
 interface ReservationFormData {
@@ -119,15 +138,18 @@ interface EditPlotFormData {
 }
 
 /**
- * Cemetery Plots Management Page
+ * Cemetery Plots Management Page - PRODUCTION VERSION
  * 
- * This component manages cemetery plots with hybrid data storage:
- * - Backend API: Mock data for demonstration (3 sample plots)
- * - localStorage: User-created plots and cemetery structures
+ * This component manages cemetery plots with BACKEND-ONLY data storage:
+ * - Backend API: Persistent server-side data from database
+ * - Authentication: Required for all operations
+ * - No localStorage: Production systems must use centralized database
  * 
- * When operations fail on backend (e.g., "Plot not found" errors), the system
- * gracefully falls back to local-only operations. This is expected behavior
- * during development when local plots don't exist in the backend mock data.
+ * For production deployment:
+ * 1. Backend must be running and accessible
+ * 2. Database must contain plot data
+ * 3. Authentication must be properly configured
+ * 4. No localStorage fallbacks (causes data inconsistency)
  */
 export default function CemeteryPlotsPage() {
   const { data: session, status } = useSession()
@@ -148,23 +170,30 @@ export default function CemeteryPlotsPage() {
   const [filterSection, setFilterSection] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [searchTerm, setSearchTerm] = useState('')
-  const [showAssignModal, setShowAssignModal] = useState(false)
   const [showPlotModal, setShowPlotModal] = useState(false)
   const [showReservationModal, setShowReservationModal] = useState(false)
+  const [showBurialModal, setShowBurialModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingPlot, setEditingPlot] = useState<CemeteryPlot | null>(null)
   
   // Form data states
-  const [assignmentForm, setAssignmentForm] = useState<AssignmentFormData>({
-    deceasedName: '',
+  const [burialForm, setBurialForm] = useState<BurialFormData>({
+    firstName: '',
+    lastName: '',
+    middleName: '',
     dateOfBirth: '',
     dateOfDeath: '',
     burialDate: '',
+    gender: '',
+    causeOfDeath: '',
+    occupation: '',
     permitNumber: '',
     registrationNumber: '',
     contactPerson: '',
     contactNumber: '',
-    relationship: ''
+    relationship: '',
+    layer: 1,
+    notes: ''
   })
   
   const [reservationForm, setReservationForm] = useState<ReservationFormData>({
@@ -221,159 +250,126 @@ export default function CemeteryPlotsPage() {
       try {
         setLoading(true)
         
-        console.log('Loading cemetery data from backend API and localStorage...')
+        console.log('Loading cemetery data from new backend API...')
         
-        // First try to load data from backend API
-        let allPlots: CemeteryPlot[] = []
-        try {
-          console.log('Fetching plots from backend API...')
-          const response = await fetch('/api/cemetery-plots')
-          console.log('Backend API response status:', response.status)
-          if (response.ok) {
-            const result = await response.json()
-            console.log('Backend API result:', result)
-            if (result.success && result.data) {
-              // Transform backend data to match our interface
-              allPlots = result.data.map((plot: any) => ({
-                id: plot.id,
-                plotNumber: plot.name || plot.plot_code,
-                section: plot.section,
-                block: plot.block,
-                lot: plot.lot,
-                coordinates: {
-                  lat: plot.coordinates ? plot.coordinates[0] : 14.6760,
-                  lng: plot.coordinates ? plot.coordinates[1] : 121.0437
-                },
-                size: plot.size || 'standard',
-                type: 'ground_burial',
-                status: plot.status as 'vacant' | 'reserved' | 'occupied' | 'unavailable' | 'blocked',
-                occupiedBy: plot.occupant ? {
-                  name: plot.occupant,
-                  dateOfBirth: '',
-                  dateOfDeath: '',
-                  burialDate: plot.dateOccupied || '',
-                  permitNumber: '',
-                  registrationNumber: ''
-                } : undefined,
-                assignedDate: plot.dateOccupied,
-                lastUpdated: plot.updated_at || new Date().toISOString(),
-                dimensions: {
-                  length: 2.0,
-                  width: 1.0,
-                  depth: 2.0
-                },
-                pricing: {
-                  baseFee: 5000,
-                  maintenanceFee: 500,
-                  totalFee: 5500
-                },
-                restrictions: [],
-                notes: plot.notes || ''
-              }))
-              console.log('Backend plots loaded:', allPlots.length)
-            }
-          }
-        } catch (apiError) {
-          console.warn('Backend API not available, falling back to localStorage:', apiError)
-        }
+        // Load data from new cemetery API
+        const response = await fetch('/api/cemeteries')
+        console.log('Cemetery API response status:', response.status)
         
-        // Load cemetery data from localStorage for additional plots
-        const savedCemeteries = localStorage.getItem('cemeteries')
-        let localPlots: CemeteryPlot[] = []
-        
-        if (savedCemeteries) {
-          const cemeteries = JSON.parse(savedCemeteries)
+        if (response.ok) {
+          const result = await response.json()
+          console.log('Cemetery API result:', result)
           
-          // For each cemetery, load its sections and extract all plots
-          for (const cemetery of cemeteries) {
-            const savedSections = localStorage.getItem(`cemetery_${cemetery.id}_sections`)
-            if (savedSections) {
-              const sections = JSON.parse(savedSections)
-              
-              // Flatten the hierarchical structure: Cemetery > Sections > Blocks > Plots
-              sections.forEach((section: any) => {
-                section.blocks.forEach((block: any) => {
-                  block.plots.forEach((plot: any) => {
-                    // Skip if this plot already exists in our data (avoid duplicates)
-                    if (allPlots.some(p => p.id === plot.id)) return
-                    
-                    // Get the active burials for this plot
-                    const activeBurials = plot.burials?.filter((burial: any) => burial.status === 'active') || []
-                    const primaryBurial = activeBurials.length > 0 ? activeBurials[0] : null
-                    
-                    // Determine plot status based on burials and reservations
-                    let plotStatus = 'vacant'
-                    if (plot.status === 'reserved') plotStatus = 'reserved'
-                    else if (plot.status === 'maintenance') plotStatus = 'unavailable'
-                    else if (plot.status === 'occupied' || activeBurials.length > 0) plotStatus = 'occupied'
-                    
-                    // Transform coordinates from array to lat/lng object
-                    const coords = plot.coordinates && plot.coordinates.length > 0 ? plot.coordinates[0] : [14.6760, 121.0437]
-                    
-                    // Transform the plot data to match the expected interface
-                    const transformedPlot: CemeteryPlot = {
-                      id: plot.id,
-                      plotNumber: plot.plotNumber,
-                      section: section.name,
-                      block: block.name,
-                      lot: plot.plotNumber.split('-').pop() || plot.plotNumber,
-                      coordinates: {
-                        lat: coords[0] || 14.6760,
-                        lng: coords[1] || 121.0437
-                      },
-                      size: plot.size || 'standard',
-                      type: 'ground_burial',
-                      status: plotStatus as 'vacant' | 'reserved' | 'occupied' | 'unavailable' | 'blocked',
-                      reservedBy: plot.reservedBy || undefined,
-                      occupiedBy: primaryBurial ? {
-                        name: `${primaryBurial.deceasedInfo.firstName} ${primaryBurial.deceasedInfo.lastName}`,
-                        dateOfBirth: primaryBurial.deceasedInfo.dateOfBirth,
-                        dateOfDeath: primaryBurial.deceasedInfo.dateOfDeath,
-                        burialDate: primaryBurial.deceasedInfo.burialDate,
-                        permitNumber: '',
-                        registrationNumber: ''
-                      } : undefined,
-                      assignedDate: primaryBurial ? primaryBurial.deceasedInfo.burialDate : undefined,
-                      lastUpdated: new Date().toISOString(),
-                      dimensions: {
-                        length: plot.length || 2.0,
-                        width: plot.width || 1.0,
-                        depth: plot.depth || 2.0
-                      },
-                      pricing: {
-                        baseFee: plot.baseFee || 5000,
-                        maintenanceFee: plot.maintenanceFee || 500,
-                        totalFee: (plot.baseFee || 5000) + (plot.maintenanceFee || 500)
-                      },
-                      restrictions: [],
-                      notes: `${activeBurials.length}/${plot.maxLayers || 3} layers occupied`,
-                      gravestone: plot.gravestone ? {
-                        material: plot.gravestone.material,
-                        inscription: plot.gravestone.inscription,
-                        dateInstalled: plot.gravestone.dateInstalled,
-                        condition: plot.gravestone.condition
-                      } : undefined
-                    }
-                    
-                    localPlots.push(transformedPlot)
-                  })
+          if (result.success && result.data && result.data.length > 0) {
+            // Extract all plots from all cemeteries
+            const allPlots: CemeteryPlot[] = []
+            
+            result.data.forEach((cemetery: any) => {
+              if (cemetery.sections && cemetery.sections.length > 0) {
+                cemetery.sections.forEach((section: any) => {
+                  if (section.blocks && section.blocks.length > 0) {
+                    section.blocks.forEach((block: any) => {
+                      if (block.plots && block.plots.length > 0) {
+                        block.plots.forEach((plot: any) => {
+                          // Transform backend plot data to match our interface
+                          const plotData: CemeteryPlot = {
+                            id: plot.id.toString(),
+                            plotNumber: plot.plotNumber || plot.plotCode || `Plot-${plot.id}`,
+                            section: section.name,
+                            block: block.name,
+                            lot: plot.plotNumber || plot.plotCode || `Lot-${plot.id}`,
+                            coordinates: {
+                              lat: plot.latitude ? parseFloat(plot.latitude) : 14.6760,
+                              lng: plot.longitude ? parseFloat(plot.longitude) : 121.0437
+                            },
+                            size: plot.size.toLowerCase() as 'standard' | 'large' | 'family' | 'niche',
+                            type: 'ground_burial',
+                            status: plot.status.toLowerCase() === 'vacant' ? 'vacant' : 
+                                   plot.status.toLowerCase() === 'occupied' ? 'occupied' : 
+                                   plot.status.toLowerCase() === 'reserved' ? 'reserved' : 'vacant',
+                            occupiedBy: plot.assignments && plot.assignments.length > 0 ? {
+                              name: `${plot.assignments.length} burial${plot.assignments.length > 1 ? 's' : ''} (${plot.assignments.length}/${plot.maxLayers || 3} layers)`,
+                              dateOfBirth: plot.assignments[0].deceased?.dateOfBirth || '',
+                              dateOfDeath: plot.assignments[0].deceased?.dateOfDeath || '',
+                              burialDate: plot.assignments[0].assignedAt || '',
+                              permitNumber: '',
+                              registrationNumber: ''
+                            } : undefined,
+                            assignments: plot.assignments || [],
+                            assignedDate: plot.assignments && plot.assignments.length > 0 ? plot.assignments[0].assignedAt : undefined,
+                            lastUpdated: plot.updatedAt || new Date().toISOString(),
+                            dimensions: {
+                              length: plot.length || 2.0,
+                              width: plot.width || 1.0,
+                              depth: plot.depth || 2.0
+                            },
+                            pricing: {
+                              baseFee: parseFloat(plot.baseFee) || 5000,
+                              maintenanceFee: parseFloat(plot.maintenanceFee) || 500,
+                              totalFee: (parseFloat(plot.baseFee) || 5000) + (parseFloat(plot.maintenanceFee) || 500)
+                            },
+                            restrictions: [],
+                            notes: plot.notes || '',
+                            gravestone: plot.gravestones && plot.gravestones.length > 0 ? {
+                              material: plot.gravestones[0].material.toLowerCase(),
+                              inscription: plot.gravestones[0].inscription || '',
+                              dateInstalled: plot.gravestones[0].dateInstalled || '',
+                              condition: plot.gravestones[0].condition.toLowerCase()
+                            } : undefined
+                          }
+                          
+                          allPlots.push(plotData)
+                        })
+                      }
+                    })
+                  }
                 })
-              })
-            }
+              }
+            })
+            
+            console.log('Extracted plots from cemetery structure:', allPlots.length)
+            setPlots(allPlots)
+            
+            // Calculate statistics from plots data
+            calculateStatisticsFromPlots(allPlots)
+          } else {
+            console.warn('No cemetery data received from backend')
+            setPlots([])
+            calculateStatisticsFromPlots([])
           }
+        } else {
+          console.error('Cemetery API failed with status:', response.status)
+          
+          // PRODUCTION: Show proper error message
+          const errorMessage = response.status === 401 
+            ? 'Authentication required. Please sign in to access cemetery data.'
+            : response.status === 404
+            ? 'No cemetery plots found in database. Please add plots via cemetery management.'
+            : `Backend service error (${response.status}). Please contact system administrator.`
+          
+          console.error('PRODUCTION ERROR:', errorMessage)
+          alert(errorMessage)
+          setPlots([])
+          throw new Error(errorMessage)
         }
-        
-        // Combine all plots (backend test plots + localStorage plots)
-        const finalPlots = [...allPlots, ...localPlots]
-        console.log('Final combined plots:', finalPlots.length, 'plots')
-        setPlots(finalPlots)
-        
-        // Calculate statistics from plots data
-        calculateStatisticsFromPlots(finalPlots)
         
       } catch (error) {
-        console.error('Error fetching cemetery data:', error)
+        console.error('PRODUCTION: Backend API failed - no localStorage fallback in production:', error)
+        
+        // PRODUCTION: Only show backend errors, no localStorage fallback
+        const errorMessage = error instanceof Error ? error.message : 'Failed to load cemetery data'
+        
+        // Show user-friendly error message
+        if (errorMessage.includes('Authentication')) {
+          alert('Please sign in to access cemetery data.')
+        } else if (errorMessage.includes('fetch')) {
+          alert('Backend service unavailable. Please contact system administrator.')
+        } else {
+          alert('Error loading cemetery data. Please try again or contact support.')
+        }
+        
         setPlots([])
+        calculateStatisticsFromPlots([])
       } finally {
         setLoading(false)
       }
@@ -382,351 +378,150 @@ export default function CemeteryPlotsPage() {
     fetchData()
   }, [])
 
-  // Refresh data from localStorage
+  // Listen for cemetery data updates from other components (like Cemetery Management)
+  useEffect(() => {
+    const handleCemeteryDataUpdate = async (event: CustomEvent) => {
+      console.log('Plot management received cemetery data update:', event.detail)
+      
+      // If the update is from the cemetery map, refresh our data
+      if (event.detail?.type === 'assignment' && event.detail?.source === 'cemetery-map') {
+        console.log('Refreshing plot data due to cemetery map assignment...')
+        await refreshData()
+      }
+    }
+
+    // Create a wrapper function that handles the event type properly
+    const eventHandler = (event: Event) => {
+      handleCemeteryDataUpdate(event as CustomEvent)
+    }
+
+    // Add event listener for cemetery data updates
+    window.addEventListener('cemeteryDataUpdated', eventHandler)
+
+    // Cleanup event listener
+    return () => {
+      window.removeEventListener('cemeteryDataUpdated', eventHandler)
+    }
+  }, [])
+
+  // Refresh data from backend API
   const refreshData = async () => {
     try {
       setLoading(true)
       
-      console.log('Refreshing cemetery data from backend API and localStorage...')
+      console.log('Refreshing cemetery data from new backend API...')
       
-      // First try to load data from backend API
-      let backendPlots: CemeteryPlot[] = []
-      try {
-        console.log('Fetching plots from backend API...')
-        const response = await fetch('/api/cemetery-plots')
-        if (response.ok) {
-          const result = await response.json()
-          if (result.success && result.data) {
-            // Transform backend data to match our interface
-            backendPlots = result.data.map((plot: any) => ({
-              id: plot.id,
-              plotNumber: plot.name || plot.plot_code,
-              section: plot.section,
-              block: plot.block,
-              lot: plot.lot,
-              coordinates: {
-                lat: plot.coordinates ? plot.coordinates[0] : 14.6760,
-                lng: plot.coordinates ? plot.coordinates[1] : 121.0437
-              },
-              size: plot.size || 'standard',
-              type: 'ground_burial',
-              status: plot.status as 'vacant' | 'reserved' | 'occupied' | 'unavailable' | 'blocked',
-              occupiedBy: plot.occupant ? {
-                name: plot.occupant,
-                dateOfBirth: '',
-                dateOfDeath: '',
-                burialDate: plot.dateOccupied || '',
-                permitNumber: '',
-                registrationNumber: ''
-              } : undefined,
-              assignedDate: plot.dateOccupied,
-              lastUpdated: plot.updated_at || new Date().toISOString(),
-              dimensions: {
-                length: 2.0,
-                width: 1.0,
-                depth: 2.0
-              },
-              pricing: {
-                baseFee: 5000,
-                maintenanceFee: 500,
-                totalFee: 5500
-              },
-              restrictions: [],
-              notes: plot.notes || ''
-            }))
-            console.log('Backend plots loaded:', backendPlots.length)
-          }
-        }
-      } catch (apiError) {
-        console.warn('Backend API not available, falling back to localStorage:', apiError)
-      }
+      // Load data from new cemetery API
+      const response = await fetch('/api/cemeteries')
+      console.log('Cemetery API response status:', response.status)
       
-      // Load cemetery data from localStorage for legacy/additional plots
-      const savedCemeteries = localStorage.getItem('cemeteries')
-      let localStoragePlots: CemeteryPlot[] = []
-      
-      if (savedCemeteries) {
-        const cemeteries = JSON.parse(savedCemeteries)
+      if (response.ok) {
+        const result = await response.json()
         
-        // For each cemetery, load its sections and extract all plots
-        for (const cemetery of cemeteries) {
-          const savedSections = localStorage.getItem(`cemetery_${cemetery.id}_sections`)
-          if (savedSections) {
-            const sections = JSON.parse(savedSections)
-            
-            // Flatten the hierarchical structure: Cemetery > Sections > Blocks > Plots
-            sections.forEach((section: any) => {
-              section.blocks.forEach((block: any) => {
-                block.plots.forEach((plot: any) => {
-                  // Skip if this plot already exists in backend data
-                  if (backendPlots.some(bp => bp.id === plot.id)) return
-                  
-                  // Get the active burials for this plot
-                  const activeBurials = plot.burials?.filter((burial: any) => burial.status === 'active') || []
-                  const primaryBurial = activeBurials.length > 0 ? activeBurials[0] : null
-                  
-                  // Determine plot status based on burials and reservations
-                  let plotStatus = 'vacant'
-                  if (plot.status === 'reserved') plotStatus = 'reserved'
-                  else if (plot.status === 'maintenance') plotStatus = 'unavailable'
-                  else if (plot.status === 'occupied' || activeBurials.length > 0) plotStatus = 'occupied'
-                  
-                  // Transform coordinates from array to lat/lng object
-                  const coords = plot.coordinates && plot.coordinates.length > 0 ? plot.coordinates[0] : [14.6760, 121.0437]
-                  
-                  // Transform the plot data to match the expected interface
-                  const transformedPlot: CemeteryPlot = {
-                    id: plot.id,
-                    plotNumber: plot.plotNumber,
-                    section: section.name,
-                    block: block.name,
-                    lot: plot.plotNumber.split('-').pop() || plot.plotNumber,
-                    coordinates: {
-                      lat: coords[0] || 14.6760,
-                      lng: coords[1] || 121.0437
-                    },
-                    size: plot.size || 'standard',
-                    type: 'ground_burial',
-                    status: plotStatus as 'vacant' | 'reserved' | 'occupied' | 'unavailable' | 'blocked',
-                    reservedBy: plot.reservedBy || undefined,
-                    occupiedBy: primaryBurial ? {
-                      name: `${primaryBurial.deceasedInfo.firstName} ${primaryBurial.deceasedInfo.lastName}`,
-                      dateOfBirth: primaryBurial.deceasedInfo.dateOfBirth,
-                      dateOfDeath: primaryBurial.deceasedInfo.dateOfDeath,
-                      burialDate: primaryBurial.deceasedInfo.burialDate,
-                      permitNumber: primaryBurial.deceasedInfo.permitNumber || '',
-                      registrationNumber: primaryBurial.deceasedInfo.registrationNumber || ''
-                    } : undefined,
-                    assignedDate: primaryBurial ? primaryBurial.deceasedInfo.burialDate : undefined,
-                    lastUpdated: new Date().toISOString(),
-                    dimensions: {
-                      length: plot.length || 2.0,
-                      width: plot.width || 1.0,
-                      depth: plot.depth || 2.0
-                    },
-                    pricing: {
-                      baseFee: plot.baseFee || 5000,
-                      maintenanceFee: plot.maintenanceFee || 500,
-                      totalFee: (plot.baseFee || 5000) + (plot.maintenanceFee || 500)
-                    },
-                    restrictions: plot.restrictions || [],
-                    notes: plot.notes || `${activeBurials.length}/${plot.maxLayers || 3} layers occupied`,
-                    gravestone: plot.gravestone ? {
-                      material: plot.gravestone.material,
-                      inscription: plot.gravestone.inscription,
-                      dateInstalled: plot.gravestone.dateInstalled,
-                      condition: plot.gravestone.condition
-                    } : undefined
-                  }
-                  
-                  localStoragePlots.push(transformedPlot)
-                })
+        if (result.success && result.data) {
+          // Extract all plots from all cemeteries
+          const allPlots: CemeteryPlot[] = []
+          
+          result.data.forEach((cemetery: any) => {
+            if (cemetery.sections && cemetery.sections.length > 0) {
+              cemetery.sections.forEach((section: any) => {
+                if (section.blocks && section.blocks.length > 0) {
+                  section.blocks.forEach((block: any) => {
+                    if (block.plots && block.plots.length > 0) {
+                      block.plots.forEach((plot: any) => {
+                        // Transform backend plot data to match our interface
+                        const plotData: CemeteryPlot = {
+                          id: plot.id.toString(),
+                          plotNumber: plot.plotNumber || plot.plotCode || `Plot-${plot.id}`,
+                          section: section.name,
+                          block: block.name,
+                          lot: plot.plotNumber || plot.plotCode || `Lot-${plot.id}`,
+                          coordinates: {
+                            lat: plot.latitude ? parseFloat(plot.latitude) : 14.6760,
+                            lng: plot.longitude ? parseFloat(plot.longitude) : 121.0437
+                          },
+                          size: plot.size.toLowerCase() as 'standard' | 'large' | 'family' | 'niche',
+                          type: 'ground_burial',
+                          status: plot.status.toLowerCase() === 'vacant' ? 'vacant' : 
+                                 plot.status.toLowerCase() === 'occupied' ? 'occupied' : 
+                                 plot.status.toLowerCase() === 'reserved' ? 'reserved' : 'vacant',
+                          occupiedBy: plot.assignments && plot.assignments.length > 0 ? {
+                            name: `${plot.assignments.length} burial${plot.assignments.length > 1 ? 's' : ''} (${plot.assignments.length}/${plot.maxLayers || 3} layers)`,
+                            dateOfBirth: plot.assignments[0].deceased?.dateOfBirth || '',
+                            dateOfDeath: plot.assignments[0].deceased?.dateOfDeath || '',
+                            burialDate: plot.assignments[0].assignedAt || '',
+                            permitNumber: '',
+                            registrationNumber: ''
+                          } : undefined,
+                          assignments: plot.assignments || [],
+                          assignedDate: plot.assignments && plot.assignments.length > 0 ? plot.assignments[0].assignedAt : undefined,
+                          lastUpdated: plot.updatedAt || new Date().toISOString(),
+                          dimensions: {
+                            length: plot.length || 2.0,
+                            width: plot.width || 1.0,
+                            depth: plot.depth || 2.0
+                          },
+                          pricing: {
+                            baseFee: parseFloat(plot.baseFee) || 5000,
+                            maintenanceFee: parseFloat(plot.maintenanceFee) || 500,
+                            totalFee: (parseFloat(plot.baseFee) || 5000) + (parseFloat(plot.maintenanceFee) || 500)
+                          },
+                          restrictions: [],
+                          notes: plot.notes || '',
+                          gravestone: plot.gravestones && plot.gravestones.length > 0 ? {
+                            material: plot.gravestones[0].material.toLowerCase(),
+                            inscription: plot.gravestones[0].inscription || '',
+                            dateInstalled: plot.gravestones[0].dateInstalled || '',
+                            condition: plot.gravestones[0].condition.toLowerCase()
+                          } : undefined
+                        }
+                        
+                        allPlots.push(plotData)
+                      })
+                    }
+                  })
+                }
               })
-            })
-          }
+            }
+          })
+          
+          console.log('Cemetery plots refreshed:', allPlots.length)
+          setPlots(allPlots)
+          
+          // Calculate statistics from plots data
+          calculateStatisticsFromPlots(allPlots)
+        } else {
+          console.warn('No data received from backend during refresh')
+          setPlots([])
         }
+      } else {
+        console.error('Cemetery API refresh failed with status:', response.status)
+        throw new Error(`API refresh failed with status ${response.status}`)
       }
-      
-      // Combine backend and localStorage plots, prioritizing backend data
-      const allPlots = [...backendPlots, ...localStoragePlots]
-      console.log('Total refreshed plots:', allPlots.length, '(Backend:', backendPlots.length, 'localStorage:', localStoragePlots.length, ')')
-      setPlots(allPlots)
-      
-      // Calculate statistics from plots data
-      calculateStatisticsFromPlots(allPlots)
       
     } catch (error) {
-      console.error('Error refreshing cemetery data:', error)
+      console.error('PRODUCTION: Error refreshing cemetery data from backend - no localStorage fallback:', error)
+      
+      // PRODUCTION: Show proper error handling without localStorage
+      const errorMessage = error instanceof Error ? error.message : 'Failed to refresh cemetery data'
+      
+      if (errorMessage.includes('Authentication')) {
+        alert('Session expired. Please sign in again to access cemetery data.')
+      } else if (errorMessage.includes('fetch')) {
+        alert('Backend service unavailable. Please check your connection or contact support.')
+      } else {
+        alert('Error refreshing data. Please try again.')
+      }
+      
+      // Keep existing data instead of clearing it during refresh errors
+      console.log('Keeping existing plot data due to refresh error')
+      calculateStatisticsFromPlots(plots) // Recalculate with existing data
     } finally {
       setLoading(false)
     }
   }
 
-  const handlePlotAssignment = async (plotId: string, assignmentData: any) => {
-    try {
-      console.log('Assigning plot:', plotId, assignmentData)
-      console.log('Available plots:', plots.map(p => ({ id: p.id, plotNumber: p.plotNumber })))
-      
-      // Find the current plot to get existing data
-      const currentPlot = plots.find(p => p.id === plotId)
-      if (!currentPlot) {
-        console.error('Plot not found in frontend data. PlotId:', plotId)
-        throw new Error('Plot not found in frontend data')
-      }
-      
-      console.log('Found current plot:', currentPlot)
-      
-      // Prepare assignment data for backend API with all required fields
-      const assignmentPayload = {
-        section: currentPlot.section,
-        block: currentPlot.block,
-        lot: currentPlot.lot,
-        coordinates: [currentPlot.coordinates.lat, currentPlot.coordinates.lng],
-        size: currentPlot.size,
-        status: 'occupied',
-        occupant: assignmentData.name,
-        dateOccupied: assignmentData.burialDate,
-        notes: `Assigned to ${assignmentData.name} - Burial: ${assignmentData.burialDate}`,
-        // Additional assignment details for our system
-        occupantDetails: {
-          dateOfBirth: assignmentData.dateOfBirth,
-          dateOfDeath: assignmentData.dateOfDeath,
-          burialDate: assignmentData.burialDate,
-          permitNumber: assignmentData.permitNumber,
-          registrationNumber: assignmentData.registrationNumber
-        },
-        assignedDate: new Date().toISOString()
-      }
 
-      // Send assignment to backend API
-      console.log('Sending assignment payload:', assignmentPayload)
-      let backendUpdateSuccessful = false
-      
-      try {
-        const response = await fetch(`/api/cemetery-plots/${plotId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(assignmentPayload)
-        })
-
-        console.log('Assignment response status:', response.status)
-        
-        if (response.ok) {
-          const result = await response.json()
-          console.log('Backend assignment successful:', result)
-          backendUpdateSuccessful = true
-        } else {
-          const errorData = await response.text()
-          
-          if (response.status === 404) {
-            console.warn(`Plot ID "${plotId}" not found in backend database, proceeding with local-only assignment`)
-            console.warn('This is normal for plots created locally or imported from localStorage')
-          } else {
-            console.warn('Backend assignment failed:', {
-              status: response.status,
-              error: errorData,
-              plotId: plotId
-            })
-            console.warn('Proceeding with local assignment only')
-          }
-        }
-      } catch (networkError) {
-        console.warn('Network error during backend assignment:', networkError)
-        console.warn('Proceeding with local assignment only')
-      }
-
-      // Update local state
-      setPlots(prev => prev.map(plot => 
-        plot.id === plotId ? { 
-          ...plot, 
-          status: 'occupied' as const,
-          occupiedBy: assignmentData,
-          assignedDate: new Date().toISOString()
-        } : plot
-      ))
-      
-      // Update localStorage cemetery structure for legacy compatibility
-      const savedCemeteries = localStorage.getItem('cemeteries')
-      if (savedCemeteries) {
-        const cemeteries = JSON.parse(savedCemeteries)
-        
-        // Find and update the plot in localStorage structure
-        cemeteries.forEach((cemetery: any) => {
-          const savedSections = localStorage.getItem(`cemetery_${cemetery.id}_sections`)
-          if (savedSections) {
-            const sections = JSON.parse(savedSections)
-            let plotFound = false
-            
-            sections.forEach((section: any) => {
-              section.blocks.forEach((block: any) => {
-                const plotIndex = block.plots.findIndex((p: any) => p.id === plotId)
-                if (plotIndex !== -1) {
-                  plotFound = true
-                  const plot = block.plots[plotIndex]
-                  
-                  // Create a new burial record in the plot
-                  if (!plot.burials) {
-                    plot.burials = []
-                  }
-                  
-                  // Add the new burial
-                  const newBurial = {
-                    id: `burial_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                    deceasedInfo: {
-                      firstName: assignmentData.name.split(' ')[0] || assignmentData.name,
-                      lastName: assignmentData.name.split(' ').slice(1).join(' ') || '',
-                      dateOfBirth: assignmentData.dateOfBirth,
-                      dateOfDeath: assignmentData.dateOfDeath,
-                      burialDate: assignmentData.burialDate,
-                      permitNumber: assignmentData.permitNumber,
-                      registrationNumber: assignmentData.registrationNumber
-                    },
-                    burialDetails: {
-                      layer: plot.burials.filter((b: any) => b.status === 'active').length + 1,
-                      depth: 2.0,
-                      orientation: 'north',
-                      coffin: {
-                        material: 'wood',
-                        size: 'standard'
-                      }
-                    },
-                    status: 'active',
-                    assignedDate: new Date().toISOString(),
-                    lastUpdated: new Date().toISOString()
-                  }
-                  
-                  plot.burials.push(newBurial)
-                  
-                  // Update plot status
-                  plot.status = 'occupied'
-                  plot.lastUpdated = new Date().toISOString()
-                }
-              })
-            })
-            
-            if (plotFound) {
-              localStorage.setItem(`cemetery_${cemetery.id}_sections`, JSON.stringify(sections))
-              console.log('Plot assignment saved to localStorage for cemetery:', cemetery.id)
-            }
-          }
-        })
-      }
-      
-      // Recalculate statistics
-      const updatedPlots = plots.map(plot => 
-        plot.id === plotId ? { 
-          ...plot, 
-          status: 'occupied' as const,
-          occupiedBy: assignmentData,
-          assignedDate: new Date().toISOString()
-        } : plot
-      )
-      calculateStatisticsFromPlots(updatedPlots)
-      
-      setShowAssignModal(false)
-      setSelectedPlot(null)
-      
-      // Refresh data to ensure consistency
-      await refreshData()
-      
-      // Trigger a global refresh event for other components (like cemetery map)
-      window.dispatchEvent(new CustomEvent('cemeteryDataUpdated', {
-        detail: { type: 'assignment', plotId: plotId }
-      }))
-      
-      console.log('Plot assignment completed successfully')
-      const successMessage = backendUpdateSuccessful 
-        ? 'Plot assigned successfully and synchronized with backend!'
-        : 'Plot assigned successfully (local only - backend sync not available)'
-      alert(successMessage)
-      
-    } catch (error) {
-      console.error('Error assigning plot:', error)
-      alert('Error assigning plot. Please try again.')
-    }
-  }
 
   const handlePlotReservation = async (plotId: string, reservationData: any) => {
     try {
@@ -761,119 +556,43 @@ export default function CemeteryPlotsPage() {
 
       // Send reservation to backend API
       console.log('Sending reservation payload:', reservationPayload)
-      let backendUpdateSuccessful = false
       
-      try {
-        const response = await fetch(`/api/cemetery-plots/${plotId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(reservationPayload)
-        })
+      const response = await fetch(`/api/cemetery-plots/${plotId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(reservationPayload)
+      })
 
-        console.log('Reservation response status:', response.status)
-        
-        if (response.ok) {
-          const result = await response.json()
-          console.log('Backend reservation successful:', result)
-          backendUpdateSuccessful = true
-        } else {
-          const errorData = await response.text()
-          
-          if (response.status === 404) {
-            console.warn(`Plot ID "${plotId}" not found in backend database, proceeding with local-only reservation`)
-            console.warn('This is normal for plots created locally or imported from localStorage')
-          } else {
-            console.warn('Backend reservation failed:', {
-              status: response.status,
-              error: errorData,
-              plotId: plotId
-            })
-            console.warn('Proceeding with local reservation only')
-          }
-        }
-      } catch (networkError) {
-        console.warn('Network error during backend reservation:', networkError)
-        console.warn('Proceeding with local reservation only')
-      }
+      console.log('Reservation response status:', response.status)
       
-      // Update local state
-      setPlots(prev => prev.map(plot => 
-        plot.id === plotId ? { 
-          ...plot, 
-          status: 'reserved' as const,
-          reservedBy: reservationData.reservedBy,
-          assignedDate: new Date().toISOString()
-        } : plot
-      ))
-      
-      // Update localStorage cemetery structure for legacy compatibility
-      const savedCemeteries = localStorage.getItem('cemeteries')
-      if (savedCemeteries) {
-        const cemeteries = JSON.parse(savedCemeteries)
+      if (response.ok) {
+        const result = await response.json()
+        console.log('Backend reservation successful:', result)
         
-        // Find and update the plot in localStorage structure
-        cemeteries.forEach((cemetery: any) => {
-          const savedSections = localStorage.getItem(`cemetery_${cemetery.id}_sections`)
-          if (savedSections) {
-            const sections = JSON.parse(savedSections)
-            let plotFound = false
-            
-            sections.forEach((section: any) => {
-              section.blocks.forEach((block: any) => {
-                const plotIndex = block.plots.findIndex((p: any) => p.id === plotId)
-                if (plotIndex !== -1) {
-                  plotFound = true
-                  const plot = block.plots[plotIndex]
-                  
-                  // Update plot with reservation information
-                  plot.status = 'reserved'
-                  plot.reservedBy = reservationData.reservedBy
-                  plot.reservationDate = reservationData.reservationDate
-                  plot.expiryDate = reservationData.expiryDate
-                  plot.purpose = reservationData.purpose
-                  plot.notes = reservationData.notes
-                  plot.lastUpdated = new Date().toISOString()
-                }
-              })
-            })
-            
-            if (plotFound) {
-              localStorage.setItem(`cemetery_${cemetery.id}_sections`, JSON.stringify(sections))
-              console.log('Plot reservation saved to localStorage for cemetery:', cemetery.id)
-            }
-          }
+        setShowReservationModal(false)
+        setSelectedPlot(null)
+        
+        // Refresh data from backend to get updated state
+        await refreshData()
+        
+        // Trigger a global refresh event for other components (like cemetery map)
+        window.dispatchEvent(new CustomEvent('cemeteryDataUpdated', {
+          detail: { type: 'reservation', plotId: plotId }
+        }))
+        
+        console.log('Plot reservation completed successfully')
+        alert('Plot reserved successfully!')
+      } else {
+        const errorData = await response.text()
+        console.error('Backend reservation failed:', {
+          status: response.status,
+          error: errorData,
+          plotId: plotId
         })
+        throw new Error(`Reservation failed: ${errorData}`)
       }
-      
-      // Recalculate statistics
-      const updatedPlots = plots.map(plot => 
-        plot.id === plotId ? { 
-          ...plot, 
-          status: 'reserved' as const,
-          reservedBy: reservationData.reservedBy,
-          assignedDate: new Date().toISOString()
-        } : plot
-      )
-      calculateStatisticsFromPlots(updatedPlots)
-      
-      setShowReservationModal(false)
-      setSelectedPlot(null)
-      
-      // Refresh data to ensure consistency
-      await refreshData()
-      
-      // Trigger a global refresh event for other components (like cemetery map)
-      window.dispatchEvent(new CustomEvent('cemeteryDataUpdated', {
-        detail: { type: 'reservation', plotId: plotId }
-      }))
-      
-      console.log('Plot reservation completed successfully')
-      const successMessage = backendUpdateSuccessful 
-        ? 'Plot reserved successfully and synchronized with backend!'
-        : 'Plot reserved successfully (local only - backend sync not available)'
-      alert(successMessage)
       
     } catch (error) {
       console.error('Error reserving plot:', error)
@@ -881,74 +600,15 @@ export default function CemeteryPlotsPage() {
     }
   }
 
-  // Handle View Details - Navigate to cemetery management with plot focus
+  // Handle View Details - Navigate to cemetery map with plot focus
   const handleViewDetails = (plot: CemeteryPlot) => {
     console.log('Viewing plot details:', plot)
     
-    // Find the cemetery ID for this plot by looking through localStorage
-    const findCemeteryForPlot = (plotId: string) => {
-      const savedCemeteries = localStorage.getItem('cemeteries')
-      if (!savedCemeteries) return null
-      
-      const cemeteries = JSON.parse(savedCemeteries)
-      for (const cemetery of cemeteries) {
-        const savedSections = localStorage.getItem(`cemetery_${cemetery.id}_sections`)
-        if (savedSections) {
-          const sections = JSON.parse(savedSections)
-          for (const section of sections) {
-            for (const block of section.blocks) {
-              if (block.plots.some((p: any) => p.id === plotId)) {
-                return cemetery.id
-              }
-            }
-          }
-        }
-      }
-      return null
-    }
+    // Navigate to cemetery map with plot focus parameters
+    const mapUrl = `/admin/cemetery-map?plotId=${encodeURIComponent(plot.id)}&focus=true&section=${encodeURIComponent(plot.section)}&block=${encodeURIComponent(plot.block)}`
     
-    const cemeteryId = findCemeteryForPlot(plot.id)
-    
-    if (cemeteryId) {
-      // Store the plot focus data for the cemetery management page
-      const focusPlotData = {
-        id: plot.id,
-        plotNumber: plot.plotNumber,
-        coordinates: plot.coordinates,
-        section: plot.section,
-        block: plot.block,
-        status: plot.status,
-        occupiedBy: plot.occupiedBy?.name,
-        reservedBy: plot.reservedBy,
-        lastUpdated: plot.lastUpdated
-      }
-      
-      console.log('Storing focus plot data:', focusPlotData)
-      localStorage.setItem('focusPlot', JSON.stringify(focusPlotData))
-      sessionStorage.setItem('plotFocus', JSON.stringify(focusPlotData))
-      
-      // Navigate to cemetery management with cemetery ID and plot focus parameters
-      const cemeteryUrl = `/admin/cemetery?id=${cemeteryId}&plotId=${encodeURIComponent(plot.id)}&focus=true`
-      
-      console.log('Navigating to cemetery management:', cemeteryUrl)
-      router.push(cemeteryUrl)
-    } else {
-      console.warn('Could not find cemetery for plot:', plot.id)
-      // Fallback: use the first cemetery if available
-      const savedCemeteries = localStorage.getItem('cemeteries')
-      if (savedCemeteries) {
-        const cemeteries = JSON.parse(savedCemeteries)
-        if (cemeteries.length > 0) {
-          const fallbackUrl = `/admin/cemetery?id=${cemeteries[0].id}&plotId=${encodeURIComponent(plot.id)}&focus=true`
-          console.log('Using fallback cemetery:', fallbackUrl)
-          router.push(fallbackUrl)
-        } else {
-          alert('No cemetery found for this plot. Please ensure cemeteries are properly configured.')
-        }
-      } else {
-        alert('No cemetery data found. Please set up cemeteries first.')
-      }
-    }
+    console.log('Navigating to cemetery map:', mapUrl)
+    router.push(mapUrl)
   }
 
   // Handle Edit Plot
@@ -1029,106 +689,43 @@ export default function CemeteryPlotsPage() {
 
       // Send edits to backend API
       console.log('Sending edit payload:', editPayload)
-      let backendUpdateSuccessful = false
       
-      try {
-        const response = await fetch(`/api/cemetery-plots/${editingPlot.id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(editPayload)
-        })
+      const response = await fetch(`/api/cemetery-plots/${editingPlot.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(editPayload)
+      })
 
-        console.log('Edit response status:', response.status)
+      console.log('Edit response status:', response.status)
+      
+      if (response.ok) {
+        const result = await response.json()
+        console.log('Backend edit successful:', result)
         
-        if (response.ok) {
-          const result = await response.json()
-          console.log('Backend edit successful:', result)
-          backendUpdateSuccessful = true
-        } else {
-          const errorData = await response.text()
-          
-          if (response.status === 404) {
-            console.warn(`Plot ID "${editingPlot.id}" not found in backend database, proceeding with local-only edit`)
-            console.warn('This is normal for plots created locally or imported from localStorage')
-          } else {
-            console.warn('Backend edit failed:', {
-              status: response.status,
-              error: errorData,
-              plotId: editingPlot.id
-            })
-            console.warn('Proceeding with local edit only')
-          }
-        }
-      } catch (networkError) {
-        console.warn('Network error during backend edit:', networkError)
-        console.warn('Proceeding with local edit only')
-      }
-
-      // Update local state
-      setPlots(prev => prev.map(plot => 
-        plot.id === editingPlot.id ? updatedPlot : plot
-      ))
-
-      // Update localStorage cemetery structure for legacy compatibility
-      const savedCemeteries = localStorage.getItem('cemeteries')
-      if (savedCemeteries) {
-        const cemeteries = JSON.parse(savedCemeteries)
+        setShowEditModal(false)
+        setEditingPlot(null)
         
-        // Find and update the plot in localStorage structure
-        cemeteries.forEach((cemetery: any) => {
-          const savedSections = localStorage.getItem(`cemetery_${cemetery.id}_sections`)
-          if (savedSections) {
-            const sections = JSON.parse(savedSections)
-            let plotFound = false
-            
-            sections.forEach((section: any) => {
-              section.blocks.forEach((block: any) => {
-                const plotIndex = block.plots.findIndex((p: any) => p.id === editingPlot.id)
-                if (plotIndex !== -1) {
-                  plotFound = true
-                  const plot = block.plots[plotIndex]
-                  
-                  // Update plot properties
-                  plot.plotNumber = editForm.plotNumber
-                  plot.size = editForm.size
-                  plot.length = editForm.length
-                  plot.width = editForm.width
-                  plot.depth = editForm.depth
-                  plot.baseFee = editForm.baseFee
-                  plot.maintenanceFee = editForm.maintenanceFee
-                  plot.restrictions = editForm.restrictions ? editForm.restrictions.split(',').map(r => r.trim()) : []
-                  plot.notes = editForm.notes
-                  plot.lastUpdated = new Date().toISOString()
-                }
-              })
-            })
-            
-            if (plotFound) {
-              localStorage.setItem(`cemetery_${cemetery.id}_sections`, JSON.stringify(sections))
-              console.log('Plot edit saved to localStorage for cemetery:', cemetery.id)
-            }
-          }
+        // Refresh data from backend to get updated state
+        await refreshData()
+        
+        // Trigger a global refresh event for other components (like cemetery map)
+        window.dispatchEvent(new CustomEvent('cemeteryDataUpdated', {
+          detail: { type: 'edit', plotId: editingPlot.id }
+        }))
+        
+        console.log('Plot updated successfully:', editForm.plotNumber)
+        alert('Plot updated successfully!')
+      } else {
+        const errorData = await response.text()
+        console.error('Backend edit failed:', {
+          status: response.status,
+          error: errorData,
+          plotId: editingPlot.id
         })
+        throw new Error(`Edit failed: ${errorData}`)
       }
-
-      setShowEditModal(false)
-      setEditingPlot(null)
-      
-      // Refresh data to ensure consistency
-      await refreshData()
-      
-      // Trigger a global refresh event for other components (like cemetery map)
-      window.dispatchEvent(new CustomEvent('cemeteryDataUpdated', {
-        detail: { type: 'edit', plotId: editingPlot.id }
-      }))
-      
-      console.log('Plot updated successfully:', updatedPlot.plotNumber)
-      const successMessage = backendUpdateSuccessful 
-        ? 'Plot updated successfully and synchronized with backend!'
-        : 'Plot updated successfully (local only - backend sync not available)'
-      alert(successMessage)
       
     } catch (error) {
       console.error('Error updating plot:', error)
@@ -1136,7 +733,7 @@ export default function CemeteryPlotsPage() {
     }
   }
 
-  // Handle Delete Plot with backend API and localStorage sync
+  // Handle Delete Plot with backend API
   const handleDeletePlot = async (plot: CemeteryPlot) => {
     if (!window.confirm(`Are you sure you want to delete plot ${plot.plotNumber}? This action cannot be undone.`)) {
       return
@@ -1145,78 +742,55 @@ export default function CemeteryPlotsPage() {
     try {
       // Send delete request to backend API
       console.log('Deleting plot:', plot.id)
-      let backendDeleteSuccessful = false
       
-      try {
-        const response = await fetch(`/api/cemetery-plots/${plot.id}`, {
-          method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-          }
-        })
-
-        console.log('Delete response status:', response.status)
-        
-        if (response.ok) {
-          const result = await response.json()
-          console.log('Backend delete successful:', result)
-          backendDeleteSuccessful = true
-        } else {
-          const errorData = await response.text()
-          
-          if (response.status === 404) {
-            console.warn(`Plot ID "${plot.id}" not found in backend database, proceeding with local-only delete`)
-            console.warn('This is normal for plots created locally or imported from localStorage')
-          } else {
-            console.warn('Backend delete failed:', {
-              status: response.status,
-              error: errorData,
-              plotId: plot.id
-            })
-            console.warn('Proceeding with local delete only')
-          }
+      const response = await fetch(`/api/cemetery-plots/${plot.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
         }
-      } catch (networkError) {
-        console.warn('Network error during backend delete:', networkError)
-        console.warn('Proceeding with local delete only')
-      }
+      })
 
-      // Remove from local state
-      setPlots(prev => prev.filter(p => p.id !== plot.id))
+      console.log('Delete response status:', response.status)
       
-      // Also update localStorage for legacy compatibility
-      const savedCemeteries = localStorage.getItem('cemeteries')
-      if (savedCemeteries) {
-        const cemeteries = JSON.parse(savedCemeteries)
+      if (response.ok) {
+        const result = await response.json()
+        console.log('Backend delete successful:', result)
         
-        // Find and remove the plot from localStorage structure
-        cemeteries.forEach((cemetery: any) => {
-          const savedSections = localStorage.getItem(`cemetery_${cemetery.id}_sections`)
-          if (savedSections) {
-            const sections = JSON.parse(savedSections)
-            sections.forEach((section: any) => {
-              section.blocks.forEach((block: any) => {
-                block.plots = block.plots.filter((p: any) => p.id !== plot.id)
-              })
-            })
-            localStorage.setItem(`cemetery_${cemetery.id}_sections`, JSON.stringify(sections))
-          }
+        // Remove plot from local state immediately for better UX
+        setPlots(prevPlots => prevPlots.filter(p => p.id !== plot.id))
+        
+        // Recalculate statistics
+        const updatedPlots = plots.filter(p => p.id !== plot.id)
+        calculateStatisticsFromPlots(updatedPlots)
+        
+        // Trigger a global refresh event for other components (like cemetery map)
+        window.dispatchEvent(new CustomEvent('cemeteryDataUpdated', {
+          detail: { type: 'delete', plotId: plot.id }
+        }))
+        
+        console.log('Plot deleted successfully:', plot.plotNumber)
+        alert('Plot deleted successfully!')
+        
+        // Refresh data from backend to ensure consistency
+        await refreshData()
+      } else {
+        const errorData = await response.text()
+        console.error('Backend delete failed:', {
+          status: response.status,
+          error: errorData,
+          plotId: plot.id
         })
+        
+        if (response.status === 404) {
+          // Plot doesn't exist in backend, remove from frontend state
+          setPlots(prevPlots => prevPlots.filter(p => p.id !== plot.id))
+          const updatedPlots = plots.filter(p => p.id !== plot.id)
+          calculateStatisticsFromPlots(updatedPlots)
+          alert('Plot was already removed from the database.')
+        } else {
+          throw new Error(`Delete failed: ${errorData}`)
+        }
       }
-      
-      // Refresh data to ensure consistency
-      await refreshData()
-      
-      // Trigger a global refresh event for other components (like cemetery map)
-      window.dispatchEvent(new CustomEvent('cemeteryDataUpdated', {
-        detail: { type: 'delete', plotId: plot.id }
-      }))
-      
-      console.log('Plot deleted successfully:', plot.plotNumber)
-      const successMessage = backendDeleteSuccessful 
-        ? 'Plot deleted successfully and synchronized with backend!'
-        : 'Plot deleted successfully (local only - backend sync not available)'
-      alert(successMessage)
       
     } catch (error) {
       console.error('Error deleting plot:', error)
@@ -1224,32 +798,142 @@ export default function CemeteryPlotsPage() {
     }
   }
 
-  // Handle Assignment Form Submit
-  const handleAssignmentSubmit = async () => {
+
+
+  // Handle Burial Assignment
+  const handleBurialAssignment = async (plotId: string, burialData: BurialFormData) => {
+    try {
+      console.log('Assigning burial to plot:', plotId, burialData)
+      
+      // Prepare burial assignment data for unified API (matching Cemetery Management format)
+      const burialPayload = {
+        plotId: parseInt(plotId),
+        deceased: {
+          firstName: burialData.firstName,
+          lastName: burialData.lastName,
+          middleName: burialData.middleName || '',
+          dateOfBirth: burialData.dateOfBirth,
+          dateOfDeath: burialData.dateOfDeath,
+          gender: burialData.gender || 'male',
+          causeOfDeath: burialData.causeOfDeath || '',
+          occupation: burialData.occupation || '',
+          placeOfDeath: '', // Not captured in plot management form
+          residenceAddress: '', // Not captured in plot management form
+          citizenship: 'Filipino', // Default
+          civilStatus: 'Single' // Default
+        },
+        permitId: burialData.permitNumber || null,
+        layer: burialData.layer || 1, // Include layer information
+        notes: `Plot Management Assignment - Layer ${burialData.layer}${burialData.permitNumber ? `, Permit: ${burialData.permitNumber}` : ''}${burialData.registrationNumber ? `, Registration: ${burialData.registrationNumber}` : ''}${burialData.contactPerson ? `, Contact: ${burialData.contactPerson} (${burialData.relationship}) - ${burialData.contactNumber}` : ''}${burialData.notes ? `, Additional Notes: ${burialData.notes}` : ''}`
+      }
+
+      // Send burial assignment to unified API
+      console.log('Sending burial assignment payload:', burialPayload)
+      
+      const response = await fetch('/api/burial-assignment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(burialPayload)
+      })
+
+      console.log('Burial assignment response status:', response.status)
+      console.log('Burial assignment response headers:', response.headers)
+      
+      if (response.ok) {
+        const result = await response.json()
+        console.log('Burial assignment successful:', result)
+        
+        setShowBurialModal(false)
+        setSelectedPlot(null)
+        
+        // Refresh data from backend to get updated state
+        await refreshData()
+        
+        // Trigger a global refresh event for other components
+        window.dispatchEvent(new CustomEvent('cemeteryDataUpdated', {
+          detail: { type: 'burial-assignment', plotId: plotId, source: 'plot-management' }
+        }))
+        
+        console.log('Burial assignment completed successfully from Plot Management')
+        alert('Burial assigned successfully!')
+      } else {
+        let errorData
+        let errorDetails = 'Unknown error'
+        
+        try {
+          errorData = await response.text()
+          console.log('Raw error response:', errorData)
+          
+          // Try to parse as JSON
+          try {
+            const jsonError = JSON.parse(errorData)
+            errorDetails = jsonError.error || jsonError.message || 'Unknown error'
+          } catch (e) {
+            // Not JSON, use raw text
+            errorDetails = errorData || 'Unknown error'
+          }
+        } catch (e) {
+          console.error('Failed to read error response:', e)
+          errorDetails = 'Failed to read error response'
+        }
+        
+        console.error('Burial assignment failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData,
+          errorDetails: errorDetails,
+          plotId: plotId,
+          url: response.url,
+          payload: burialPayload
+        })
+        
+        alert(`Burial assignment failed: ${errorDetails}`)
+        throw new Error(`Burial assignment failed: ${errorDetails}`)
+      }
+      
+    } catch (error) {
+      console.error('Error assigning burial:', error)
+      alert('Error assigning burial. Please try again.')
+    }
+  }
+
+  // Handle Burial Form Submit
+  const handleBurialSubmit = async () => {
     if (!selectedPlot) return
 
-    const assignmentData = {
-      name: assignmentForm.deceasedName,
-      dateOfBirth: assignmentForm.dateOfBirth,
-      dateOfDeath: assignmentForm.dateOfDeath,
-      burialDate: assignmentForm.burialDate,
-      permitNumber: assignmentForm.permitNumber,
-      registrationNumber: assignmentForm.registrationNumber
+    // Validate required fields
+    if (!burialForm.firstName || !burialForm.lastName) {
+      alert('Please enter both First Name and Last Name for the deceased.')
+      return
     }
 
-    await handlePlotAssignment(selectedPlot.id, assignmentData)
+    if (!burialForm.dateOfDeath) {
+      alert('Please enter the Date of Death.')
+      return
+    }
+
+    await handleBurialAssignment(selectedPlot.id, burialForm)
     
     // Reset form
-    setAssignmentForm({
-      deceasedName: '',
+    setBurialForm({
+      firstName: '',
+      lastName: '',
+      middleName: '',
       dateOfBirth: '',
       dateOfDeath: '',
       burialDate: '',
+      gender: '',
+      causeOfDeath: '',
+      occupation: '',
       permitNumber: '',
       registrationNumber: '',
       contactPerson: '',
       contactNumber: '',
-      relationship: ''
+      relationship: '',
+      layer: 1,
+      notes: ''
     })
   }
 
@@ -1608,14 +1292,14 @@ export default function CemeteryPlotsPage() {
                         <button
                           onClick={() => {
                             setSelectedPlot(plot)
-                            setShowAssignModal(true)
+                            setShowBurialModal(true)
                           }}
                           className="flex items-center px-3 py-2 text-sm text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition-colors"
                         >
                           <span className="mr-1">
-                            <MdAssignment size={14} />
+                            <GiTombstone size={14} />
                           </span>
-                          Assign
+                          Assign Burial
                         </button>
                         <button
                           onClick={() => {
@@ -1709,12 +1393,12 @@ export default function CemeteryPlotsPage() {
                       <button
                         onClick={() => {
                           setSelectedPlot(plot)
-                          setShowAssignModal(true)
+                          setShowBurialModal(true)
                         }}
                         className="flex-1 px-2 py-1 text-xs text-green-600 hover:bg-green-50 rounded"
-                        title="Assign Plot"
+                        title="Assign Burial"
                       >
-                        Assign
+                        Burial
                       </button>
                       <button
                         onClick={() => {
@@ -1802,46 +1486,89 @@ export default function CemeteryPlotsPage() {
         </div>
       )}
 
-      {/* Plot Assignment Modal */}
-      {showAssignModal && selectedPlot && (
-        <div className="fixed inset-0 bg-black bg-opacity-1 flex items-center justify-center z-[9999] animate-fadeIn" style={{ pointerEvents: 'auto' }}>
+
+
+      {/* Burial Assignment Modal */}
+      {showBurialModal && selectedPlot && (
+        <div className="fixed inset-0 flex items-center justify-center z-[9999] animate-fadeIn" style={{ pointerEvents: 'auto' }}>
           <div className="bg-white rounded-lg shadow-2xl border border-gray-300 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto animate-slideUp">
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-bold text-gray-900">
-                  Assign Plot {selectedPlot.plotNumber}
+                  Assign Burial - Plot {selectedPlot.plotNumber}
                 </h2>
                 <button
-                  onClick={() => setShowAssignModal(false)}
+                  onClick={() => setShowBurialModal(false)}
                   className="text-gray-400 hover:text-gray-600"
                 >
                   <FiX size={24} />
                 </button>
               </div>
 
-              <form onSubmit={(e) => { e.preventDefault(); handleAssignmentSubmit(); }}>
+              <form onSubmit={(e) => { e.preventDefault(); handleBurialSubmit(); }}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                  {/* Basic Information */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Deceased Name *
+                      First Name *
                     </label>
                     <input
                       type="text"
-                      value={assignmentForm.deceasedName}
-                      onChange={(e) => setAssignmentForm(prev => ({ ...prev, deceasedName: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      value={burialForm.firstName}
+                      onChange={(e) => setBurialForm(prev => ({ ...prev, firstName: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                       required
                     />
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Last Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={burialForm.lastName}
+                      onChange={(e) => setBurialForm(prev => ({ ...prev, lastName: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Middle Name
+                    </label>
+                    <input
+                      type="text"
+                      value={burialForm.middleName}
+                      onChange={(e) => setBurialForm(prev => ({ ...prev, middleName: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Gender *
+                    </label>
+                    <select
+                      value={burialForm.gender}
+                      onChange={(e) => setBurialForm(prev => ({ ...prev, gender: e.target.value as 'male' | 'female' | '' }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      required
+                    >
+                      <option value="">Select Gender</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                    </select>
+                  </div>
+
+                  {/* Dates */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Date of Birth *
                     </label>
                     <input
                       type="date"
-                      value={assignmentForm.dateOfBirth}
-                      onChange={(e) => setAssignmentForm(prev => ({ ...prev, dateOfBirth: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      value={burialForm.dateOfBirth}
+                      onChange={(e) => setBurialForm(prev => ({ ...prev, dateOfBirth: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                       required
                     />
                   </div>
@@ -1851,9 +1578,9 @@ export default function CemeteryPlotsPage() {
                     </label>
                     <input
                       type="date"
-                      value={assignmentForm.dateOfDeath}
-                      onChange={(e) => setAssignmentForm(prev => ({ ...prev, dateOfDeath: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      value={burialForm.dateOfDeath}
+                      onChange={(e) => setBurialForm(prev => ({ ...prev, dateOfDeath: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                       required
                     />
                   </div>
@@ -1863,21 +1590,77 @@ export default function CemeteryPlotsPage() {
                     </label>
                     <input
                       type="date"
-                      value={assignmentForm.burialDate}
-                      onChange={(e) => setAssignmentForm(prev => ({ ...prev, burialDate: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      value={burialForm.burialDate}
+                      onChange={(e) => setBurialForm(prev => ({ ...prev, burialDate: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                       required
                     />
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Burial Layer *
+                    </label>
+                    <select
+                      value={burialForm.layer}
+                      onChange={(e) => setBurialForm(prev => ({ ...prev, layer: parseInt(e.target.value) }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      required
+                    >
+                      {selectedPlot ? (
+                        Array.from({length: selectedPlot.maxLayers || 3}, (_, i) => {
+                          const layer = i + 1
+                          const isOccupied = selectedPlot.assignments?.some((assignment: any) => 
+                            assignment.layer === layer && assignment.status === 'ASSIGNED'
+                          )
+                          return (
+                            <option key={layer} value={layer} disabled={isOccupied}>
+                              Layer {layer} {isOccupied ? '(Occupied)' : '(Available)'}
+                            </option>
+                          )
+                        })
+                      ) : (
+                        <option value="">Select plot first</option>
+                      )}
+                    </select>
+                  </div>
+
+                  {/* Additional Information */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Cause of Death
+                    </label>
+                    <input
+                      type="text"
+                      value={burialForm.causeOfDeath}
+                      onChange={(e) => setBurialForm(prev => ({ ...prev, causeOfDeath: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      placeholder="Optional"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Occupation
+                    </label>
+                    <input
+                      type="text"
+                      value={burialForm.occupation}
+                      onChange={(e) => setBurialForm(prev => ({ ...prev, occupation: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      placeholder="Optional"
+                    />
+                  </div>
+
+                  {/* Permit Information */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Permit Number
                     </label>
                     <input
                       type="text"
-                      value={assignmentForm.permitNumber}
-                      onChange={(e) => setAssignmentForm(prev => ({ ...prev, permitNumber: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      value={burialForm.permitNumber}
+                      onChange={(e) => setBurialForm(prev => ({ ...prev, permitNumber: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      placeholder="Optional"
                     />
                   </div>
                   <div>
@@ -1886,20 +1669,23 @@ export default function CemeteryPlotsPage() {
                     </label>
                     <input
                       type="text"
-                      value={assignmentForm.registrationNumber}
-                      onChange={(e) => setAssignmentForm(prev => ({ ...prev, registrationNumber: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      value={burialForm.registrationNumber}
+                      onChange={(e) => setBurialForm(prev => ({ ...prev, registrationNumber: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      placeholder="Optional"
                     />
                   </div>
+
+                  {/* Contact Information */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Contact Person *
                     </label>
                     <input
                       type="text"
-                      value={assignmentForm.contactPerson}
-                      onChange={(e) => setAssignmentForm(prev => ({ ...prev, contactPerson: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      value={burialForm.contactPerson}
+                      onChange={(e) => setBurialForm(prev => ({ ...prev, contactPerson: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                       required
                     />
                   </div>
@@ -1909,20 +1695,20 @@ export default function CemeteryPlotsPage() {
                     </label>
                     <input
                       type="tel"
-                      value={assignmentForm.contactNumber}
-                      onChange={(e) => setAssignmentForm(prev => ({ ...prev, contactNumber: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      value={burialForm.contactNumber}
+                      onChange={(e) => setBurialForm(prev => ({ ...prev, contactNumber: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                       required
                     />
                   </div>
-                  <div className="md:col-span-2">
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Relationship to Deceased *
                     </label>
                     <select
-                      value={assignmentForm.relationship}
-                      onChange={(e) => setAssignmentForm(prev => ({ ...prev, relationship: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      value={burialForm.relationship}
+                      onChange={(e) => setBurialForm(prev => ({ ...prev, relationship: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                       required
                     >
                       <option value="">Select Relationship</option>
@@ -1935,12 +1721,26 @@ export default function CemeteryPlotsPage() {
                       <option value="Legal Guardian">Legal Guardian</option>
                     </select>
                   </div>
+                  
+                  {/* Notes */}
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Additional Notes
+                    </label>
+                    <textarea
+                      value={burialForm.notes}
+                      onChange={(e) => setBurialForm(prev => ({ ...prev, notes: e.target.value }))}
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      placeholder="Any additional information about the burial..."
+                    />
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-end space-x-3 pt-6 border-t">
                   <button
                     type="button"
-                    onClick={() => setShowAssignModal(false)}
+                    onClick={() => setShowBurialModal(false)}
                     className="px-4 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50"
                   >
                     Cancel
@@ -1950,9 +1750,9 @@ export default function CemeteryPlotsPage() {
                     className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center"
                   >
                     <span className="mr-2">
-                      <FiCheck size={16} />
+                      <GiTombstone size={16} />
                     </span>
-                    Assign Plot
+                    Assign Burial
                   </button>
                 </div>
               </form>
@@ -1963,7 +1763,7 @@ export default function CemeteryPlotsPage() {
 
       {/* Plot Reservation Modal */}
       {showReservationModal && selectedPlot && (
-        <div className="fixed inset-0 bg-black bg-opacity-1 flex items-center justify-center z-[9999] animate-fadeIn" style={{ pointerEvents: 'auto' }}>
+        <div className="fixed inset-0 flex items-center justify-center z-[9999] animate-fadeIn" style={{ pointerEvents: 'auto' }}>
           <div className="bg-white rounded-lg shadow-2xl border border-gray-300 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto animate-slideUp">
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
@@ -2085,7 +1885,7 @@ export default function CemeteryPlotsPage() {
 
       {/* Plot Edit Modal */}
       {showEditModal && editingPlot && (
-        <div className="fixed inset-0 bg-black bg-opacity-1 flex items-center justify-center z-[9999] animate-fadeIn" style={{ pointerEvents: 'auto' }}>
+        <div className="fixed inset-0 flex items-center justify-center z-[9999] animate-fadeIn" style={{ pointerEvents: 'auto' }}>
           <div className="bg-white rounded-lg shadow-2xl border border-gray-300 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto animate-slideUp">
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
@@ -2304,7 +2104,7 @@ export default function CemeteryPlotsPage() {
 
       {/* Plot Details Modal */}
       {showPlotModal && selectedPlot && (
-        <div className="fixed inset-0 bg-black bg-opacity-1 flex items-center justify-center z-[9999] animate-fadeIn" style={{ pointerEvents: 'auto' }}>
+        <div className="fixed inset-0 flex items-center justify-center z-[9999] animate-fadeIn" style={{ pointerEvents: 'auto' }}>
           <div className="bg-white rounded-lg shadow-2xl border border-gray-300 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto animate-slideUp">
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
@@ -2371,26 +2171,55 @@ export default function CemeteryPlotsPage() {
                     </div>
                   </div>
 
-                  {selectedPlot.occupiedBy && (
+                  {selectedPlot.assignments && selectedPlot.assignments.length > 0 && (
                     <>
-                      <h3 className="text-lg font-semibold text-gray-900 mt-6">Occupant Information</h3>
-                      <div className="space-y-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Name</label>
-                          <p className="text-gray-900">{selectedPlot.occupiedBy.name}</p>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Date of Birth</label>
-                          <p className="text-gray-900">{new Date(selectedPlot.occupiedBy.dateOfBirth).toLocaleDateString()}</p>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Date of Death</label>
-                          <p className="text-gray-900">{new Date(selectedPlot.occupiedBy.dateOfDeath).toLocaleDateString()}</p>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700">Burial Date</label>
-                          <p className="text-gray-900">{new Date(selectedPlot.occupiedBy.burialDate).toLocaleDateString()}</p>
-                        </div>
+                      <h3 className="text-lg font-semibold text-gray-900 mt-6">Burial Information</h3>
+                      <p className="text-sm text-gray-600 mb-4">
+                        {selectedPlot.assignments.length} of {selectedPlot.maxLayers || 3} layers occupied
+                      </p>
+                      <div className="space-y-4">
+                        {selectedPlot.assignments.map((assignment: any, index: number) => (
+                          <div key={assignment.id} className="bg-gray-50 rounded-lg p-4 border">
+                            <div className="flex items-center justify-between mb-2">
+                              <h4 className="font-medium text-gray-900">Layer {assignment.layer}</h4>
+                              <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                                {assignment.status}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3 text-sm">
+                              <div>
+                                <label className="block text-xs font-medium text-gray-700">Name</label>
+                                <p className="text-gray-900">
+                                  {assignment.deceased?.firstName && assignment.deceased?.lastName 
+                                    ? `${assignment.deceased.firstName} ${assignment.deceased.lastName}`
+                                    : 'Unknown'}
+                                </p>
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-700">Burial Date</label>
+                                <p className="text-gray-900">
+                                  {assignment.assignedAt ? new Date(assignment.assignedAt).toLocaleDateString() : 'N/A'}
+                                </p>
+                              </div>
+                              {assignment.deceased?.dateOfBirth && (
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-700">Date of Birth</label>
+                                  <p className="text-gray-900">
+                                    {new Date(assignment.deceased.dateOfBirth).toLocaleDateString()}
+                                  </p>
+                                </div>
+                              )}
+                              {assignment.deceased?.dateOfDeath && (
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-700">Date of Death</label>
+                                  <p className="text-gray-900">
+                                    {new Date(assignment.deceased.dateOfDeath).toLocaleDateString()}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </>
                   )}

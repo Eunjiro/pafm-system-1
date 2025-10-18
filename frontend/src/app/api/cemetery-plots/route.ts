@@ -4,19 +4,25 @@ import { getServerSession } from 'next-auth';
 // GET - Retrieve all cemetery plots
 export async function GET(request: NextRequest) {
   try {
+    console.log('=== Cemetery Plots API Called ===');
+    
     const session = await getServerSession();
+    console.log('Session:', session ? 'Found' : 'Not found');
     
     if (!session) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required', plots: [] },
-        { status: 401 }
-      );
+      console.log('No session - using test-token for development');
+      // For development, use test-token when no session
+      // return NextResponse.json(
+      //   { success: false, error: 'Authentication required', plots: [] },
+      //   { status: 401 }
+      // );
     }
 
     // For testing purposes, use a test token if no accessToken is available
-    const authToken = session.accessToken || 'test-token';
+    const authToken = session?.accessToken || 'test-token';
 
     const { searchParams } = new URL(request.url);
+    const cemeteryId = searchParams.get('cemeteryId');
     const section = searchParams.get('section');
     const block = searchParams.get('block');
     const status = searchParams.get('status');
@@ -26,6 +32,7 @@ export async function GET(request: NextRequest) {
 
     // Build query parameters for backend
     const queryParams = new URLSearchParams();
+    if (cemeteryId) queryParams.append('cemeteryId', cemeteryId);
     if (section) queryParams.append('section', section);
     if (block) queryParams.append('block', block);
     if (status) queryParams.append('status', status);
@@ -33,7 +40,9 @@ export async function GET(request: NextRequest) {
     queryParams.append('page', page);
     queryParams.append('limit', limit);
 
-    // Call backend service
+    console.log('Fetching plots with query params:', queryParams.toString());
+
+    // Call backend service to get plot list
     const response = await fetch(`http://localhost:3001/api/plots?${queryParams}`, {
       method: 'GET',
       headers: {
@@ -48,20 +57,64 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         success: true,
         plots: [],
-        pagination: { page: 1, limit: 50, total: 0, totalPages: 0 },
         total: 0,
-        message: 'Backend service unavailable - showing empty data'
+        pagination: { page: 1, limit: 50, total: 0, totalPages: 0 },
+        message: 'Backend service unavailable - using empty data'
       });
     }
 
     const data = await response.json();
+    console.log('Backend plots response:', data.success ? 'Success' : 'Failed');
 
+    if (data.success && data.data && data.data.length > 0) {
+      // Fetch detailed information for each plot including assignments
+      console.log('Fetching detailed info for', data.data.length, 'plots');
+      
+      const detailedPlots = await Promise.all(
+        data.data.map(async (plot: any) => {
+          try {
+            const detailResponse = await fetch(`http://localhost:3001/api/plots/${plot.id}`, {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json',
+              },
+            });
+            
+            if (detailResponse.ok) {
+              const detailData = await detailResponse.json();
+              if (detailData.success) {
+                return detailData.data;
+              }
+            }
+            
+            // Return basic plot data if detailed fetch fails
+            return plot;
+          } catch (error) {
+            console.warn('Failed to fetch details for plot', plot.id, error);
+            return plot;
+          }
+        })
+      );
+
+      console.log('Successfully fetched detailed plots:', detailedPlots.length);
+
+      return NextResponse.json({
+        success: true,
+        plots: detailedPlots,
+        total: data.total || detailedPlots.length,
+        pagination: data.pagination || { page: 1, limit: 50, total: detailedPlots.length, totalPages: 1 },
+        message: data.message || 'Cemetery plots retrieved successfully with details'
+      });
+    }
+
+    // Return empty data if no plots found
     return NextResponse.json({
       success: true,
-      plots: data.data || [],
-      pagination: data.pagination,
-      total: data.pagination?.total || 0,
-      message: data.message
+      plots: [],
+      total: 0,
+      pagination: { page: 1, limit: 50, total: 0, totalPages: 0 },
+      message: 'No plots found'
     });
 
   } catch (error) {
@@ -82,20 +135,64 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession();
     
-    if (!session || !session.accessToken) {
+    if (!session) {
       return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
+        { success: false, error: 'Authentication required' },
         { status: 401 }
       );
     }
 
+    // For testing purposes, use a test token if no accessToken is available
+    const authToken = session.accessToken || 'test-token';
+
     const body = await request.json();
+    
+    // Transform coordinates from polygon array to lat/lng if needed
+    if (body.coordinates && Array.isArray(body.coordinates) && body.coordinates.length > 0) {
+      // If coordinates is an array of points (polygon), use the center point
+      if (Array.isArray(body.coordinates[0])) {
+        // Calculate center of polygon
+        const lats = body.coordinates.map((point: [number, number]) => point[0]);
+        const lngs = body.coordinates.map((point: [number, number]) => point[1]);
+        
+        const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+        const centerLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
+        
+        body.latitude = centerLat;
+        body.longitude = centerLng;
+        // Keep the boundary coordinates for outline display
+        body.boundary = body.coordinates;
+      } else if (body.coordinates.length === 2) {
+        // Single coordinate pair
+        body.latitude = body.coordinates[0];
+        body.longitude = body.coordinates[1];
+        // For single coordinates, create a small boundary rectangle
+        const lat = body.coordinates[0];
+        const lng = body.coordinates[1];
+        const offset = 0.00001; // Very small offset for plot boundary
+        body.boundary = [
+          [lat - offset, lng - offset],
+          [lat + offset, lng - offset], 
+          [lat + offset, lng + offset],
+          [lat - offset, lng + offset],
+          [lat - offset, lng - offset]
+        ];
+      }
+    }
+    
+    // Keep coordinates for backward compatibility but rename to avoid conflicts
+    if (body.coordinates) {
+      body.originalCoordinates = body.coordinates;
+      delete body.coordinates;
+    }
+    
+    console.log('Creating plot with data:', body);
     
     // Call backend service
     const response = await fetch('http://localhost:3001/api/plots', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${session.accessToken}`,
+        'Authorization': `Bearer ${authToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body)

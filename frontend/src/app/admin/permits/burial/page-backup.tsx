@@ -97,6 +97,105 @@ export default function BurialPermitsPage() {
       <div className="min-h-screen flex items-center justify-center" style={{backgroundColor: '#FBFBFB'}}>
         <div className="animate-spin rounded-full h-32 w-32 border-b-2" style={{borderColor: '#4CAF50'}}></div>
       </div>
+"use client";
+
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { FiShield, FiFileText, FiUser, FiAlertTriangle, FiCheckCircle, FiDollarSign, FiRefreshCw, FiEye, FiArrowLeft } from "react-icons/fi";
+import Link from "next/link";
+
+interface Permit {
+  id: number;
+  permitType: 'burial' | 'exhumation' | 'cremation';
+  status: string;
+  amountDue?: number;
+  orNumber?: string;
+  createdAt: string;
+  issuedAt?: string;
+  pickupStatus?: 'not_ready' | 'ready_for_pickup' | 'claimed';
+  deceased?: {
+    id: number;
+    firstName: string;
+    middleName?: string;
+    lastName: string;
+    suffix?: string;
+    dateOfDeath?: string;
+  };
+  requester?: {
+    id: number;
+    fullNameFirst: string;
+    fullNameLast: string;
+    email: string;
+  };
+  remarks?: string;
+}
+
+export default function BurialPermitsPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const [permits, setPermits] = useState<Permit[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedPermit, setSelectedPermit] = useState<Permit | null>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (status === "loading") return;
+    if (!session || session.user?.role !== "ADMIN") {
+      router.replace("/auth/signin");
+      return;
+    }
+    fetchBurialPermits();
+  }, [session, status, router]);
+
+  const fetchBurialPermits = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/permits?permitType=burial');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch burial permits');
+      }
+      const data = await response.json();
+      setPermits(data.permits || []);
+    } catch (error) {
+      console.error('Error fetching burial permits:', error);
+      setError(error instanceof Error ? error.message : 'Failed to fetch burial permits');
+      setPermits([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    const statusConfig = {
+      'submitted': 'bg-yellow-100 text-yellow-800',
+      'pending_verification': 'bg-blue-100 text-blue-800',
+      'for_payment': 'bg-orange-100 text-orange-800',
+      'paid': 'bg-purple-100 text-purple-800',
+      'issued': 'bg-green-100 text-green-800',
+      'for_pickup': 'bg-green-100 text-green-800',
+      'claimed': 'bg-gray-100 text-gray-800',
+      'rejected': 'bg-red-100 text-red-800',
+      'cancelled': 'bg-red-100 text-red-800'
+    };
+    return statusConfig[status as keyof typeof statusConfig] || 'bg-gray-100 text-gray-800';
+  };
+
+  const getWorkflowProgress = (status: string) => {
+    const steps = ['submitted', 'pending_verification', 'for_payment', 'paid', 'issued', 'claimed'];
+    const currentIndex = steps.indexOf(status);
+    const progress = currentIndex >= 0 ? ((currentIndex + 1) / steps.length) * 100 : 0;
+    return Math.min(progress, 100);
+  };
+
+  if (status === "loading" || loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{backgroundColor: '#FBFBFB'}}>
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2" style={{borderColor: '#4CAF50'}}></div>
+      </div>
     );
   }
 
@@ -390,4 +489,55 @@ export default function BurialPermitsPage() {
       </div>
     </div>
   );
+}
+                      setShowDetailsModal(true)
+                    }}
+                    className="flex items-center px-3 py-2 text-sm text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
+                  >
+                    <span className="mr-1">
+                      <FiEye size={14} />
+                    </span>
+                    View Details
+                  </button>
+                  {permit.status === 'pending_verification' && (
+                    <button
+                      onClick={() => handleApprove(permit)}
+                      className="flex items-center px-3 py-2 text-sm text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition-colors"
+                    >
+                      <span className="mr-1">
+                        <FiCheckCircle size={14} />
+                      </span>
+                      Review & Approve
+                    </button>
+                  )}
+                  <button className="flex items-center px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-lg transition-colors">
+                    <span className="mr-1">
+                      <FiDownload size={14} />
+                    </span>
+                    Download
+                  </button>
+                </div>
+                <div className="text-xs text-gray-500">
+                  Priority: <span className={`font-medium ${
+                    permit.priority === 'high' ? 'text-red-600' :
+                    permit.priority === 'medium' ? 'text-yellow-600' : 'text-green-600'
+                  }`}>{permit.priority.toUpperCase()}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {filteredPermits.length === 0 && (
+        <div className="bg-white rounded-lg shadow-md p-12 text-center">
+          <span className="mx-auto text-gray-400 mb-4 block">
+            <FiFileText size={48} />
+          </span>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No permits found</h3>
+          <p className="text-gray-600">No burial permits match your current search and filter criteria.</p>
+        </div>
+      )}
+    </div>
+  )
 }
