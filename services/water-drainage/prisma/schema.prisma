@@ -1,0 +1,362 @@
+// This is your Prisma schema file for Water and Drainage Management Service
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// DRAINAGE REQUESTS MODULE
+// ============================================
+
+enum DrainageIssueType {
+  CLOGGED_DRAIN
+  BROKEN_PIPE
+  FLOODING
+  OVERFLOW
+  MAINTENANCE
+  OTHER
+}
+
+enum DrainageStatus {
+  PENDING
+  FOR_APPROVAL
+  APPROVED
+  ONGOING
+  COMPLETED
+  REJECTED
+  CANCELLED
+}
+
+enum DrainagePriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model DrainageRequest {
+  id                Int                 @id @default(autoincrement())
+  ticketNumber      String              @unique @default(cuid())
+  
+  // Requester Information
+  citizenId         Int?
+  requesterName     String
+  contactNumber     String
+  email             String?
+  
+  // Issue Details
+  issueType         DrainageIssueType
+  description       String              @db.Text
+  location          String
+  barangay          String
+  specificAddress   String              @db.Text
+  latitude          Decimal?            @db.Decimal(10, 8)
+  longitude         Decimal?            @db.Decimal(11, 8)
+  
+  // Status & Priority
+  status            DrainageStatus      @default(PENDING)
+  priority          DrainagePriority    @default(MEDIUM)
+  
+  // Assignment
+  assignedEngineerId Int?
+  assignedEngineerName String?
+  assignedAt        DateTime?
+  
+  // Dates
+  requestedAt       DateTime            @default(now())
+  scheduledDate     DateTime?
+  completedAt       DateTime?
+  
+  // Additional Info
+  photos            String[]            // Array of photo URLs
+  notes             String?             @db.Text
+  adminNotes        String?             @db.Text
+  estimatedCost     Decimal?            @db.Decimal(10, 2)
+  actualCost        Decimal?            @db.Decimal(10, 2)
+  
+  // Timestamps
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  
+  // Relations
+  updates           DrainageUpdate[]
+  
+  @@index([status])
+  @@index([barangay])
+  @@index([issueType])
+  @@index([createdAt])
+}
+
+model DrainageUpdate {
+  id                Int              @id @default(autoincrement())
+  requestId         Int
+  request           DrainageRequest  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  
+  status            DrainageStatus
+  description       String           @db.Text
+  photos            String[]
+  updatedBy         String
+  updatedByRole     String           // employee, admin
+  
+  createdAt         DateTime         @default(now())
+  
+  @@index([requestId])
+}
+
+// ============================================
+// WATER SUPPLY - CONNECTION REQUESTS MODULE
+// ============================================
+
+enum ConnectionType {
+  RESIDENTIAL
+  COMMERCIAL
+  INDUSTRIAL
+  INSTITUTIONAL
+}
+
+enum ConnectionStatus {
+  PENDING
+  FOR_INSPECTION
+  INSPECTION_SCHEDULED
+  INSPECTION_COMPLETED
+  AWAITING_PAYMENT
+  PAYMENT_CONFIRMED
+  FOR_INSTALLATION
+  INSTALLATION_SCHEDULED
+  INSTALLATION_COMPLETED
+  ACTIVE
+  REJECTED
+  CANCELLED
+}
+
+enum PropertyType {
+  OWNED
+  RENTED
+  LEASED
+}
+
+model WaterConnection {
+  id                    Int                 @id @default(autoincrement())
+  applicationNumber     String              @unique @default(cuid())
+  
+  // Applicant Information
+  citizenId             Int?
+  applicantFirstName    String
+  applicantLastName     String
+  applicantMiddleName   String?
+  contactNumber         String
+  email                 String?
+  
+  // Property Information
+  propertyAddress       String              @db.Text
+  barangay              String
+  propertyType          PropertyType
+  connectionType        ConnectionType
+  numberOfOccupants     Int?
+  businessName          String?             // For commercial/industrial
+  businessType          String?
+  
+  // Location
+  latitude              Decimal?            @db.Decimal(10, 8)
+  longitude             Decimal?            @db.Decimal(11, 8)
+  
+  // Documents
+  validIdUrl            String              // Uploaded ID
+  proofOfOwnershipUrl   String?             // Land title, tax declaration
+  businessPermitUrl     String?             // For commercial/industrial
+  barangayClearanceUrl  String?
+  sketchMapUrl          String?             // Site sketch
+  
+  // Status & Assignment
+  status                ConnectionStatus    @default(PENDING)
+  inspectorId           Int?
+  inspectorName         String?
+  installerId           Int?
+  installerName         String?
+  
+  // Inspection
+  inspectionDate        DateTime?
+  inspectionNotes       String?             @db.Text
+  inspectionApproved    Boolean?
+  inspectionPhotos      String[]
+  
+  // Installation
+  installationDate      DateTime?
+  installationNotes     String?             @db.Text
+  meterNumber           String?
+  connectionSize        String?             // Pipe diameter
+  installationPhotos    String[]
+  
+  // Billing
+  connectionFee         Decimal             @db.Decimal(10, 2)
+  depositAmount         Decimal?            @db.Decimal(10, 2)
+  paymentStatus         String?             // PENDING, PAID
+  paymentDate           DateTime?
+  receiptNumber         String?
+  
+  // Dates
+  appliedAt             DateTime            @default(now())
+  approvedAt            DateTime?
+  activatedAt           DateTime?
+  
+  // Additional
+  notes                 String?             @db.Text
+  adminNotes            String?             @db.Text
+  rejectionReason       String?             @db.Text
+  
+  // Timestamps
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  
+  // Relations
+  updates               ConnectionUpdate[]
+  
+  @@index([status])
+  @@index([barangay])
+  @@index([connectionType])
+  @@index([createdAt])
+}
+
+model ConnectionUpdate {
+  id                Int                @id @default(autoincrement())
+  connectionId      Int
+  connection        WaterConnection    @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  
+  status            ConnectionStatus
+  description       String             @db.Text
+  photos            String[]
+  updatedBy         String
+  updatedByRole     String             // inspector, installer, employee, admin
+  
+  createdAt         DateTime           @default(now())
+  
+  @@index([connectionId])
+}
+
+// ============================================
+// WATER SUPPLY - ISSUE REPORTING MODULE
+// ============================================
+
+enum WaterIssueType {
+  NO_WATER_SUPPLY
+  LOW_PRESSURE
+  WATER_LEAK
+  DIRTY_WATER
+  METER_PROBLEM
+  BILLING_ISSUE
+  PIPE_BURST
+  VALVE_MALFUNCTION
+  OTHER
+}
+
+enum WaterIssueStatus {
+  PENDING
+  ACKNOWLEDGED
+  IN_PROGRESS
+  ASSIGNED
+  RESOLVED
+  CLOSED
+  CANCELLED
+}
+
+enum WaterIssuePriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model WaterIssue {
+  id                Int                 @id @default(autoincrement())
+  ticketNumber      String              @unique @default(cuid())
+  
+  // Reporter Information
+  citizenId         Int?
+  reporterName      String
+  contactNumber     String
+  email             String?
+  accountNumber     String?             // Water account number if applicable
+  
+  // Issue Details
+  issueType         WaterIssueType
+  description       String              @db.Text
+  location          String
+  barangay          String
+  specificAddress   String              @db.Text
+  latitude          Decimal?            @db.Decimal(10, 8)
+  longitude         Decimal?            @db.Decimal(11, 8)
+  
+  // Status & Priority
+  status            WaterIssueStatus    @default(PENDING)
+  priority          WaterIssuePriority  @default(MEDIUM)
+  
+  // Assignment
+  assignedStaffId   Int?
+  assignedStaffName String?
+  assignedAt        DateTime?
+  
+  // Resolution
+  resolutionNotes   String?             @db.Text
+  resolutionPhotos  String[]
+  resolvedAt        DateTime?
+  closedAt          DateTime?
+  
+  // Dates
+  reportedAt        DateTime            @default(now())
+  scheduledDate     DateTime?
+  
+  // Additional Info
+  photos            String[]            // Initial photos
+  notes             String?             @db.Text
+  adminNotes        String?             @db.Text
+  estimatedRepairTime String?           // e.g., "2 hours", "1 day"
+  
+  // Timestamps
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  
+  // Relations
+  updates           WaterIssueUpdate[]
+  
+  @@index([status])
+  @@index([barangay])
+  @@index([issueType])
+  @@index([priority])
+  @@index([createdAt])
+}
+
+model WaterIssueUpdate {
+  id                Int              @id @default(autoincrement())
+  issueId           Int
+  issue             WaterIssue       @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  
+  status            WaterIssueStatus
+  description       String           @db.Text
+  photos            String[]
+  updatedBy         String
+  updatedByRole     String           // staff, employee, admin
+  
+  createdAt         DateTime         @default(now())
+  
+  @@index([issueId])
+}
+
+// ============================================
+// BARANGAY REFERENCE (for filtering/reports)
+// ============================================
+
+model Barangay {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  district    String
+  population  Int?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

@@ -30,6 +30,30 @@ interface Application {
   payment?: PaymentData
 }
 
+interface DrainageRequest {
+  id: number
+  ticketNumber: string
+  issueType: string
+  description: string
+  status: string
+  priority: string
+  barangay: string
+  location: string
+  requestedAt: string
+}
+
+interface WaterIssue {
+  id: number
+  ticketNumber: string
+  issueType: string
+  description: string
+  status: string
+  priority: string
+  barangay: string
+  location: string
+  reportedAt: string
+}
+
 interface ApplicationCounts {
   total: number
   PENDING_VERIFICATION: number
@@ -57,6 +81,8 @@ export default function CitizenApplications() {
   const [showProfileDropdown, setShowProfileDropdown] = useState(false)
   const [allApplications, setAllApplications] = useState<Application[]>([])
   const [applications, setApplications] = useState<Application[]>([])
+  const [drainageRequests, setDrainageRequests] = useState<DrainageRequest[]>([])
+  const [waterIssues, setWaterIssues] = useState<WaterIssue[]>([])
   const [counts, setCounts] = useState<ApplicationCounts>({
     total: 0,
     PENDING_VERIFICATION: 0,
@@ -69,6 +95,7 @@ export default function CitizenApplications() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>("")
   const [activeFilter, setActiveFilter] = useState<string>("")
+  const [activeTab, setActiveTab] = useState<'death' | 'drainage' | 'water'>('death')
 
   useEffect(() => {
     if (status === "loading") return
@@ -102,17 +129,32 @@ export default function CitizenApplications() {
     setError("")
 
     try {
-      const response = await fetch('/api/citizen/applications')
-      
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to fetch applications')
+      // Fetch all types of applications
+      const [deathRegsRes, drainageRes, waterIssuesRes] = await Promise.all([
+        fetch('/api/citizen/applications'),
+        fetch('/api/drainage'),
+        fetch('/api/water-issues'),
+      ])
+
+      // Death registrations
+      if (deathRegsRes.ok) {
+        const data: ApplicationsResponse = await deathRegsRes.json()
+        setAllApplications(data.registrations)
+        setApplications(data.registrations)
+        setCounts(data.counts)
       }
 
-      const data: ApplicationsResponse = await response.json()
-      setAllApplications(data.registrations)
-      setApplications(data.registrations) // Initially show all
-      setCounts(data.counts)
+      // Drainage requests
+      if (drainageRes.ok) {
+        const drainageData = await drainageRes.json()
+        setDrainageRequests(drainageData.data || [])
+      }
+
+      // Water issues
+      if (waterIssuesRes.ok) {
+        const waterData = await waterIssuesRes.json()
+        setWaterIssues(waterData.data || [])
+      }
     } catch (error) {
       setError(error instanceof Error ? error.message : 'An error occurred')
     } finally {
@@ -123,15 +165,47 @@ export default function CitizenApplications() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'PENDING_VERIFICATION':
+      case 'PENDING':
         return 'bg-yellow-100 text-yellow-800'
       case 'PROCESSING':
+      case 'IN_PROGRESS':
+      case 'ONGOING':
+      case 'ACKNOWLEDGED':
         return 'bg-blue-100 text-blue-800'
       case 'REGISTERED':
       case 'FOR_PICKUP':
+      case 'APPROVED':
+      case 'COMPLETED':
+      case 'RESOLVED':
+      case 'CLOSED':
         return 'bg-green-100 text-green-800'
       case 'CLAIMED':
         return 'bg-gray-100 text-gray-800'
       case 'REJECTED':
+      case 'CANCELLED':
+        return 'bg-red-100 text-red-800'
+      case 'FOR_APPROVAL':
+        return 'bg-purple-100 text-purple-800'
+      case 'ASSIGNED':
+        return 'bg-indigo-100 text-indigo-800'
+      default:
+        return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const getDrainageStatusColor = (status: string) => getStatusColor(status)
+  const getWaterIssueStatusColor = (status: string) => getStatusColor(status)
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority?.toUpperCase()) {
+      case 'LOW':
+        return 'bg-gray-100 text-gray-800'
+      case 'MEDIUM':
+        return 'bg-blue-100 text-blue-800'
+      case 'HIGH':
+        return 'bg-orange-100 text-orange-800'
+      case 'URGENT':
+      case 'CRITICAL':
         return 'bg-red-100 text-red-800'
       default:
         return 'bg-gray-100 text-gray-800'
@@ -279,11 +353,59 @@ export default function CitizenApplications() {
         <div className="px-4 py-6 sm:px-0">
           {/* Page Header */}
           <div className="mb-8">
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">Application Status</h2>
-            <p className="text-gray-600">Track your applications and view their current status.</p>
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">My Applications & Requests</h2>
+            <p className="text-gray-600">Track all your applications, service requests, and view their current status.</p>
           </div>
 
-          {/* Filter Tabs */}
+          {/* Service Type Tabs */}
+          <div className="mb-6">
+            <div className="border-b border-gray-200">
+              <nav className="-mb-px flex space-x-8">
+                <button 
+                  onClick={() => setActiveTab('death')}
+                  className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium flex items-center gap-2 ${
+                    activeTab === 'death'
+                      ? "border-green-500 text-green-600" 
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  }`}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Death Registrations ({counts.total})
+                </button>
+                <button 
+                  onClick={() => setActiveTab('drainage')}
+                  className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium flex items-center gap-2 ${
+                    activeTab === 'drainage'
+                      ? "border-cyan-500 text-cyan-600" 
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  }`}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                  </svg>
+                  Drainage Requests ({drainageRequests.length})
+                </button>
+                <button 
+                  onClick={() => setActiveTab('water')}
+                  className={`whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium flex items-center gap-2 ${
+                    activeTab === 'water'
+                      ? "border-sky-500 text-sky-600" 
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  }`}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                  </svg>
+                  Water Issues ({waterIssues.length})
+                </button>
+              </nav>
+            </div>
+          </div>
+
+          {/* Filter Tabs for Death Registrations */}
+          {activeTab === 'death' && (
           <div className="mb-6">
             <div className="border-b border-gray-200">
               <nav className="-mb-px flex space-x-8">
@@ -360,8 +482,10 @@ export default function CitizenApplications() {
               </nav>
             </div>
           </div>
+          )}
 
-          {/* Application Stats */}
+          {/* Application Stats - Only for Death Registrations */}
+          {activeTab === 'death' && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             <div className="bg-white p-6 rounded-lg shadow">
               <div className="flex items-center">
@@ -419,8 +543,10 @@ export default function CitizenApplications() {
               </div>
             </div>
           </div>
+          )}
 
-          {/* Applications List */}
+          {/* Death Registrations List */}
+          {activeTab === 'death' && (
           <div className="bg-white shadow rounded-lg">
             <div className="px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-medium text-gray-900">
@@ -535,6 +661,158 @@ export default function CitizenApplications() {
               )}
             </div>
           </div>
+          )}
+
+          {/* Drainage Requests List */}
+          {activeTab === 'drainage' && (
+          <div className="bg-white shadow rounded-lg">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-medium text-gray-900">Drainage Service Requests</h3>
+            </div>
+            <div className="px-6 py-4">
+              {loading ? (
+                <div className="space-y-4">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg animate-pulse">
+                      <div className="flex items-center space-x-4">
+                        <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
+                        <div>
+                          <div className="h-4 bg-gray-200 rounded w-48 mb-2"></div>
+                          <div className="h-3 bg-gray-200 rounded w-32"></div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : drainageRequests.length === 0 ? (
+                <div className="text-center py-8">
+                  <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                  </svg>
+                  <h3 className="mt-2 text-sm font-medium text-gray-900">No drainage requests found</h3>
+                  <p className="mt-1 text-sm text-gray-500">You haven't submitted any drainage service requests yet.</p>
+                  <div className="mt-6">
+                    <Link href="/citizen/services/water-drainage/drainage-request" className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-cyan-600 hover:bg-cyan-700">
+                      Submit Drainage Request
+                    </Link>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {drainageRequests.map((request) => (
+                    <div key={request.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center space-x-4">
+                        <div className="w-10 h-10 bg-cyan-100 rounded-full flex items-center justify-center">
+                          <svg className="w-6 h-6 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                          </svg>
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-900">
+                            {request.issueType.replace(/_/g, ' ')} - {request.barangay}
+                          </h4>
+                          <p className="text-sm text-gray-500">Ticket: {request.ticketNumber}</p>
+                          <p className="text-sm text-gray-500">{request.location}</p>
+                          <p className="text-xs text-gray-400">
+                            Submitted on {formatDate(request.requestedAt)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-4">
+                        <div className="text-right">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getDrainageStatusColor(request.status)}`}>
+                            {formatStatus(request.status)}
+                          </span>
+                          <div className="mt-1">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getPriorityColor(request.priority)}`}>
+                              {request.priority}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          )}
+
+          {/* Water Issues List */}
+          {activeTab === 'water' && (
+          <div className="bg-white shadow rounded-lg">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-medium text-gray-900">Water Issue Reports</h3>
+            </div>
+            <div className="px-6 py-4">
+              {loading ? (
+                <div className="space-y-4">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg animate-pulse">
+                      <div className="flex items-center space-x-4">
+                        <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
+                        <div>
+                          <div className="h-4 bg-gray-200 rounded w-48 mb-2"></div>
+                          <div className="h-3 bg-gray-200 rounded w-32"></div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : waterIssues.length === 0 ? (
+                <div className="text-center py-8">
+                  <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                  </svg>
+                  <h3 className="mt-2 text-sm font-medium text-gray-900">No water issues found</h3>
+                  <p className="mt-1 text-sm text-gray-500">You haven't reported any water issues yet.</p>
+                  <div className="mt-6">
+                    <Link href="/citizen/services/water-drainage/water-issue" className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-sky-600 hover:bg-sky-700">
+                      Report Water Issue
+                    </Link>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {waterIssues.map((issue) => (
+                    <div key={issue.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center space-x-4">
+                        <div className="w-10 h-10 bg-sky-100 rounded-full flex items-center justify-center">
+                          <svg className="w-6 h-6 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                          </svg>
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-900">
+                            {issue.issueType.replace(/_/g, ' ')} - {issue.barangay}
+                          </h4>
+                          <p className="text-sm text-gray-500">Ticket: {issue.ticketNumber}</p>
+                          <p className="text-sm text-gray-500">{issue.location}</p>
+                          <p className="text-xs text-gray-400">
+                            Reported on {formatDate(issue.reportedAt)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-4">
+                        <div className="text-right">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getWaterIssueStatusColor(issue.status)}`}>
+                            {formatStatus(issue.status)}
+                          </span>
+                          <div className="mt-1">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getPriorityColor(issue.priority)}`}>
+                              {issue.priority}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          )}
+
         </div>
       </main>
     </div>

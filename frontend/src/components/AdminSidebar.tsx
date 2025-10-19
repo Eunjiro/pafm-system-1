@@ -87,11 +87,10 @@ const sidebarItems: SidebarItem[] = [
     label: "Water Supply & Drainage",
     icon: FiDroplet,
     children: [
-      { id: "water-requests", label: "Water Connection Requests", href: "/admin/water/requests", icon: FiDroplet },
-      { id: "drainage-requests", label: "Drainage Requests", href: "/admin/drainage/requests", icon: FiSlash },
-      { id: "water-permits", label: "Water Permits", href: "/admin/water/permits", icon: FiFileText },
-      { id: "infrastructure-map", label: "Infrastructure Mapping", href: "/admin/water/infrastructure", icon: FiMap },
-      { id: "billing-management", label: "Billing Management", href: "/admin/water/billing", icon: FiDollarSign }
+      { id: "water-supply", label: "Water Supply Management", href: "/admin/water-supply", icon: FiDroplet },
+      { id: "drainage-management", label: "Drainage Management", href: "/admin/drainage", icon: FiSlash },
+      { id: "water-issues", label: "Water Issue Reports", href: "/admin/water-issues", icon: FiTool },
+      { id: "barangay-coverage", label: "Barangay Management", href: "/admin/barangays", icon: MdLocationOn }
     ]
   },
 

@@ -160,6 +160,39 @@ export default function ServicesPage() {
                 </div>
               </div>
             </div>
+
+            {/* Water & Drainage Services */}
+            <div className="bg-white overflow-hidden shadow rounded-lg md:col-span-2 lg:col-span-1">
+              <div className="p-6">
+                <div className="flex items-center mb-6">
+                  <div className="flex-shrink-0">
+                    <div className="w-10 h-10 bg-cyan-100 rounded-lg flex items-center justify-center">
+                      <svg className="w-6 h-6 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div className="ml-4">
+                    <h3 className="text-lg font-medium text-gray-900">Water & Drainage Services</h3>
+                    <p className="text-sm text-gray-500">Water connection, drainage, and issue reporting</p>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Link href="/citizen/services/water-drainage/drainage-request" className="block w-full bg-cyan-600 text-white py-2 px-4 rounded-md hover:bg-cyan-700 transition-colors text-sm text-center">
+                    Request Drainage Service
+                  </Link>
+                  <Link href="/citizen/services/water-drainage/water-connection" className="block w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors text-sm text-center">
+                    Apply for Water Connection
+                  </Link>
+                  <Link href="/citizen/services/water-drainage/water-issue" className="block w-full bg-sky-600 text-white py-2 px-4 rounded-md hover:bg-sky-700 transition-colors text-sm text-center">
+                    Report Water Issue
+                  </Link>
+                  <Link href="/citizen/services/water-drainage/track-requests" className="block w-full bg-teal-600 text-white py-2 px-4 rounded-md hover:bg-teal-700 transition-colors text-sm text-center">
+                    Track My Requests
+                  </Link>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Additional Information */}
