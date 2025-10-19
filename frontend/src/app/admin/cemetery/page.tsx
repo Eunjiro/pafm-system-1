@@ -246,6 +246,9 @@ export default function CemeteryManagementPage() {
   const [selectedAreaName, setSelectedAreaName] = useState<string>('')
   const [areaOccupants, setAreaOccupants] = useState<Burial[]>([])
 
+  // Burial modal state
+  const [showBurialModal, setShowBurialModal] = useState(false)
+
   // Delete confirmation states
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleteType, setDeleteType] = useState<'cemetery' | 'section' | 'block' | 'plot' | 'gravestone' | 'burial' | null>(null)
@@ -290,7 +293,7 @@ export default function CemeteryManagementPage() {
                   id: block.id.toString(),
                   sectionId: section.id.toString(),
                   name: block.name,
-                  blockType: block.blockType.toLowerCase(),
+                  blockType: block.blockType ? block.blockType.toLowerCase() : 'standard',
                   capacity: block.capacity || 0,
                   color: '#10B981',
                   boundary: block.boundary || [],
@@ -318,7 +321,7 @@ export default function CemeteryManagementPage() {
                       blockId: block.id.toString(),
                       plotNumber: plot.plotNumber || plot.plotCode,
                       coordinates: plot.coordinates || [],
-                      size: plot.size.toLowerCase(),
+                      size: plot.size ? plot.size.toLowerCase() : 'standard',
                       length: plot.length || 2.0,
                       width: plot.width || 1.0,
                       depth: plot.depth || 1.5,
@@ -326,7 +329,7 @@ export default function CemeteryManagementPage() {
                       maintenanceFee: plot.maintenanceFee || selectedCemetery.maintenanceFee,
                       orientation: plot.orientation?.toLowerCase() || 'north',
                       accessibility: plot.accessibility || true,
-                      status: plot.status.toLowerCase(),
+                      status: plot.status ? plot.status.toLowerCase() : 'available',
                       maxLayers: plot.maxLayers || 3,
                       burials: burials
                     }
@@ -405,7 +408,7 @@ export default function CemeteryManagementPage() {
                     id: block.id.toString(),
                     sectionId: section.id.toString(),
                     name: block.name,
-                    blockType: block.blockType.toLowerCase(),
+                    blockType: block.blockType ? block.blockType.toLowerCase() : 'standard',
                     capacity: block.capacity || 50,
                     color: '#10B981',
                     boundary: block.boundary || [[14.6760, 121.0437], [14.6761, 121.0437], [14.6761, 121.0438], [14.6760, 121.0438]],
@@ -413,21 +416,24 @@ export default function CemeteryManagementPage() {
                       id: plot.id.toString(),
                       blockId: block.id.toString(),
                       plotNumber: plot.plotNumber || plot.plotCode,
-                      coordinates: plot.boundary || [[
-                        plot.latitude ? parseFloat(plot.latitude) : 14.6760,
-                        plot.longitude ? parseFloat(plot.longitude) : 121.0437
-                      ]],
-                      size: plot.size.toLowerCase(),
+                      coordinates: plot.boundary && plot.boundary.length >= 3 ? plot.boundary : 
+                                  generatePlotBoundary(
+                                    plot.latitude ? parseFloat(plot.latitude) : 14.6760,
+                                    plot.longitude ? parseFloat(plot.longitude) : 121.0437,
+                                    plot.length || 2,
+                                    plot.width || 1
+                                  ),
+                      size: plot.size ? plot.size.toLowerCase() : 'standard',
                       length: plot.length || 2,
                       width: plot.width || 1,
                       depth: plot.depth || 1.5,
                       baseFee: parseFloat(plot.baseFee) || 5000,
                       maintenanceFee: parseFloat(plot.maintenanceFee) || 500,
-                      orientation: plot.orientation.toLowerCase(),
+                      orientation: plot.orientation ? plot.orientation.toLowerCase() : 'north',
                       accessibility: plot.accessibility,
-                      status: plot.status.toLowerCase() === 'vacant' ? 'available' : 
+                      status: plot.status ? (plot.status.toLowerCase() === 'vacant' ? 'available' : 
                              plot.status.toLowerCase() === 'occupied' ? 'occupied' : 
-                             plot.status.toLowerCase() === 'reserved' ? 'reserved' : 'available',
+                             plot.status.toLowerCase() === 'reserved' ? 'reserved' : 'available') : 'available',
                       maxLayers: plot.maxLayers || 3,
                       burials: plot.assignments && plot.assignments.length > 0 ? plot.assignments.map((assignment: any) => ({
                         id: `${plot.id}_burial_${assignment.id}`,
@@ -448,8 +454,8 @@ export default function CemeteryManagementPage() {
                       gravestone: plot.gravestones && plot.gravestones.length > 0 ? {
                         id: plot.gravestones[0].id.toString(),
                         plotId: plot.id.toString(),
-                        material: plot.gravestones[0].material.toLowerCase(),
-                        condition: plot.gravestones[0].condition.toLowerCase(),
+                        material: plot.gravestones[0].material ? plot.gravestones[0].material.toLowerCase() : 'concrete',
+                        condition: plot.gravestones[0].condition ? plot.gravestones[0].condition.toLowerCase() : 'good',
                         inscription: plot.gravestones[0].inscription || '',
                         dateInstalled: plot.gravestones[0].dateInstalled || '',
                         manufacturer: plot.gravestones[0].manufacturer || 'Unknown',
@@ -470,9 +476,10 @@ export default function CemeteryManagementPage() {
                 )
                 
                 // Also load standalone plots that are not in sections/blocks
-                console.log('Loading standalone plots for cemetery:', cemetery.id)
+                console.log('Loading standalone plots for cemetery:', cemetery.name)
                 try {
-                  const standaloneResponse = await fetch(`/api/cemetery-plots?cemeteryId=${cemetery.id}`)
+                  // Use our new API endpoint to get all plots for this cemetery by name
+                  const standaloneResponse = await fetch(`/api/cemetery-plots-by-name?cemeteryName=${encodeURIComponent(cemetery.name)}`)
                   if (standaloneResponse.ok) {
                     const standaloneResult = await standaloneResponse.json()
                     console.log('Standalone plots result:', standaloneResult)
@@ -485,21 +492,24 @@ export default function CemeteryManagementPage() {
                           id: plot.id.toString(),
                           blockId: null, // Standalone plots don't belong to blocks
                           plotNumber: plot.plotNumber || plot.plotCode,
-                          coordinates: plot.coordinates || [[
-                            plot.latitude ? parseFloat(plot.latitude) : 14.6760,
-                            plot.longitude ? parseFloat(plot.longitude) : 121.0437
-                          ]],
-                          size: plot.size.toLowerCase(),
+                          coordinates: plot.coordinates && plot.coordinates.length >= 3 ? plot.coordinates :
+                                      generatePlotBoundary(
+                                        plot.latitude ? parseFloat(plot.latitude) : 14.6760,
+                                        plot.longitude ? parseFloat(plot.longitude) : 121.0437,
+                                        plot.length || 2,
+                                        plot.width || 1
+                                      ),
+                          size: plot.size ? plot.size.toLowerCase() : 'standard',
                           length: plot.length || 2,
                           width: plot.width || 1,
                           depth: plot.depth || 1.5,
                           baseFee: parseFloat(plot.baseFee) || 5000,
                           maintenanceFee: parseFloat(plot.maintenanceFee) || 500,
-                          orientation: plot.orientation.toLowerCase(),
+                          orientation: plot.orientation ? plot.orientation.toLowerCase() : 'north',
                           accessibility: plot.accessibility,
-                          status: plot.status.toLowerCase() === 'vacant' ? 'available' : 
+                          status: plot.status ? (plot.status.toLowerCase() === 'vacant' ? 'available' : 
                                  plot.status.toLowerCase() === 'occupied' ? 'occupied' : 
-                                 plot.status.toLowerCase() === 'reserved' ? 'reserved' : 'available',
+                                 plot.status.toLowerCase() === 'reserved' ? 'reserved' : 'available') : 'available',
                           maxLayers: plot.maxLayers || 3,
                           burials: plot.assignments && plot.assignments.length > 0 ? plot.assignments.map((assignment: any) => ({
                             id: `${plot.id}_burial_${assignment.id}`,
@@ -520,8 +530,8 @@ export default function CemeteryManagementPage() {
                           gravestone: plot.gravestones && plot.gravestones.length > 0 ? {
                             id: plot.gravestones[0].id.toString(),
                             plotId: plot.id.toString(),
-                            material: plot.gravestones[0].material.toLowerCase(),
-                            condition: plot.gravestones[0].condition.toLowerCase(),
+                            material: plot.gravestones[0].material ? plot.gravestones[0].material.toLowerCase() : 'concrete',
+                            condition: plot.gravestones[0].condition ? plot.gravestones[0].condition.toLowerCase() : 'good',
                             inscription: plot.gravestones[0].inscription || '',
                             dateInstalled: plot.gravestones[0].dateInstalled || '',
                             manufacturer: plot.gravestones[0].manufacturer || 'Unknown',
@@ -640,6 +650,22 @@ export default function CemeteryManagementPage() {
       return [centerLat, centerLng]
     }
     return [14.6760, 121.0437] // Default fallback
+  }
+
+  // Generate plot boundary rectangle from center point and dimensions
+  const generatePlotBoundary = (centerLat: number, centerLng: number, length: number = 2, width: number = 1): Point[] => {
+    // Convert meters to approximate degrees
+    // 1 degree latitude ≈ 111km, 1 degree longitude ≈ 111km * cos(latitude)
+    const latOffset = (length / 2) / 111000 // half length in degrees
+    const lngOffset = (width / 2) / (111000 * Math.cos(centerLat * Math.PI / 180)) // half width in degrees
+    
+    // Create rectangle boundary: [top-left, top-right, bottom-right, bottom-left]
+    return [
+      [centerLat + latOffset, centerLng - lngOffset], // top-left
+      [centerLat + latOffset, centerLng + lngOffset], // top-right
+      [centerLat - latOffset, centerLng + lngOffset], // bottom-right
+      [centerLat - latOffset, centerLng - lngOffset]  // bottom-left
+    ]
   }
 
   const handleSaveSection = async () => {
@@ -851,22 +877,18 @@ export default function CemeteryManagementPage() {
 
       // Prepare plot data for backend API
       const plotData = {
-        cemeteryId: parseInt(selectedCemetery.id),
-        sectionId: parseInt(targetSection.id),
-        blockId: parseInt(plotFormData.blockId),
-        plotNumber: plotCode,
+        cemeteryId: selectedCemetery.id,      // Send cemetery ID
+        blockId: plotFormData.blockId,        // Send block ID
+        cemeteryName: selectedCemetery.name,
+        section: targetSection.name,  // Backend expects section name as string
+        block: targetBlock.name,      // Backend expects block name as string  
+        lot: plotCode,                // Backend expects lot as string
         plotCode: plotCode,
         coordinates: [...currentDrawing],
         size: plotFormData.size.toUpperCase(), // Convert to match backend enum
-        length: 2.0,
-        width: 1.0,
-        depth: 1.5,
-        baseFee: selectedCemetery.standardPrice,
-        maintenanceFee: selectedCemetery.maintenanceFee,
-        orientation: 'NORTH',
-        accessibility: true,
-        status: 'VACANT',
-        maxLayers: 3
+        latitude: currentDrawing.length > 0 ? currentDrawing[0][0] : null,
+        longitude: currentDrawing.length > 0 ? currentDrawing[0][1] : null,
+        status: 'VACANT'
       }
 
       console.log('Saving plot to backend:', plotData)
@@ -1194,7 +1216,7 @@ export default function CemeteryManagementPage() {
           civilStatus: 'Single' // Default
         },
         layer: burialFormData.layer || 1,
-        permitId: burialFormData.permitNumber || null,
+        permitId: burialFormData.permitNumber && burialFormData.permitNumber.trim() ? parseInt(burialFormData.permitNumber) : null,
         notes: `Cemetery Management Assignment - Layer ${burialFormData.layer}, Type: ${burialFormData.burialType}${burialFormData.permitNumber ? `, Permit: ${burialFormData.permitNumber}` : ''}${burialFormData.registrationNumber ? `, Registration: ${burialFormData.registrationNumber}` : ''}${burialFormData.nextOfKin.name ? `, Next of Kin: ${burialFormData.nextOfKin.name} (${burialFormData.nextOfKin.relationship}) - ${burialFormData.nextOfKin.contactNumber}` : ''}${burialFormData.notes ? `, Additional Notes: ${burialFormData.notes}` : ''}`
       }
 
@@ -1242,21 +1264,24 @@ export default function CemeteryManagementPage() {
                     id: plot.id.toString(),
                     blockId: block.id.toString(),
                     plotNumber: plot.plotNumber || plot.plotCode,
-                    coordinates: plot.boundary || [[
-                      plot.latitude ? parseFloat(plot.latitude) : 14.6760,
-                      plot.longitude ? parseFloat(plot.longitude) : 121.0437
-                    ]],
-                    size: plot.size.toLowerCase(),
+                    coordinates: plot.boundary && plot.boundary.length >= 3 ? plot.boundary :
+                                generatePlotBoundary(
+                                  plot.latitude ? parseFloat(plot.latitude) : 14.6760,
+                                  plot.longitude ? parseFloat(plot.longitude) : 121.0437,
+                                  plot.length || 2,
+                                  plot.width || 1
+                                ),
+                    size: plot.size ? plot.size.toLowerCase() : 'standard',
                     length: plot.length || 2,
                     width: plot.width || 1,
                     depth: plot.depth || 1.5,
                     baseFee: parseFloat(plot.baseFee) || 5000,
                     maintenanceFee: parseFloat(plot.maintenanceFee) || 500,
-                    orientation: plot.orientation.toLowerCase(),
+                    orientation: plot.orientation ? plot.orientation.toLowerCase() : 'north',
                     accessibility: plot.accessibility,
-                    status: plot.status.toLowerCase() === 'vacant' ? 'available' : 
+                    status: plot.status ? (plot.status.toLowerCase() === 'vacant' ? 'available' : 
                            plot.status.toLowerCase() === 'occupied' ? 'occupied' : 
-                           plot.status.toLowerCase() === 'reserved' ? 'reserved' : 'available',
+                           plot.status.toLowerCase() === 'reserved' ? 'reserved' : 'available') : 'available',
                     maxLayers: plot.maxLayers || 3,
                     burials: plot.assignments && plot.assignments.length > 0 ? plot.assignments.map((assignment: any) => ({
                       id: `${plot.id}_burial_${assignment.id}`,
@@ -1330,6 +1355,9 @@ export default function CemeteryManagementPage() {
 
         console.log('Cemetery Management burial assignment completed successfully via new API')
         alert(`Burial assigned successfully for ${burialFormData.firstName} ${burialFormData.lastName} in Layer ${burialFormData.layer}`)
+        
+        // Close modal
+        setShowBurialModal(false)
       } else {
         const errorData = await response.json()
         console.error('Cemetery Management burial assignment failed:', {
@@ -1460,17 +1488,17 @@ export default function CemeteryManagementPage() {
                     plot.latitude ? parseFloat(plot.latitude) : 14.6760,
                     plot.longitude ? parseFloat(plot.longitude) : 121.0437
                   ]],
-                  size: plot.size.toLowerCase(),
+                  size: plot.size ? plot.size.toLowerCase() : 'standard',
                   length: plot.length || 2,
                   width: plot.width || 1,
                   depth: plot.depth || 1.5,
                   baseFee: parseFloat(plot.baseFee) || 5000,
                   maintenanceFee: parseFloat(plot.maintenanceFee) || 500,
-                  orientation: plot.orientation.toLowerCase(),
+                  orientation: plot.orientation ? plot.orientation.toLowerCase() : 'north',
                   accessibility: plot.accessibility,
-                  status: plot.status.toLowerCase() === 'vacant' ? 'available' : 
+                  status: plot.status ? (plot.status.toLowerCase() === 'vacant' ? 'available' : 
                          plot.status.toLowerCase() === 'occupied' ? 'occupied' : 
-                         plot.status.toLowerCase() === 'reserved' ? 'reserved' : 'available',
+                         plot.status.toLowerCase() === 'reserved' ? 'reserved' : 'available') : 'available',
                   maxLayers: plot.maxLayers || 3,
                   burials: plot.assignments && plot.assignments.length > 0 ? plot.assignments.map((assignment: any) => ({
                     id: `${plot.id}_burial_${assignment.id}`,
@@ -1491,8 +1519,8 @@ export default function CemeteryManagementPage() {
                   gravestone: plot.gravestones && plot.gravestones.length > 0 ? {
                     id: plot.gravestones[0].id.toString(),
                     plotId: plot.id.toString(),
-                    material: plot.gravestones[0].material.toLowerCase(),
-                    condition: plot.gravestones[0].condition.toLowerCase(),
+                    material: plot.gravestones[0].material ? plot.gravestones[0].material.toLowerCase() : 'concrete',
+                    condition: plot.gravestones[0].condition ? plot.gravestones[0].condition.toLowerCase() : 'good',
                     inscription: plot.gravestones[0].inscription || '',
                     dateInstalled: plot.gravestones[0].dateInstalled || '',
                     manufacturer: plot.gravestones[0].manufacturer || 'Unknown',
@@ -1537,11 +1565,11 @@ export default function CemeteryManagementPage() {
                       depth: plot.depth || 1.5,
                       baseFee: parseFloat(plot.baseFee) || 5000,
                       maintenanceFee: parseFloat(plot.maintenanceFee) || 500,
-                      orientation: plot.orientation.toLowerCase(),
+                      orientation: plot.orientation ? plot.orientation.toLowerCase() : 'north',
                       accessibility: plot.accessibility,
-                      status: plot.status.toLowerCase() === 'vacant' ? 'available' : 
+                      status: plot.status ? (plot.status.toLowerCase() === 'vacant' ? 'available' : 
                              plot.status.toLowerCase() === 'occupied' ? 'occupied' : 
-                             plot.status.toLowerCase() === 'reserved' ? 'reserved' : 'available',
+                             plot.status.toLowerCase() === 'reserved' ? 'reserved' : 'available') : 'available',
                       maxLayers: plot.maxLayers || 3,
                       burials: plot.assignments && plot.assignments.length > 0 ? plot.assignments.map((assignment: any) => ({
                         id: `${plot.id}_burial_${assignment.id}`,
@@ -2208,7 +2236,7 @@ export default function CemeteryManagementPage() {
                   } : null}
                   drawingMode={drawingMode}
                   currentDrawing={currentDrawing}
-                  showPlots={currentStep === 'plots' || currentStep === 'burials'}
+                  showPlots={true}
                   center={mapInitialized ? mapCenter : (selectedCemetery ? calculateCemeteryCenter(selectedCemetery) : undefined)}
                   zoom={mapInitialized ? mapZoom : (selectedPlotId ? 20 : 19)} // Zoom in more when focusing on a plot
                   height="h-[600px]"
@@ -3000,335 +3028,45 @@ export default function CemeteryManagementPage() {
                   <div className="space-y-4">
                     {plots.length > 0 ? (
                       <>
-                        {/* Add New Burial */}
+                        {/* Add New Burial Button */}
                         <div className="bg-purple-50 p-4 rounded-lg">
                           <h4 className="font-medium text-purple-900 mb-2">Add New Burial</h4>
                           <p className="text-sm text-purple-800 mb-3">
-                            Philippine public cemeteries allow multiple burials per plot in layers. Click on plots to see occupants.
+                            Philippine public cemeteries allow multiple burials per plot in layers. Assign burials to available plot layers.
                           </p>
                           
-                          <div className="space-y-3">
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-1">Select Plot</label>
-                              <select
-                                value={selectedPlotId}
-                                onChange={(e) => {
-                                  setSelectedPlotId(e.target.value)
-                                  // Reset layer to 1 when plot changes
-                                  setBurialFormData({...burialFormData, layer: 1})
-                                }}
-                                className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                              >
-                                <option value="">Select a plot</option>
-                                {sections.flatMap(section =>
-                                  section.blocks.flatMap(block =>
-                                    block.plots.map(plot => {
-                                      const activeBurials = plot.burials?.filter(b => b.status === 'active').length || 0
-                                      return (
-                                        <option key={plot.id} value={plot.id}>
-                                          {plot.plotNumber} ({activeBurials}/{plot.maxLayers} occupied)
-                                        </option>
-                                      )
-                                    })
-                                  )
-                                )}
-                              </select>
-                            </div>
-                            
-                            {selectedPlotId && (
-                              <>
-                                {/* Display plot layer status */}
-                                <div className="bg-white p-3 rounded border">
-                                  <h5 className="font-medium text-gray-900 mb-2">Plot Layer Status</h5>
-                                  {(() => {
-                                    const plot = sections.flatMap(s => s.blocks.flatMap(b => b.plots)).find(p => p.id === selectedPlotId)
-                                    if (!plot) return null
-                                    
-                                    return (
-                                      <div className="grid grid-cols-1 gap-2">
-                                        {Array.from({length: plot.maxLayers}, (_, i) => {
-                                          const layer = i + 1
-                                          const burial = plot.burials?.find(b => b.layer === layer && b.status === 'active')
-                                          return (
-                                            <div key={layer} className={`p-2 rounded text-sm ${
-                                              burial ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
-                                            }`}>
-                                              <strong>Layer {layer}:</strong> {burial ? 
-                                                `${burial.deceasedInfo.firstName} ${burial.deceasedInfo.lastName} (${burial.burialType})` : 
-                                                'Available'
-                                              }
-                                            </div>
-                                          )
-                                        })}
-                                      </div>
-                                    )
-                                  })()}
-                                </div>
-
-                                <div className="bg-white p-4 rounded border space-y-3">
-                                  <h5 className="font-medium text-gray-900">Burial Information</h5>
-                                  
-                                  <div className="grid grid-cols-3 gap-3">
-                                    <div>
-                                      <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
-                                      <input
-                                        type="text"
-                                        value={burialFormData.firstName}
-                                        onChange={(e) => setBurialFormData({...burialFormData, firstName: e.target.value})}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                                      />
-                                    </div>
-                                    
-                                    <div>
-                                      <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
-                                      <input
-                                        type="text"
-                                        value={burialFormData.lastName}
-                                        onChange={(e) => setBurialFormData({...burialFormData, lastName: e.target.value})}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                                      />
-                                    </div>
-
-                                    <div>
-                                      <label className="block text-sm font-medium text-gray-700 mb-1">Middle Name</label>
-                                      <input
-                                        type="text"
-                                        value={burialFormData.middleName}
-                                        onChange={(e) => setBurialFormData({...burialFormData, middleName: e.target.value})}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                                      />
-                                    </div>
-                                  </div>
-                                  
-                                  <div className="grid grid-cols-4 gap-3">
-                                    <div>
-                                      <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
-                                      <input
-                                        type="date"
-                                        value={burialFormData.dateOfBirth}
-                                        onChange={(e) => setBurialFormData({...burialFormData, dateOfBirth: e.target.value})}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                                      />
-                                    </div>
-                                    
-                                    <div>
-                                      <label className="block text-sm font-medium text-gray-700 mb-1">Date of Death</label>
-                                      <input
-                                        type="date"
-                                        value={burialFormData.dateOfDeath}
-                                        onChange={(e) => setBurialFormData({...burialFormData, dateOfDeath: e.target.value})}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                                      />
-                                    </div>
-                                    
-                                    <div>
-                                      <label className="block text-sm font-medium text-gray-700 mb-1">Burial Date</label>
-                                      <input
-                                        type="date"
-                                        value={burialFormData.burialDate}
-                                        onChange={(e) => setBurialFormData({...burialFormData, burialDate: e.target.value})}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                                      />
-                                    </div>
-                                    
-                                    <div>
-                                      <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
-                                      <select
-                                        value={burialFormData.gender}
-                                        onChange={(e) => setBurialFormData({...burialFormData, gender: e.target.value as 'male' | 'female'})}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                                      >
-                                        <option value="">Select</option>
-                                        <option value="male">Male</option>
-                                        <option value="female">Female</option>
-                                      </select>
-                                    </div>
-                                  </div>
-
-                                  <div className="grid grid-cols-3 gap-3">
-                                    <div>
-                                      <label className="block text-sm font-medium text-gray-700 mb-1">Burial Layer *</label>
-                                      <select
-                                        value={burialFormData.layer}
-                                        onChange={(e) => setBurialFormData({...burialFormData, layer: parseInt(e.target.value)})}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                                      >
-                                        {(() => {
-                                          const plot = sections.flatMap(s => s.blocks.flatMap(b => b.plots)).find(p => p.id === selectedPlotId)
-                                          if (!plot) return <option value="">Select plot first</option>
-                                          
-                                          return Array.from({length: plot.maxLayers}, (_, i) => {
-                                            const layer = i + 1
-                                            const isOccupied = plot.burials?.some(b => b.layer === layer && b.status === 'active')
-                                            return (
-                                              <option key={layer} value={layer} disabled={isOccupied}>
-                                                Layer {layer} {isOccupied ? '(Occupied)' : '(Available)'}
-                                              </option>
-                                            )
-                                          })
-                                        })()}
-                                      </select>
-                                    </div>
-
-                                    <div>
-                                      <label className="block text-sm font-medium text-gray-700 mb-1">Burial Type</label>
-                                      <select
-                                        value={burialFormData.burialType}
-                                        onChange={(e) => setBurialFormData({...burialFormData, burialType: e.target.value as 'temporary' | 'permanent'})}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                                      >
-                                        <option value="permanent">Permanent</option>
-                                        <option value="temporary">Temporary</option>
-                                      </select>
-                                    </div>
-
-                                    {burialFormData.burialType === 'temporary' && (
-                                      <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Expiration Date</label>
-                                        <input
-                                          type="date"
-                                          value={burialFormData.expirationDate}
-                                          onChange={(e) => setBurialFormData({...burialFormData, expirationDate: e.target.value})}
-                                          className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                                        />
-                                      </div>
-                                    )}
-                                  </div>
-
-                                  <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                      <label className="block text-sm font-medium text-gray-700 mb-1">Cause of Death</label>
-                                      <input
-                                        type="text"
-                                        value={burialFormData.causeOfDeath}
-                                        onChange={(e) => setBurialFormData({...burialFormData, causeOfDeath: e.target.value})}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                                      />
-                                    </div>
-
-                                    <div>
-                                      <label className="block text-sm font-medium text-gray-700 mb-1">Occupation</label>
-                                      <input
-                                        type="text"
-                                        value={burialFormData.occupation}
-                                        onChange={(e) => setBurialFormData({...burialFormData, occupation: e.target.value})}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                                      />
-                                    </div>
-                                  </div>
-
-                                  <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                      <label className="block text-sm font-medium text-gray-700 mb-1">Permit Number</label>
-                                      <input
-                                        type="text"
-                                        value={burialFormData.permitNumber}
-                                        onChange={(e) => setBurialFormData({...burialFormData, permitNumber: e.target.value})}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                                        placeholder="Optional"
-                                      />
-                                    </div>
-
-                                    <div>
-                                      <label className="block text-sm font-medium text-gray-700 mb-1">Registration Number</label>
-                                      <input
-                                        type="text"
-                                        value={burialFormData.registrationNumber}
-                                        onChange={(e) => setBurialFormData({...burialFormData, registrationNumber: e.target.value})}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                                        placeholder="Optional"
-                                      />
-                                    </div>
-                                  </div>
-
-                                  <div className="border-t pt-3">
-                                    <h6 className="font-medium text-gray-900 mb-2">Next of Kin Information</h6>
-                                    <div className="grid grid-cols-3 gap-3">
-                                      <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                                        <input
-                                          type="text"
-                                          value={burialFormData.nextOfKin.name}
-                                          onChange={(e) => setBurialFormData({
-                                            ...burialFormData, 
-                                            nextOfKin: {...burialFormData.nextOfKin, name: e.target.value}
-                                          })}
-                                          className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                                        />
-                                      </div>
-
-                                      <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Relationship</label>
-                                        <select
-                                          value={burialFormData.nextOfKin.relationship}
-                                          onChange={(e) => setBurialFormData({
-                                            ...burialFormData,
-                                            nextOfKin: {...burialFormData.nextOfKin, relationship: e.target.value}
-                                          })}
-                                          className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                                        >
-                                          <option value="">Select</option>
-                                          <option value="spouse">Spouse</option>
-                                          <option value="son">Son</option>
-                                          <option value="daughter">Daughter</option>
-                                          <option value="father">Father</option>
-                                          <option value="mother">Mother</option>
-                                          <option value="sibling">Sibling</option>
-                                          <option value="other">Other</option>
-                                        </select>
-                                      </div>
-
-                                      <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Contact Number</label>
-                                        <input
-                                          type="text"
-                                          value={burialFormData.nextOfKin.contactNumber}
-                                          onChange={(e) => setBurialFormData({
-                                            ...burialFormData,
-                                            nextOfKin: {...burialFormData.nextOfKin, contactNumber: e.target.value}
-                                          })}
-                                          className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                                        />
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-                                    <textarea
-                                      value={burialFormData.notes}
-                                      onChange={(e) => setBurialFormData({...burialFormData, notes: e.target.value})}
-                                      placeholder="Additional notes about the burial..."
-                                      rows={2}
-                                      className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                                    />
-                                  </div>
-                                </div>
-                              </>
-                            )}
-                          </div>
-                          
-                          {selectedPlotId && (
-                            <div className="flex space-x-2 mt-4">
-                              <button
-                                onClick={handleAddBurial}
-                                disabled={!burialFormData.firstName || !burialFormData.lastName || !burialFormData.layer || isSaving}
-                                className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:bg-gray-300 transition-colors text-sm"
-                              >
-                                {isSaving ? (
-                                  <>
-                                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                                    <span>Adding...</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <FiPlus size={16} />
-                                    <span>Add Burial</span>
-                                  </>
-                                )}
-                              </button>
-                            </div>
-                          )}
+                          <button
+                            onClick={() => {
+                              setSelectedPlotId('')
+                              setBurialFormData({
+                                firstName: '',
+                                lastName: '',
+                                middleName: '',
+                                dateOfBirth: '',
+                                dateOfDeath: '',
+                                burialDate: '',
+                                gender: '' as 'male' | 'female' | '',
+                                causeOfDeath: '',
+                                occupation: '',
+                                permitNumber: '',
+                                registrationNumber: '',
+                                nextOfKin: {
+                                  name: '',
+                                  relationship: '',
+                                  contactNumber: ''
+                                },
+                                burialType: 'permanent' as 'temporary' | 'permanent',
+                                expirationDate: '',
+                                layer: 1,
+                                notes: ''
+                              })
+                              setShowBurialModal(true)
+                            }}
+                            className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                          >
+                            <FiPlus size={18} />
+                            <span>Assign Burial to Plot</span>
+                          </button>
                         </div>
 
                         {/* Occupant List Quick Actions */}
@@ -3347,6 +3085,53 @@ export default function CemeteryManagementPage() {
                                 {section.name} Section
                               </button>
                             ))}
+                          </div>
+                        </div>
+
+                        {/* Plot Status Overview */}
+                        <div className="bg-gray-50 p-4 rounded-lg">
+                          <h4 className="font-medium text-gray-900 mb-3">Cemetery Plot Status</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {sections.flatMap(section =>
+                              section.blocks.flatMap(block =>
+                                block.plots.map(plot => {
+                                  const activeBurials = plot.burials?.filter(b => b.status === 'active').length || 0
+                                  const hasSpace = activeBurials < plot.maxLayers
+                                  return (
+                                    <div key={plot.id} className={`p-3 rounded-lg border ${
+                                      hasSpace ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
+                                    }`}>
+                                      <div className="flex items-center justify-between mb-2">
+                                        <span className="font-medium text-gray-900">{plot.plotNumber}</span>
+                                        <span className={`text-xs px-2 py-1 rounded ${
+                                          hasSpace ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'
+                                        }`}>
+                                          {activeBurials}/{plot.maxLayers}
+                                        </span>
+                                      </div>
+                                      <div className="text-xs text-gray-600">
+                                        {hasSpace ? `${plot.maxLayers - activeBurials} layer(s) available` : 'Fully occupied'}
+                                      </div>
+                                      {hasSpace && (
+                                        <button
+                                          onClick={() => {
+                                            setSelectedPlotId(plot.id)
+                                            setBurialFormData({
+                                              ...burialFormData,
+                                              layer: 1
+                                            })
+                                            setShowBurialModal(true)
+                                          }}
+                                          className="mt-2 w-full text-xs px-2 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
+                                        >
+                                          Assign Burial
+                                        </button>
+                                      )}
+                                    </div>
+                                  )
+                                })
+                              )
+                            )}
                           </div>
                         </div>
                       </>
@@ -3667,6 +3452,355 @@ export default function CemeteryManagementPage() {
                   Close
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Burial Assignment Modal */}
+      {showBurialModal && (
+        <div className="fixed inset-0 flex items-center justify-center z-[9999] pointer-events-none animate-fadeIn">
+          <div className="bg-white rounded-lg shadow-2xl border border-gray-300 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto animate-slideUp pointer-events-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-gray-900">
+                  Assign Burial {selectedPlotId && sections.flatMap(s => s.blocks.flatMap(b => b.plots)).find(p => p.id === selectedPlotId) ? 
+                    `- Plot ${sections.flatMap(s => s.blocks.flatMap(b => b.plots)).find(p => p.id === selectedPlotId)?.plotNumber}` : ''}
+                </h2>
+                <button
+                  onClick={() => setShowBurialModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <FiX size={24} />
+                </button>
+              </div>
+
+              <form onSubmit={(e) => { e.preventDefault(); handleAddBurial(); }}>
+                {/* Plot Selection */}
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Select Plot *
+                  </label>
+                  <select
+                    value={selectedPlotId}
+                    onChange={(e) => {
+                      setSelectedPlotId(e.target.value)
+                      setBurialFormData({...burialFormData, layer: 1})
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    required
+                  >
+                    <option value="">Select a plot</option>
+                    {sections.flatMap(section =>
+                      section.blocks.flatMap(block =>
+                        block.plots.map(plot => {
+                          const activeBurials = plot.burials?.filter(b => b.status === 'active').length || 0
+                          const hasSpace = activeBurials < plot.maxLayers
+                          return (
+                            <option key={plot.id} value={plot.id} disabled={!hasSpace}>
+                              {plot.plotNumber} - {section.name} / {block.name} ({activeBurials}/{plot.maxLayers} occupied) {!hasSpace ? '- FULL' : ''}
+                            </option>
+                          )
+                        })
+                      )
+                    )}
+                  </select>
+                </div>
+
+                {/* Layer Status Display */}
+                {selectedPlotId && (() => {
+                  const plot = sections.flatMap(s => s.blocks.flatMap(b => b.plots)).find(p => p.id === selectedPlotId)
+                  if (!plot) return null
+                  
+                  return (
+                    <div className="mb-6 bg-gray-50 p-4 rounded-lg border">
+                      <h5 className="font-medium text-gray-900 mb-3">Plot Layer Status</h5>
+                      <div className="grid grid-cols-1 gap-2">
+                        {Array.from({length: plot.maxLayers}, (_, i) => {
+                          const layer = i + 1
+                          const burial = plot.burials?.find(b => b.layer === layer && b.status === 'active')
+                          return (
+                            <div key={layer} className={`p-2 rounded text-sm ${
+                              burial ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                            }`}>
+                              <strong>Layer {layer}:</strong> {burial ? 
+                                `${burial.deceasedInfo.firstName} ${burial.deceasedInfo.lastName}` : 
+                                'Available'
+                              }
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                  {/* Basic Information */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      First Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={burialFormData.firstName}
+                      onChange={(e) => setBurialFormData({...burialFormData, firstName: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Last Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={burialFormData.lastName}
+                      onChange={(e) => setBurialFormData({...burialFormData, lastName: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Middle Name
+                    </label>
+                    <input
+                      type="text"
+                      value={burialFormData.middleName}
+                      onChange={(e) => setBurialFormData({...burialFormData, middleName: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Gender *
+                    </label>
+                    <select
+                      value={burialFormData.gender}
+                      onChange={(e) => setBurialFormData({...burialFormData, gender: e.target.value as 'male' | 'female' | ''})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      required
+                    >
+                      <option value="">Select Gender</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                    </select>
+                  </div>
+
+                  {/* Dates */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Date of Birth *
+                    </label>
+                    <input
+                      type="date"
+                      value={burialFormData.dateOfBirth}
+                      onChange={(e) => setBurialFormData({...burialFormData, dateOfBirth: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Date of Death *
+                    </label>
+                    <input
+                      type="date"
+                      value={burialFormData.dateOfDeath}
+                      onChange={(e) => setBurialFormData({...burialFormData, dateOfDeath: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Burial Date *
+                    </label>
+                    <input
+                      type="date"
+                      value={burialFormData.burialDate}
+                      onChange={(e) => setBurialFormData({...burialFormData, burialDate: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Burial Layer *
+                    </label>
+                    <select
+                      value={burialFormData.layer}
+                      onChange={(e) => setBurialFormData({...burialFormData, layer: parseInt(e.target.value)})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      required
+                    >
+                      {selectedPlotId && (() => {
+                        const plot = sections.flatMap(s => s.blocks.flatMap(b => b.plots)).find(p => p.id === selectedPlotId)
+                        if (!plot) return <option value="">Select plot first</option>
+                        
+                        return Array.from({length: plot.maxLayers}, (_, i) => {
+                          const layer = i + 1
+                          const isOccupied = plot.burials?.some(b => b.layer === layer && b.status === 'active')
+                          return (
+                            <option key={layer} value={layer} disabled={isOccupied}>
+                              Layer {layer} {isOccupied ? '(Occupied)' : '(Available)'}
+                            </option>
+                          )
+                        })
+                      })()}
+                    </select>
+                  </div>
+
+                  {/* Additional Information */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Cause of Death
+                    </label>
+                    <input
+                      type="text"
+                      value={burialFormData.causeOfDeath}
+                      onChange={(e) => setBurialFormData({...burialFormData, causeOfDeath: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      placeholder="Optional"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Occupation
+                    </label>
+                    <input
+                      type="text"
+                      value={burialFormData.occupation}
+                      onChange={(e) => setBurialFormData({...burialFormData, occupation: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      placeholder="Optional"
+                    />
+                  </div>
+
+                  {/* Permit Information */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Permit Number
+                    </label>
+                    <input
+                      type="text"
+                      value={burialFormData.permitNumber}
+                      onChange={(e) => setBurialFormData({...burialFormData, permitNumber: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      placeholder="Optional"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Registration Number
+                    </label>
+                    <input
+                      type="text"
+                      value={burialFormData.registrationNumber}
+                      onChange={(e) => setBurialFormData({...burialFormData, registrationNumber: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      placeholder="Optional"
+                    />
+                  </div>
+
+                  {/* Contact Information */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Contact Person *
+                    </label>
+                    <input
+                      type="text"
+                      value={burialFormData.nextOfKin.name}
+                      onChange={(e) => setBurialFormData({
+                        ...burialFormData, 
+                        nextOfKin: {...burialFormData.nextOfKin, name: e.target.value}
+                      })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Contact Number *
+                    </label>
+                    <input
+                      type="tel"
+                      value={burialFormData.nextOfKin.contactNumber}
+                      onChange={(e) => setBurialFormData({
+                        ...burialFormData,
+                        nextOfKin: {...burialFormData.nextOfKin, contactNumber: e.target.value}
+                      })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Relationship to Deceased *
+                    </label>
+                    <select
+                      value={burialFormData.nextOfKin.relationship}
+                      onChange={(e) => setBurialFormData({
+                        ...burialFormData,
+                        nextOfKin: {...burialFormData.nextOfKin, relationship: e.target.value}
+                      })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      required
+                    >
+                      <option value="">Select Relationship</option>
+                      <option value="Spouse">Spouse</option>
+                      <option value="Parent">Parent</option>
+                      <option value="Child">Child</option>
+                      <option value="Sibling">Sibling</option>
+                      <option value="Relative">Other Relative</option>
+                      <option value="Friend">Friend</option>
+                      <option value="Legal Guardian">Legal Guardian</option>
+                    </select>
+                  </div>
+                  
+                  {/* Notes */}
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Additional Notes
+                    </label>
+                    <textarea
+                      value={burialFormData.notes}
+                      onChange={(e) => setBurialFormData({...burialFormData, notes: e.target.value})}
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      placeholder="Any additional information about the burial..."
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end space-x-3 pt-6 border-t">
+                  <button
+                    type="button"
+                    onClick={() => setShowBurialModal(false)}
+                    className="px-4 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSaving}
+                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center disabled:bg-gray-400"
+                  >
+                    {isSaving ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                        <span>Assigning...</span>
+                      </>
+                    ) : (
+                      <>
+                        <FiTarget className="mr-2" size={16} />
+                        <span>Assign Burial</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>

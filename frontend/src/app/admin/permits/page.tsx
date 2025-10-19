@@ -317,105 +317,6 @@ export default function AdminPermitsIndex() {
           </div>
         )}
 
-        {/* Permit Type Submodules Navigation */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-bold text-gray-900">Permit Categories</h3>
-            <p className="text-sm text-gray-500">Select permit type to view specific workflows and requirements</p>
-          </div>
-          <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              {/* All Permits */}
-              <button
-                onClick={() => setActiveSubmodule('all')}
-                className={`p-4 rounded-xl border-2 transition-all duration-300 ${
-                  activeSubmodule === 'all' 
-                    ? 'border-purple-500 bg-purple-50' 
-                    : 'border-gray-200 hover:border-purple-300 hover:bg-purple-25'
-                }`}
-              >
-                <div className="flex flex-col items-center space-y-2">
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                    activeSubmodule === 'all' ? 'bg-purple-500 text-white' : 'bg-gray-100 text-gray-600'
-                  }`}>
-                    <FiFileText size={24} />
-                  </div>
-                  <div className="text-center">
-                    <p className="font-semibold text-gray-900">All Permits</p>
-                    <p className="text-sm text-gray-500">{permits.length} total</p>
-                  </div>
-                </div>
-              </button>
-
-              {/* Burial Permits */}
-              <button
-                onClick={() => setActiveSubmodule('burial')}
-                className={`p-4 rounded-xl border-2 transition-all duration-300 ${
-                  activeSubmodule === 'burial' 
-                    ? 'border-blue-500 bg-blue-50' 
-                    : 'border-gray-200 hover:border-blue-300 hover:bg-blue-25'
-                }`}
-              >
-                <div className="flex flex-col items-center space-y-2">
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                    activeSubmodule === 'burial' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600'
-                  }`}>
-                    <FiUser size={24} />
-                  </div>
-                  <div className="text-center">
-                    <p className="font-semibold text-gray-900">Burial Permits</p>
-                    <p className="text-sm text-gray-500">{permits.filter(p => p.permitType === 'burial').length} permits</p>
-                  </div>
-                </div>
-              </button>
-
-              {/* Exhumation Permits */}
-              <button
-                onClick={() => setActiveSubmodule('exhumation')}
-                className={`p-4 rounded-xl border-2 transition-all duration-300 ${
-                  activeSubmodule === 'exhumation' 
-                    ? 'border-purple-500 bg-purple-50' 
-                    : 'border-gray-200 hover:border-purple-300 hover:bg-purple-25'
-                }`}
-              >
-                <div className="flex flex-col items-center space-y-2">
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                    activeSubmodule === 'exhumation' ? 'bg-purple-500 text-white' : 'bg-gray-100 text-gray-600'
-                  }`}>
-                    <FiFileText size={24} />
-                  </div>
-                  <div className="text-center">
-                    <p className="font-semibold text-gray-900">Exhumation</p>
-                    <p className="text-sm text-gray-500">{permits.filter(p => p.permitType === 'exhumation').length} permits</p>
-                  </div>
-                </div>
-              </button>
-
-              {/* Cremation Permits */}
-              <button
-                onClick={() => setActiveSubmodule('cremation')}
-                className={`p-4 rounded-xl border-2 transition-all duration-300 ${
-                  activeSubmodule === 'cremation' 
-                    ? 'border-orange-500 bg-orange-50' 
-                    : 'border-gray-200 hover:border-orange-300 hover:bg-orange-25'
-                }`}
-              >
-                <div className="flex flex-col items-center space-y-2">
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                    activeSubmodule === 'cremation' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600'
-                  }`}>
-                    <FiAlertTriangle size={24} />
-                  </div>
-                  <div className="text-center">
-                    <p className="font-semibold text-gray-900">Cremation</p>
-                    <p className="text-sm text-gray-500">{permits.filter(p => p.permitType === 'cremation').length} permits</p>
-                  </div>
-                </div>
-              </button>
-            </div>
-          </div>
-        </div>
-
         {/* Current Submodule Information */}
         {activeSubmodule !== 'all' && (
           <div className="bg-white rounded-2xl shadow-lg border border-gray-100">
@@ -464,38 +365,7 @@ export default function AdminPermitsIndex() {
             </div>
           </div>
         )}
-        {/* Filters */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div 
-                className="w-10 h-10 rounded-xl flex items-center justify-center"
-                style={{backgroundColor: '#9C27B0'}}
-              >
-                <div className="text-white">
-                  <FiFilter size={18} />
-                </div>
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-gray-900">Filter Permits</h3>
-                <p className="text-sm text-gray-500">Filter by status and workflow stage</p>
-              </div>
-            </div>
-            <select 
-              value={filter} 
-              onChange={(e) => setFilter(e.target.value)}
-              className="px-4 py-3 border border-gray-300 rounded-xl font-medium focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-              style={{minWidth: '200px'}}
-            >
-              <option value="all">All Status</option>
-              <option value="pending">Pending Review</option>
-              <option value="processing">Processing</option>
-              <option value="issued">Issued/Ready</option>
-              <option value="completed">Completed</option>
-              <option value="issues">Issues/Rejected</option>
-            </select>
-          </div>
-        </div>
+        
 
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -564,7 +434,7 @@ export default function AdminPermitsIndex() {
               <div>
                 <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Revenue</p>
                 <p className="text-3xl font-bold mt-2" style={{color: '#9C27B0'}}>
-                  ₱{filteredPermits.reduce((sum, p) => sum + (p.amountDue || 0), 0).toLocaleString()}
+                  ₱{filteredPermits.reduce((sum, p) => sum + (parseFloat(p.amountDue?.toString() || '0') || 0), 0).toLocaleString()}
                 </p>
                 <p className="text-sm text-gray-500 mt-1">Total fees</p>
               </div>
@@ -572,11 +442,44 @@ export default function AdminPermitsIndex() {
                 className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-md"
                 style={{backgroundColor: '#9C27B0'}}
               >
-                <div className="text-white">
-                  <FiDollarSign size={24} />
+                <div className="text-white text-2xl font-bold">
+                  ₱
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div 
+                className="w-10 h-10 rounded-xl flex items-center justify-center"
+                style={{backgroundColor: '#9C27B0'}}
+              >
+                <div className="text-white">
+                  <FiFilter size={18} />
+                </div>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Filter Permits</h3>
+                <p className="text-sm text-gray-500">Filter by status and workflow stage</p>
+              </div>
+            </div>
+            <select 
+              value={filter} 
+              onChange={(e) => setFilter(e.target.value)}
+              className="px-4 py-3 border border-gray-300 rounded-xl font-medium focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+              style={{minWidth: '200px'}}
+            >
+              <option value="all">All Status</option>
+              <option value="pending">Pending Review</option>
+              <option value="processing">Processing</option>
+              <option value="issued">Issued/Ready</option>
+              <option value="completed">Completed</option>
+              <option value="issues">Issues/Rejected</option>
+            </select>
           </div>
         </div>
 

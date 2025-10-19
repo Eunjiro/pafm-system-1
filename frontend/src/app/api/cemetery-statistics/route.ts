@@ -21,8 +21,10 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // For testing purposes, use a test token if no accessToken is available
-    const authToken = session.accessToken || 'test-token';
+    // For development, use test-token that works with backend auth middleware
+    const authToken = 'test-token'; // session?.accessToken || 'test-token';
+
+    console.log('Fetching cemetery statistics from backend...');
 
     // Call backend service for statistics
     const response = await fetch('http://localhost:3001/api/plots/statistics', {

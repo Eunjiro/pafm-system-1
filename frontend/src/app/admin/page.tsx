@@ -3,14 +3,13 @@
 import React, { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import DashboardStats from "../../components/DashboardStats"
-import RecentActivities from "../../components/RecentActivities"
-import QuickActions from "../../components/QuickActions"
+import useDashboardData from "../../hooks/useDashboardData"
 import { 
   FiUser, FiActivity, FiTrendingUp, FiShield, FiDatabase, FiCreditCard, 
   FiHardDrive, FiMail, FiRefreshCw, FiClock, FiAlertTriangle, FiCheckCircle,
   FiFileText, FiAward, FiUserCheck, FiDollarSign, FiBarChart, FiCalendar,
-  FiMapPin, FiMonitor, FiSettings, FiZap, FiGlobe, FiUsers, FiEye, FiDownload
+  FiMapPin, FiMonitor, FiSettings, FiZap, FiGlobe, FiUsers, FiEye, FiDownload,
+  FiPackage, FiHome, FiDroplet, FiServer
 } from "react-icons/fi"
 import { 
   MdDashboard, MdAssignment, MdLocalHospital, MdLocationOn, MdTrendingUp,
@@ -22,30 +21,12 @@ export default function AdminDashboard() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const [currentTime, setCurrentTime] = useState(new Date())
-  const [liveStats, setLiveStats] = useState({
-    activeUsers: 147,
-    pendingRequests: 23,
-    completedToday: 89,
-    systemLoad: 68
-  })
+  const { stats, activities, loading, error, refetch } = useDashboardData()
 
   // Update time every second
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000)
     return () => clearInterval(timer)
-  }, [])
-
-  // Simulate live data updates
-  useEffect(() => {
-    const dataTimer = setInterval(() => {
-      setLiveStats(prev => ({
-        activeUsers: prev.activeUsers + Math.floor(Math.random() * 10 - 5),
-        pendingRequests: Math.max(0, prev.pendingRequests + Math.floor(Math.random() * 6 - 3)),
-        completedToday: prev.completedToday + Math.floor(Math.random() * 3),
-        systemLoad: Math.max(30, Math.min(95, prev.systemLoad + Math.floor(Math.random() * 20 - 10)))
-      }))
-    }, 5000)
-    return () => clearInterval(dataTimer)
   }, [])
 
   // Show loading state
@@ -143,15 +124,15 @@ export default function AdminDashboard() {
                   <div className="flex items-center space-x-6 mt-3">
                     <div className="flex items-center space-x-2">
                       <FiUsers className="text-blue-500" size={16} />
-                      <span className="text-sm font-medium text-gray-700">{liveStats.activeUsers} Active Users</span>
+                      <span className="text-sm font-medium text-gray-700">{stats.users.activeUsers} Active Users</span>
                     </div>
                     <div className="flex items-center space-x-2">
                       <FiActivity className="text-orange-500" size={16} />
-                      <span className="text-sm font-medium text-gray-700">{liveStats.pendingRequests} Pending</span>
+                      <span className="text-sm font-medium text-gray-700">{stats.deathRegistrations.pending + stats.permits.pending + stats.certificates.pending} Pending</span>
                     </div>
                     <div className="flex items-center space-x-2">
                       <FiCheckCircle className="text-green-500" size={16} />
-                      <span className="text-sm font-medium text-gray-700">{liveStats.completedToday} Completed Today</span>
+                      <span className="text-sm font-medium text-gray-700">{stats.deathRegistrations.todayCompletions} Completed Today</span>
                     </div>
                   </div>
                 </div>
@@ -159,18 +140,23 @@ export default function AdminDashboard() {
               
               <div className="flex items-center space-x-4">
                 <div className="text-right mr-4">
-                  <p className="text-sm text-gray-500 font-medium">System Load</p>
+                  <p className="text-sm text-gray-500 font-medium">System Health</p>
                   <div className="flex items-center space-x-3">
                     <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
                       <div 
                         className="h-full rounded-full transition-all duration-1000 ease-out"
                         style={{
-                          width: `${liveStats.systemLoad}%`,
-                          backgroundColor: liveStats.systemLoad > 80 ? '#ef4444' : liveStats.systemLoad > 60 ? '#f59e0b' : '#10b981'
+                          width: stats.systemHealth.overallStatus === 'healthy' ? '100%' : 
+                                stats.systemHealth.overallStatus === 'degraded' ? '65%' : '25%',
+                          backgroundColor: stats.systemHealth.overallStatus === 'healthy' ? '#10b981' : 
+                                         stats.systemHealth.overallStatus === 'degraded' ? '#f59e0b' : '#ef4444'
                         }}
                       />
                     </div>
-                    <span className="text-sm font-bold text-gray-900">{liveStats.systemLoad}%</span>
+                    <span className="text-sm font-bold text-gray-900">
+                      {stats.systemHealth.overallStatus === 'healthy' ? '100%' : 
+                       stats.systemHealth.overallStatus === 'degraded' ? '65%' : '25%'}
+                    </span>
                   </div>
                 </div>
                 
@@ -206,201 +192,509 @@ export default function AdminDashboard() {
       </div>
 
       <div className="p-6 space-y-8">
-        {/* Executive KPI Dashboard */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Death Registrations KPI */}
-          <div className="bg-white rounded-3xl shadow-xl p-8 border border-gray-100 hover:shadow-2xl transition-all duration-300 group relative overflow-hidden">
-            <div 
-              className="absolute top-0 right-0 w-32 h-32 rounded-full opacity-10 transform translate-x-16 -translate-y-16"
-              style={{backgroundColor: '#4CAF50'}}
-            />
-            <div className="relative z-10">
-              <div className="flex items-center justify-between mb-6">
-                <div 
-                  className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300"
-                  style={{backgroundColor: '#4CAF50'}}
+        {/* Error State */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-6 mb-6">
+            <div className="flex items-center space-x-3">
+              <FiAlertTriangle className="text-red-600" size={24} />
+              <div>
+                <h3 className="text-lg font-semibold text-red-800">Data Loading Error</h3>
+                <p className="text-sm text-red-600 mt-1">{error}</p>
+                <button 
+                  onClick={refetch}
+                  className="mt-3 px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors"
                 >
-                  <MdLocalHospital className="text-white text-2xl" />
+                  Retry Loading
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Executive KPI Dashboard */}
+        {loading ? (
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="bg-white rounded-3xl shadow-xl p-8 border border-gray-100 animate-pulse">
+                <div className="h-16 bg-gray-200 rounded-2xl mb-6"></div>
+                <div className="h-4 bg-gray-200 rounded mb-2"></div>
+                <div className="h-3 bg-gray-200 rounded mb-4"></div>
+                <div className="space-y-2">
+                  <div className="h-2 bg-gray-200 rounded"></div>
+                  <div className="h-2 bg-gray-200 rounded"></div>
                 </div>
-                <div className="text-right">
-                  <div className="text-3xl font-black text-gray-900">1,247</div>
-                  <div className="text-sm font-medium text-green-600 flex items-center">
-                    <FiTrendingUp size={12} className="mr-1" />
-                    +8.2%
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* Death Registrations KPI */}
+            <div className="bg-white rounded-3xl shadow-xl p-8 border border-gray-100 hover:shadow-2xl transition-all duration-300 group relative overflow-hidden cursor-pointer"
+                 onClick={() => router.push('/admin/death-registration')}>
+              <div 
+                className="absolute top-0 right-0 w-32 h-32 rounded-full opacity-10 transform translate-x-16 -translate-y-16"
+                style={{backgroundColor: '#4CAF50'}}
+              />
+              <div className="relative z-10">
+                <div className="flex items-center justify-between mb-6">
+                  <div 
+                    className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300"
+                    style={{backgroundColor: '#4CAF50'}}
+                  >
+                    <MdLocalHospital className="text-white text-2xl" />
+                  </div>
+                  <div className="text-right">
+                    <div className="text-3xl font-black text-gray-900">{stats.deathRegistrations.total}</div>
+                    <div className="text-sm font-medium text-green-600 flex items-center">
+                      <FiTrendingUp size={12} className="mr-1" />
+                      Today: {stats.deathRegistrations.todaySubmissions}
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-2">Death Registrations</h3>
+                  <p className="text-sm text-gray-600">Total registrations in system</p>
+                  <div className="mt-4 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-gray-600">Pending</span>
+                      <span className="text-xs font-semibold text-orange-600">{stats.deathRegistrations.pending}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-gray-600">Processing</span>
+                      <span className="text-xs font-semibold text-blue-600">{stats.deathRegistrations.processing}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-gray-600">Completed</span>
+                      <span className="text-xs font-semibold text-green-600">{stats.deathRegistrations.completed}</span>
+                    </div>
                   </div>
                 </div>
               </div>
-              <div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">Death Registrations</h3>
-                <p className="text-sm text-gray-600">Total processed this month</p>
-                <div className="mt-4 flex items-center space-x-4">
-                  <div className="flex-1">
-                    <div className="flex justify-between text-xs text-gray-500 mb-1">
-                      <span>Regular</span>
-                      <span>892</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div 
-                        className="h-2 rounded-full transition-all duration-1000 ease-out"
-                        style={{width: '72%', backgroundColor: '#4CAF50'}}
-                      />
+            </div>
+
+            {/* Permits KPI */}
+            <div className="bg-white rounded-3xl shadow-xl p-8 border border-gray-100 hover:shadow-2xl transition-all duration-300 group relative overflow-hidden cursor-pointer"
+                 onClick={() => router.push('/admin/permits')}>
+              <div 
+                className="absolute top-0 right-0 w-32 h-32 rounded-full opacity-10 transform translate-x-16 -translate-y-16"
+                style={{backgroundColor: '#4A90E2'}}
+              />
+              <div className="relative z-10">
+                <div className="flex items-center justify-between mb-6">
+                  <div 
+                    className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300"
+                    style={{backgroundColor: '#4A90E2'}}
+                  >
+                    <MdAssignment className="text-white text-2xl" />
+                  </div>
+                  <div className="text-right">
+                    <div className="text-3xl font-black text-gray-900">{stats.permits.total}</div>
+                    <div className="text-sm font-medium text-blue-600 flex items-center">
+                      <FiDollarSign size={12} className="mr-1" />
+                      ₱{stats.permits.revenue.toLocaleString()}
                     </div>
                   </div>
                 </div>
-                <div className="mt-2 flex items-center space-x-4">
-                  <div className="flex-1">
-                    <div className="flex justify-between text-xs text-gray-500 mb-1">
-                      <span>Delayed</span>
-                      <span>355</span>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-2">Permits Issued</h3>
+                  <p className="text-sm text-gray-600">All permit types combined</p>
+                  <div className="mt-4 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-gray-600">Burial</span>
+                      <span className="text-xs font-semibold text-gray-900">{stats.permits.burial}</span>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div 
-                        className="h-2 rounded-full transition-all duration-1000 ease-out"
-                        style={{width: '28%', backgroundColor: '#FDA811'}}
-                      />
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-gray-600">Cremation</span>
+                      <span className="text-xs font-semibold text-gray-900">{stats.permits.cremation}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-gray-600">Exhumation</span>
+                      <span className="text-xs font-semibold text-gray-900">{stats.permits.exhumation}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Certificates KPI */}
+            <div className="bg-white rounded-3xl shadow-xl p-8 border border-gray-100 hover:shadow-2xl transition-all duration-300 group relative overflow-hidden cursor-pointer"
+                 onClick={() => router.push('/admin/certificates')}>
+              <div 
+                className="absolute top-0 right-0 w-32 h-32 rounded-full opacity-10 transform translate-x-16 -translate-y-16"
+                style={{backgroundColor: '#FDA811'}}
+              />
+              <div className="relative z-10">
+                <div className="flex items-center justify-between mb-6">
+                  <div 
+                    className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300"
+                    style={{backgroundColor: '#FDA811'}}
+                  >
+                    <FiAward className="text-white text-2xl" />
+                  </div>
+                  <div className="text-right">
+                    <div className="text-3xl font-black text-gray-900">{stats.certificates.total}</div>
+                    <div className="text-sm font-medium text-orange-600 flex items-center">
+                      <FiCalendar size={12} className="mr-1" />
+                      Today: {stats.certificates.todayRequests}
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-2">Certificates</h3>
+                  <p className="text-sm text-gray-600">Requests & issued certificates</p>
+                  <div className="mt-4 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-gray-600">Pending</span>
+                      <span className="text-xs font-semibold text-orange-600">{stats.certificates.pending}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-gray-600">Issued</span>
+                      <span className="text-xs font-semibold text-green-600">{stats.certificates.issued}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-gray-600">Revenue</span>
+                      <span className="text-xs font-semibold text-gray-900">₱{stats.certificates.revenue.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Cemetery Management KPI */}
+            <div className="bg-white rounded-3xl shadow-xl p-8 border border-gray-100 hover:shadow-2xl transition-all duration-300 group relative overflow-hidden cursor-pointer"
+                 onClick={() => router.push('/admin/cemetery')}>
+              <div 
+                className="absolute top-0 right-0 w-32 h-32 rounded-full opacity-10 transform translate-x-16 -translate-y-16"
+                style={{backgroundColor: '#10b981'}}
+              />
+              <div className="relative z-10">
+                <div className="flex items-center justify-between mb-6">
+                  <div 
+                    className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300"
+                    style={{backgroundColor: '#10b981'}}
+                  >
+                    <GiTombstone className="text-white text-2xl" />
+                  </div>
+                  <div className="text-right">
+                    <div className="text-3xl font-black text-gray-900">{stats.cemetery.totalPlots}</div>
+                    <div className="text-sm font-medium text-green-600 flex items-center">
+                      <FiMapPin size={12} className="mr-1" />
+                      Total Plots
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-2">Cemetery Plots</h3>
+                  <p className="text-sm text-gray-600">Occupancy & availability status</p>
+                  <div className="mt-4 space-y-3">
+                    <div>
+                      <div className="flex justify-between text-xs text-gray-500 mb-1">
+                        <span>Occupied</span>
+                        <span>{stats.cemetery.occupiedPlots} ({((stats.cemetery.occupiedPlots / stats.cemetery.totalPlots) * 100).toFixed(1)}%)</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="h-2 rounded-full transition-all duration-1000 ease-out"
+                          style={{
+                            width: `${(stats.cemetery.occupiedPlots / stats.cemetery.totalPlots) * 100}%`, 
+                            backgroundColor: '#ef4444'
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-xs text-gray-500 mb-1">
+                        <span>Available</span>
+                        <span>{stats.cemetery.availablePlots} ({((stats.cemetery.availablePlots / stats.cemetery.totalPlots) * 100).toFixed(1)}%)</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="h-2 rounded-full transition-all duration-1000 ease-out"
+                          style={{
+                            width: `${(stats.cemetery.availablePlots / stats.cemetery.totalPlots) * 100}%`, 
+                            backgroundColor: '#10b981'
+                          }}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
+        )}
 
-          {/* Permits KPI */}
-          <div className="bg-white rounded-3xl shadow-xl p-8 border border-gray-100 hover:shadow-2xl transition-all duration-300 group relative overflow-hidden">
-            <div 
-              className="absolute top-0 right-0 w-32 h-32 rounded-full opacity-10 transform translate-x-16 -translate-y-16"
-              style={{backgroundColor: '#4A90E2'}}
-            />
-            <div className="relative z-10">
-              <div className="flex items-center justify-between mb-6">
+        {/* Microservice Health Dashboard */}
+        <div className="bg-white rounded-3xl shadow-xl p-8 border border-gray-100">
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center space-x-4">
+              <div 
+                className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg"
+                style={{backgroundColor: '#4CAF50'}}
+              >
+                <FiServer className="text-white text-xl" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Microservice Health Monitor</h2>
+                <p className="text-sm text-gray-600">Real-time status of all system services</p>
+              </div>
+            </div>
+            <button 
+              onClick={refetch}
+              className="flex items-center space-x-2 px-4 py-2 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors"
+            >
+              <FiRefreshCw className="text-gray-600" size={16} />
+              <span className="text-sm font-medium text-gray-600">Refresh</span>
+            </button>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Cemetery & Burial Service */}
+            <div className="p-6 rounded-2xl border border-gray-200 bg-gray-50">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-3">
+                  <GiTombstone className="text-gray-700" size={20} />
+                  <span className="text-sm font-semibold text-gray-700">Cemetery & Burial</span>
+                </div>
+                <div className={`w-3 h-3 rounded-full ${
+                  stats.systemHealth.cemeteryService === 'healthy' ? 'bg-green-500' :
+                  stats.systemHealth.cemeteryService === 'degraded' ? 'bg-yellow-500' : 'bg-red-500'
+                } animate-pulse`}></div>
+              </div>
+              <div className="text-xs text-gray-500 mb-2">Status: 
+                <span className={`ml-1 font-medium ${
+                  stats.systemHealth.cemeteryService === 'healthy' ? 'text-green-600' :
+                  stats.systemHealth.cemeteryService === 'degraded' ? 'text-yellow-600' : 'text-red-600'
+                }`}>
+                  {stats.systemHealth.cemeteryService.toUpperCase()}
+                </span>
+              </div>
+              <div className="text-xs text-gray-500">Port: 3001</div>
+            </div>
+
+            {/* Water & Drainage Service */}
+            <div className="p-6 rounded-2xl border border-gray-200 bg-gray-50">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-3">
+                  <FiDroplet className="text-gray-700" size={20} />
+                  <span className="text-sm font-semibold text-gray-700">Water & Drainage</span>
+                </div>
+                <div className={`w-3 h-3 rounded-full ${
+                  stats.systemHealth.waterService === 'healthy' ? 'bg-green-500' :
+                  stats.systemHealth.waterService === 'degraded' ? 'bg-yellow-500' : 'bg-red-500'
+                }`}></div>
+              </div>
+              <div className="text-xs text-gray-500 mb-2">Status: 
+                <span className={`ml-1 font-medium ${
+                  stats.systemHealth.waterService === 'healthy' ? 'text-green-600' :
+                  stats.systemHealth.waterService === 'degraded' ? 'text-yellow-600' : 'text-red-600'
+                }`}>
+                  {stats.systemHealth.waterService.toUpperCase()}
+                </span>
+              </div>
+              <div className="text-xs text-gray-500">Port: 3002</div>
+            </div>
+
+            {/* Assets & Inventory Service */}
+            <div className="p-6 rounded-2xl border border-gray-200 bg-gray-50">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-3">
+                  <FiPackage className="text-gray-700" size={20} />
+                  <span className="text-sm font-semibold text-gray-700">Assets & Inventory</span>
+                </div>
+                <div className={`w-3 h-3 rounded-full ${
+                  stats.systemHealth.assetsService === 'healthy' ? 'bg-green-500' :
+                  stats.systemHealth.assetsService === 'degraded' ? 'bg-yellow-500' : 'bg-red-500'
+                }`}></div>
+              </div>
+              <div className="text-xs text-gray-500 mb-2">Status: 
+                <span className={`ml-1 font-medium ${
+                  stats.systemHealth.assetsService === 'healthy' ? 'text-green-600' :
+                  stats.systemHealth.assetsService === 'degraded' ? 'text-yellow-600' : 'text-red-600'
+                }`}>
+                  {stats.systemHealth.assetsService.toUpperCase()}
+                </span>
+              </div>
+              <div className="text-xs text-gray-500">Port: 3003</div>
+            </div>
+
+            {/* Facility Management Service */}
+            <div className="p-6 rounded-2xl border border-gray-200 bg-gray-50">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-3">
+                  <FiHome className="text-gray-700" size={20} />
+                  <span className="text-sm font-semibold text-gray-700">Facility Management</span>
+                </div>
+                <div className={`w-3 h-3 rounded-full ${
+                  stats.systemHealth.facilityService === 'healthy' ? 'bg-green-500' :
+                  stats.systemHealth.facilityService === 'degraded' ? 'bg-yellow-500' : 'bg-red-500'
+                }`}></div>
+              </div>
+              <div className="text-xs text-gray-500 mb-2">Status: 
+                <span className={`ml-1 font-medium ${
+                  stats.systemHealth.facilityService === 'healthy' ? 'text-green-600' :
+                  stats.systemHealth.facilityService === 'degraded' ? 'text-yellow-600' : 'text-red-600'
+                }`}>
+                  {stats.systemHealth.facilityService.toUpperCase()}
+                </span>
+              </div>
+              <div className="text-xs text-gray-500">Port: 3004</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Recent Activities & Quick Stats */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Recent Activities */}
+          <div className="bg-white rounded-3xl shadow-xl p-8 border border-gray-100">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center space-x-3">
                 <div 
-                  className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300"
+                  className="w-10 h-10 rounded-2xl flex items-center justify-center shadow-lg"
                   style={{backgroundColor: '#4A90E2'}}
                 >
-                  <MdAssignment className="text-white text-2xl" />
+                  <FiActivity className="text-white text-lg" />
                 </div>
-                <div className="text-right">
-                  <div className="text-3xl font-black text-gray-900">689</div>
-                  <div className="text-sm font-medium text-blue-600 flex items-center">
-                    <FiTrendingUp size={12} className="mr-1" />
-                    +12.4%
-                  </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">Recent Activities</h3>
+                  <p className="text-sm text-gray-600">Latest system activities</p>
                 </div>
               </div>
-              <div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">Permits Issued</h3>
-                <p className="text-sm text-gray-600">All permit types combined</p>
-                <div className="mt-4 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-600">Burial</span>
-                    <span className="text-xs font-semibold text-gray-900">423</span>
+              <button 
+                onClick={() => router.push('/admin/system/audit-logs')}
+                className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center space-x-1"
+              >
+                <span>View All</span>
+                <FiEye size={14} />
+              </button>
+            </div>
+            
+            <div className="space-y-4 max-h-80 overflow-y-auto">
+              {activities.length > 0 ? (
+                activities.map((activity) => (
+                  <div key={activity.id} className="flex items-start space-x-4 p-4 rounded-2xl bg-gray-50 hover:bg-gray-100 transition-colors">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                      activity.status === 'success' ? 'bg-green-100' :
+                      activity.status === 'warning' ? 'bg-yellow-100' :
+                      activity.status === 'error' ? 'bg-red-100' : 'bg-blue-100'
+                    }`}>
+                      {activity.type === 'death_registration' ? <MdLocalHospital className={`${
+                        activity.status === 'success' ? 'text-green-600' :
+                        activity.status === 'warning' ? 'text-yellow-600' :
+                        activity.status === 'error' ? 'text-red-600' : 'text-blue-600'
+                      }`} size={16} /> :
+                      activity.type === 'permit' ? <MdAssignment className={`${
+                        activity.status === 'success' ? 'text-green-600' :
+                        activity.status === 'warning' ? 'text-yellow-600' :
+                        activity.status === 'error' ? 'text-red-600' : 'text-blue-600'
+                      }`} size={16} /> :
+                      activity.type === 'certificate' ? <FiAward className={`${
+                        activity.status === 'success' ? 'text-green-600' :
+                        activity.status === 'warning' ? 'text-yellow-600' :
+                        activity.status === 'error' ? 'text-red-600' : 'text-blue-600'
+                      }`} size={16} /> :
+                      activity.type === 'user' ? <FiUsers className={`${
+                        activity.status === 'success' ? 'text-green-600' :
+                        activity.status === 'warning' ? 'text-yellow-600' :
+                        activity.status === 'error' ? 'text-red-600' : 'text-blue-600'
+                      }`} size={16} /> :
+                      <FiSettings className={`${
+                        activity.status === 'success' ? 'text-green-600' :
+                        activity.status === 'warning' ? 'text-yellow-600' :
+                        activity.status === 'error' ? 'text-red-600' : 'text-blue-600'
+                      }`} size={16} />}
+                    </div>
+                    
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{activity.title}</p>
+                      <p className="text-xs text-gray-500 mt-1 line-clamp-2">{activity.description}</p>
+                      <div className="flex items-center space-x-4 mt-2">
+                        <span className="text-xs text-gray-400">{activity.user}</span>
+                        <span className="text-xs text-gray-400">
+                          {new Date(activity.timestamp).toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-600">Cremation</span>
-                    <span className="text-xs font-semibold text-gray-900">189</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-600">Exhumation</span>
-                    <span className="text-xs font-semibold text-gray-900">77</span>
-                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8">
+                  <FiActivity className="mx-auto text-gray-400 mb-3" size={32} />
+                  <p className="text-gray-500">No recent activities</p>
                 </div>
-              </div>
+              )}
             </div>
           </div>
 
-          {/* Cemetery Management KPI */}
-          <div className="bg-white rounded-3xl shadow-xl p-8 border border-gray-100 hover:shadow-2xl transition-all duration-300 group relative overflow-hidden">
-            <div 
-              className="absolute top-0 right-0 w-32 h-32 rounded-full opacity-10 transform translate-x-16 -translate-y-16"
-              style={{backgroundColor: '#FDA811'}}
-            />
-            <div className="relative z-10">
-              <div className="flex items-center justify-between mb-6">
-                <div 
-                  className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300"
-                  style={{backgroundColor: '#FDA811'}}
-                >
-                  <GiTombstone className="text-white text-2xl" />
-                </div>
-                <div className="text-right">
-                  <div className="text-3xl font-black text-gray-900">2,847</div>
-                  <div className="text-sm font-medium text-orange-600 flex items-center">
-                    <FiMapPin size={12} className="mr-1" />
-                    Total Plots
-                  </div>
-                </div>
+          {/* Quick Statistics */}
+          <div className="bg-white rounded-3xl shadow-xl p-8 border border-gray-100">
+            <div className="flex items-center space-x-3 mb-6">
+              <div 
+                className="w-10 h-10 rounded-2xl flex items-center justify-center shadow-lg"
+                style={{backgroundColor: '#FDA811'}}
+              >
+                <FiBarChart className="text-white text-lg" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">Cemetery Plots</h3>
-                <p className="text-sm text-gray-600">Occupancy & availability status</p>
-                <div className="mt-4 space-y-3">
-                  <div>
-                    <div className="flex justify-between text-xs text-gray-500 mb-1">
-                      <span>Occupied</span>
-                      <span>1,923 (67.5%)</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div 
-                        className="h-2 rounded-full transition-all duration-1000 ease-out"
-                        style={{width: '67.5%', backgroundColor: '#ef4444'}}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-xs text-gray-500 mb-1">
-                      <span>Available</span>
-                      <span>924 (32.5%)</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div 
-                        className="h-2 rounded-full transition-all duration-1000 ease-out"
-                        style={{width: '32.5%', backgroundColor: '#10b981'}}
-                      />
-                    </div>
-                  </div>
-                </div>
+                <h3 className="text-xl font-bold text-gray-900">Quick Statistics</h3>
+                <p className="text-sm text-gray-600">Key metrics at a glance</p>
               </div>
             </div>
-          </div>
 
-          {/* Revenue KPI */}
-          <div className="bg-white rounded-3xl shadow-xl p-8 border border-gray-100 hover:shadow-2xl transition-all duration-300 group relative overflow-hidden">
-            <div 
-              className="absolute top-0 right-0 w-32 h-32 rounded-full opacity-10 transform translate-x-16 -translate-y-16"
-              style={{backgroundColor: '#10b981'}}
-            />
-            <div className="relative z-10">
-              <div className="flex items-center justify-between mb-6">
-                <div 
-                  className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300"
-                  style={{backgroundColor: '#10b981'}}
-                >
-                  <FiDollarSign className="text-white text-2xl" />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 rounded-2xl bg-green-50 border border-green-100">
+                <div className="flex items-center space-x-2 mb-2">
+                  <FiUsers className="text-green-600" size={16} />
+                  <span className="text-sm font-medium text-green-700">Users</span>
                 </div>
-                <div className="text-right">
-                  <div className="text-3xl font-black text-gray-900">₱847K</div>
-                  <div className="text-sm font-medium text-green-600 flex items-center">
-                    <FiTrendingUp size={12} className="mr-1" />
-                    +15.7%
-                  </div>
-                </div>
+                <div className="text-2xl font-bold text-green-900">{stats.users.totalUsers}</div>
+                <div className="text-xs text-green-600">+{stats.users.newToday} new today</div>
               </div>
-              <div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">Monthly Revenue</h3>
-                <p className="text-sm text-gray-600">October 2025 collections</p>
-                <div className="mt-4 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-600">Registration Fees</span>
-                    <span className="text-xs font-semibold text-gray-900">₱467K</span>
+
+              <div className="p-4 rounded-2xl bg-blue-50 border border-blue-100">
+                <div className="flex items-center space-x-2 mb-2">
+                  <FiActivity className="text-blue-600" size={16} />
+                  <span className="text-sm font-medium text-blue-700">Active Now</span>
+                </div>
+                <div className="text-2xl font-bold text-blue-900">{stats.users.activeUsers}</div>
+                <div className="text-xs text-blue-600">{((stats.users.activeUsers / stats.users.totalUsers) * 100).toFixed(1)}% online</div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-purple-50 border border-purple-100">
+                <div className="flex items-center space-x-2 mb-2">
+                  <FiDollarSign className="text-purple-600" size={16} />
+                  <span className="text-sm font-medium text-purple-700">Revenue</span>
+                </div>
+                <div className="text-2xl font-bold text-purple-900">
+                  ₱{(stats.permits.revenue + stats.certificates.revenue).toLocaleString()}
+                </div>
+                <div className="text-xs text-purple-600">Total collected</div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-orange-50 border border-orange-100">
+                <div className="flex items-center space-x-2 mb-2">
+                  <FiClock className="text-orange-600" size={16} />
+                  <span className="text-sm font-medium text-orange-700">Maintenance</span>
+                </div>
+                <div className="text-2xl font-bold text-orange-900">{stats.cemetery.maintenanceRequired}</div>
+                <div className="text-xs text-orange-600">Plots need attention</div>
+              </div>
+            </div>
+
+            <div className="mt-6 p-4 rounded-2xl bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-medium text-gray-700">Overall System Health</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {Object.values(stats.systemHealth).slice(0, 4).filter(status => status === 'healthy').length}/4 services healthy
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-600">Permit Fees</span>
-                    <span className="text-xs font-semibold text-gray-900">₱284K</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-600">Certificate Fees</span>
-                    <span className="text-xs font-semibold text-gray-900">₱96K</span>
-                  </div>
+                </div>
+                <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                  stats.systemHealth.overallStatus === 'healthy' ? 'bg-green-100 text-green-700' :
+                  stats.systemHealth.overallStatus === 'degraded' ? 'bg-yellow-100 text-yellow-700' :
+                  'bg-red-100 text-red-700'
+                }`}>
+                  {stats.systemHealth.overallStatus.toUpperCase()}
                 </div>
               </div>
             </div>
@@ -998,16 +1292,16 @@ export default function AdminDashboard() {
               
               <div className="flex items-center space-x-4">
                 <div className="text-center">
-                  <div className="text-lg font-bold text-gray-900">{liveStats.activeUsers}</div>
+                  <div className="text-lg font-bold text-gray-900">{stats.users.activeUsers}</div>
                   <div className="text-xs text-gray-500">Active Users</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-lg font-bold text-gray-900">{liveStats.completedToday}</div>
+                  <div className="text-lg font-bold text-gray-900">{stats.deathRegistrations.todayCompletions}</div>
                   <div className="text-xs text-gray-500">Completed Today</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-lg font-bold text-gray-900">₱847K</div>
-                  <div className="text-xs text-gray-500">Monthly Revenue</div>
+                  <div className="text-lg font-bold text-gray-900">₱{(stats.permits.revenue + stats.certificates.revenue).toLocaleString()}</div>
+                  <div className="text-xs text-gray-500">Total Revenue</div>
                 </div>
               </div>
             </div>

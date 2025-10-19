@@ -14,16 +14,9 @@ export async function POST(request: NextRequest) {
   try {
     console.log('=== Burial Assignment API Called ===')
     
-    const session = await getServerSession()
-    console.log('Session:', session ? 'Found' : 'Not found')
-    
-    if (!session) {
-      console.log('No session - returning 401')
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      )
-    }
+    // For development, always use test-token
+    const authToken = 'test-token'
+    console.log('Using auth token:', authToken)
 
     const body = await request.json()
     console.log('Burial assignment request body:', JSON.stringify(body, null, 2))
@@ -46,34 +39,63 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // For testing purposes, use a test token if no accessToken is available
-    const authToken = session.accessToken || 'test-token'
-
-    // Assign plot with deceased information directly
-    // The backend will create the deceased record and assignment in one step
-    const assignmentPayload = {
-      occupantDetails: {
-        firstName: deceased.firstName,
-        lastName: deceased.lastName,
-        middleName: deceased.middleName || '',
-        dateOfBirth: deceased.dateOfBirth,
-        dateOfDeath: deceased.dateOfDeath,
-        gender: deceased.gender || 'male',
-        causeOfDeath: deceased.causeOfDeath || '',
-        occupation: deceased.occupation || '',
-        placeOfDeath: deceased.placeOfDeath || '',
-        residenceAddress: deceased.residenceAddress || '',
-        citizenship: deceased.citizenship || 'Filipino',
-        civilStatus: deceased.civilStatus || 'Single',
-        layer: layer || 1,
-        notes: notes || `Burial assignment for ${deceased.firstName} ${deceased.lastName}`
-      }
+    // First, create the deceased record
+    const deceasedPayload = {
+      firstName: deceased.firstName,
+      lastName: deceased.lastName,
+      middleName: deceased.middleName || '',
+      dateOfBirth: deceased.dateOfBirth,
+      dateOfDeath: deceased.dateOfDeath,
+      gender: deceased.gender || 'male',
+      causeOfDeath: deceased.causeOfDeath || '',
+      occupation: deceased.occupation || '',
+      placeOfDeath: deceased.placeOfDeath || '',
+      residenceAddress: deceased.residenceAddress || '',
+      citizenship: deceased.citizenship || 'Filipino',
+      civilStatus: deceased.civilStatus || 'Single'
     }
 
-    console.log('Assigning plot with deceased details:', plotId, assignmentPayload)
+    console.log('Creating deceased record:', deceasedPayload)
 
-    const assignmentResponse = await fetch(`http://localhost:3001/api/plots/${plotId}`, {
-      method: 'PUT',
+    const deceasedResponse = await fetch('http://localhost:3001/api/deceased', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(deceasedPayload)
+    })
+
+    if (!deceasedResponse.ok) {
+      console.error('Failed to create deceased record:', deceasedResponse.status)
+      let errorData
+      try {
+        errorData = await deceasedResponse.json()
+      } catch (e) {
+        errorData = await deceasedResponse.text()
+      }
+      console.error('Deceased creation error:', errorData)
+      
+      return NextResponse.json(
+        { success: false, error: 'Failed to create deceased record', details: errorData },
+        { status: deceasedResponse.status }
+      )
+    }
+
+    const deceasedResult = await deceasedResponse.json()
+    console.log('Deceased record created:', deceasedResult)
+
+    // Now assign the plot
+    const assignmentPayload = {
+      deceasedId: deceasedResult.data.id,
+      permitId: permitId || null,
+      notes: notes || `Burial assignment for ${deceased.firstName} ${deceased.lastName}${layer ? ` - Layer ${layer}` : ''}`
+    }
+
+    console.log('Assigning plot:', plotId, assignmentPayload)
+
+    const assignmentResponse = await fetch(`http://localhost:3001/api/plots/${plotId}/assign`, {
+      method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
         'Content-Type': 'application/json',
@@ -83,12 +105,17 @@ export async function POST(request: NextRequest) {
 
     if (!assignmentResponse.ok) {
       console.error('Failed to assign plot:', assignmentResponse.status)
-      const errorData = await assignmentResponse.text()
+      let errorData
+      try {
+        errorData = await assignmentResponse.json()
+      } catch (e) {
+        errorData = await assignmentResponse.text()
+      }
       console.error('Plot assignment error:', errorData)
       
       return NextResponse.json(
         { success: false, error: 'Failed to assign plot', details: errorData },
-        { status: 500 }
+        { status: assignmentResponse.status }
       )
     }
 
@@ -97,7 +124,11 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: assignmentResult.data,
+      data: {
+        deceased: deceasedResult.data,
+        assignment: assignmentResult.data.assignment,
+        plot: assignmentResult.data.plot
+      },
       message: `Successfully assigned plot to ${deceased.firstName} ${deceased.lastName}`
     })
 

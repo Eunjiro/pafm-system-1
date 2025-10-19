@@ -60,7 +60,7 @@ router.get('/', requireCitizen, async (req, res) => {
               deceased: {
                 select: {
                   id: true,
-                  firstName: true,
+                  fullNameFirst: true,
                   lastName: true,
                   dateOfBirth: true,
                   dateOfDeath: true
@@ -69,8 +69,7 @@ router.get('/', requireCitizen, async (req, res) => {
               permit: {
                 select: {
                   id: true,
-                  permitType: true,
-                  status: true
+                  permitNumber: true
                 }
               },
               assigner: {
@@ -186,7 +185,7 @@ router.get('/:id', requireCitizen, async (req, res) => {
             fullNameFirst: true,
             fullNameLast: true,
             email: true,
-            contactNo: true
+            phone: true
           }
         },
         assignments: {
@@ -194,19 +193,19 @@ router.get('/:id', requireCitizen, async (req, res) => {
             deceased: {
               select: {
                 id: true,
-                firstName: true,
+                fullNameFirst: true,
                 lastName: true,
                 dateOfBirth: true,
                 dateOfDeath: true,
-                middleName: true
+                registrationNumber: true
               }
             },
             permit: {
               select: {
                 id: true,
-                permitType: true,
+                permitNumber: true,
                 status: true,
-                createdAt: true
+                appliedAt: true
               }
             },
             assigner: {
@@ -251,8 +250,6 @@ router.put('/:id', requireEmployee, async (req, res) => {
   try {
     const { id } = req.params;
     const {
-      cemeteryId,
-      blockId,
       section,
       block,
       lot,
@@ -275,34 +272,6 @@ router.put('/:id', requireEmployee, async (req, res) => {
       });
     }
 
-    // If blockId is provided, verify it exists
-    if (blockId !== undefined && blockId !== null) {
-      const blockExists = await prisma.cemeteryBlock.findUnique({
-        where: { id: parseInt(blockId) }
-      });
-
-      if (!blockExists) {
-        return res.status(400).json({
-          success: false,
-          error: `Block with ID ${blockId} not found`
-        });
-      }
-    }
-
-    // If cemeteryId is provided, verify it exists
-    if (cemeteryId !== undefined && cemeteryId !== null) {
-      const cemeteryExists = await prisma.cemetery.findUnique({
-        where: { id: parseInt(cemeteryId) }
-      });
-
-      if (!cemeteryExists) {
-        return res.status(400).json({
-          success: false,
-          error: `Cemetery with ID ${cemeteryId} not found`
-        });
-      }
-    }
-
     // Check if plotCode is unique (if being updated)
     if (plotCode && plotCode !== existingPlot.plotCode) {
       const existingCode = await prisma.cemeteryPlot.findUnique({
@@ -319,8 +288,6 @@ router.put('/:id', requireEmployee, async (req, res) => {
 
     const updateData = {};
     
-    if (cemeteryId !== undefined) updateData.cemeteryId = cemeteryId ? parseInt(cemeteryId) : null;
-    if (blockId !== undefined) updateData.blockId = blockId ? parseInt(blockId) : null;
     if (section !== undefined) updateData.section = section;
     if (block !== undefined) updateData.block = block;
     if (lot !== undefined) updateData.lot = lot;
@@ -361,11 +328,15 @@ router.put('/:id', requireEmployee, async (req, res) => {
     // Create audit log
     await prisma.auditLog.create({
       data: {
-        actorUserId: req.user.id,
+        userId: req.user.id,
         action: 'UPDATE_CEMETERY_PLOT',
-        moduleName: 'cemetery_plots',
-        referenceId: parseInt(id),
-        details: `Updated plot ${updatedPlot.plotCode} - modified fields: ${Object.keys(updateData).join(', ')}`
+        tableName: 'cemetery_plots',
+        recordId: parseInt(id),
+        oldValues: existingPlot,
+        newValues: updatedPlot,
+        changes: Object.keys(updateData),
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent') || 'Unknown'
       }
     });
 
@@ -415,35 +386,10 @@ router.post('/:id/assign', requireEmployee, async (req, res) => {
       });
     }
 
-    // Check if plot can accept more burials (multi-layer support)
-    const maxLayers = plot.maxLayers || 3;
-    const currentAssignments = await prisma.plotAssignment.count({
-      where: { 
-        plotId: parseInt(id),
-        status: { not: 'EXHUMED' } // Don't count exhumed burials
-      }
-    });
-
-    if (currentAssignments >= maxLayers) {
+    if (plot.status !== 'VACANT' && plot.status !== 'RESERVED') {
       return res.status(400).json({
         success: false,
-        error: `Plot has reached maximum capacity (${maxLayers} layers). Current assignments: ${currentAssignments}`
-      });
-    }
-
-    // If plot is completely full but trying to add more
-    if (plot.status === 'OCCUPIED' && currentAssignments >= maxLayers) {
-      return res.status(400).json({
-        success: false,
-        error: 'Plot is at maximum capacity'
-      });
-    }
-
-    // If plot is not available at all (e.g., blocked, unavailable)
-    if (plot.status !== 'VACANT' && plot.status !== 'RESERVED' && plot.status !== 'OCCUPIED') {
-      return res.status(400).json({
-        success: false,
-        error: `Plot is not available for assignment (status: ${plot.status})`
+        error: 'Plot is not available for assignment'
       });
     }
 
@@ -528,11 +474,15 @@ router.post('/:id/assign', requireEmployee, async (req, res) => {
     // Create audit log
     await prisma.auditLog.create({
       data: {
-        actorUserId: req.user.id,
+        userId: req.user.id,
         action: 'ASSIGN_CEMETERY_PLOT',
-        moduleName: 'cemetery_plots',
-        referenceId: result.assignment.id,
-        details: `Assigned plot ${result.plot.plotCode} to deceased ID ${result.assignment.deceasedId}`
+        tableName: 'plot_assignments',
+        recordId: result.assignment.id,
+        oldValues: null,
+        newValues: result.assignment,
+        changes: ['plot_assignment_created', 'plot_status_updated'],
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent') || 'Unknown'
       }
     });
 
@@ -629,11 +579,15 @@ router.post('/:id/reserve', requireEmployee, async (req, res) => {
     // Create audit log
     await prisma.auditLog.create({
       data: {
-        actorUserId: req.user.id,
+        userId: req.user.id,
         action: 'RESERVE_CEMETERY_PLOT',
-        moduleName: 'cemetery_plots',
-        referenceId: parseInt(id),
-        details: `Reserved plot ${updatedPlot.plotCode} for user ID ${reservedBy}`
+        tableName: 'cemetery_plots',
+        recordId: parseInt(id),
+        oldValues: plot,
+        newValues: updatedPlot,
+        changes: ['status', 'reservedBy', 'reservedUntil'],
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent') || 'Unknown'
       }
     });
 
@@ -689,11 +643,15 @@ router.delete('/:id/reservation', requireEmployee, async (req, res) => {
     // Create audit log
     await prisma.auditLog.create({
       data: {
-        actorUserId: req.user.id,
+        userId: req.user.id,
         action: 'CANCEL_PLOT_RESERVATION',
-        moduleName: 'cemetery_plots',
-        referenceId: parseInt(id),
-        details: `Cancelled reservation for plot ${updatedPlot.plotCode}`
+        tableName: 'cemetery_plots',
+        recordId: parseInt(id),
+        oldValues: plot,
+        newValues: updatedPlot,
+        changes: ['status', 'reservedBy', 'reservedUntil'],
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent') || 'Unknown'
       }
     });
 
@@ -873,8 +831,6 @@ router.get('/map/coordinates', requireCitizen, async (req, res) => {
 router.post('/', requireEmployee, async (req, res) => {
   try {
     const {
-      cemeteryId,
-      blockId,
       cemeteryName = "Quezon City Public Cemetery",
       section,
       block,
@@ -893,34 +849,6 @@ router.post('/', requireEmployee, async (req, res) => {
         success: false,
         error: 'Section, block, and lot are required'
       });
-    }
-
-    // If blockId is provided, verify it exists
-    if (blockId) {
-      const blockExists = await prisma.cemeteryBlock.findUnique({
-        where: { id: parseInt(blockId) }
-      });
-
-      if (!blockExists) {
-        return res.status(400).json({
-          success: false,
-          error: `Block with ID ${blockId} not found`
-        });
-      }
-    }
-
-    // If cemeteryId is provided, verify it exists
-    if (cemeteryId) {
-      const cemeteryExists = await prisma.cemetery.findUnique({
-        where: { id: parseInt(cemeteryId) }
-      });
-
-      if (!cemeteryExists) {
-        return res.status(400).json({
-          success: false,
-          error: `Cemetery with ID ${cemeteryId} not found`
-        });
-      }
     }
 
     // Check if plotCode is unique (if provided)
@@ -961,10 +889,7 @@ router.post('/', requireEmployee, async (req, res) => {
       size,
       latitude: latitude ? parseFloat(latitude) : null,
       longitude: longitude ? parseFloat(longitude) : null,
-      status,
-      // Add foreign key relationships
-      blockId: blockId ? parseInt(blockId) : null,
-      cemeteryId: cemeteryId ? parseInt(cemeteryId) : null
+      status
     };
 
     const newPlot = await prisma.cemeteryPlot.create({
@@ -983,7 +908,7 @@ router.post('/', requireEmployee, async (req, res) => {
             deceased: {
               select: {
                 id: true,
-                firstName: true,
+                fullNameFirst: true,
                 lastName: true,
                 dateOfBirth: true,
                 dateOfDeath: true

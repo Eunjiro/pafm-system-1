@@ -7,6 +7,9 @@ import {
   FiUsers, FiSettings, FiClipboard, 
   FiChevronRight, FiChevronDown, FiMenu, FiX, FiMap,
   FiDollarSign, FiTrendingUp, FiAward, FiBarChart,
+  FiDroplet, FiSlash, FiFileText, FiPackage, FiDatabase,
+  FiTruck, FiShoppingCart, FiTool, FiHome, FiCalendar,
+  FiGrid, FiClock, FiActivity
 } from "react-icons/fi"
 import { 
   MdDashboard, MdAssignment, 
@@ -32,48 +35,95 @@ const sidebarItems: SidebarItem[] = [
     icon: MdDashboard
   },
   
-  // MODULE 1: DEATH REGISTRATION - Simplified
+  // MICROSERVICE 1: CEMETERY & BURIAL MANAGEMENT
   {
-    id: "death-registration",
-    label: "Death Registrations",
-    href: "/admin/death-registration",
-    icon: MdLocalHospital
-  },
-
-  // MODULE 2: PERMIT MANAGEMENT - With Submodules
-  {
-    id: "permits",
-    label: "Permit Management",
-    icon: MdAssignment,
+    id: "cemetery-burial",
+    label: "Cemetery & Burial Management",
+    icon: GiTombstone,
     children: [
-      { id: "permits-overview", label: "All Permits", href: "/admin/permits", icon: MdAssignment },
-      { id: "burial-permits", label: "Burial Permits", href: "/admin/permits/burial", icon: FiUsers },
-      { id: "exhumation-permits", label: "Exhumation Permits", href: "/admin/permits/exhumation", icon: FiClipboard },
-      { id: "cremation-permits", label: "Cremation Permits", href: "/admin/permits/cremation", icon: FiTrendingUp }
+      // Death Registration Module
+      {
+        id: "death-registration",
+        label: "Death Registrations",
+        href: "/admin/death-registration",
+        icon: MdLocalHospital
+      },
+      // Permit Management Module
+      {
+        id: "permits",
+        label: "Permit Management",
+        icon: MdAssignment,
+        children: [
+          { id: "permits-overview", label: "All Permits", href: "/admin/permits", icon: MdAssignment },
+          { id: "burial-permits", label: "Burial Permits", href: "/admin/permits/burial", icon: FiUsers },
+          { id: "exhumation-permits", label: "Exhumation Permits", href: "/admin/permits/exhumation", icon: FiClipboard },
+          { id: "cremation-permits", label: "Cremation Permits", href: "/admin/permits/cremation", icon: FiTrendingUp }
+        ]
+      },
+      // Certificate Management Module
+      {
+        id: "certificates",
+        label: "Certificate Requests",
+        href: "/admin/certificates",
+        icon: FiAward
+      },
+      // Cemetery Infrastructure Module
+      {
+        id: "cemetery",
+        label: "Cemetery Management",
+        icon: MdLocationOn,
+        children: [
+          { id: "cemetery-creation", label: "Create Cemetery", href: "/admin/cemetery-map", icon: FiMap },
+          { id: "cemetery-management", label: "Manage Cemeteries", href: "/admin/cemetery", icon: GiTombstone },
+          { id: "cemetery-plots", label: "Plot Management", href: "/admin/cemetery/plots", icon: MdLocationOn }
+        ]
+      }
     ]
   },
 
-  // MODULE 3: CERTIFICATE REQUESTS - Simplified
+  // MICROSERVICE 2: WATER SUPPLY & DRAINAGE REQUEST
   {
-    id: "certificates",
-    label: "Certificate Requests",
-    href: "/admin/certificates",
-    icon: FiAward
-  },
-
-  // MODULE 4: CEMETERY MANAGEMENT - Simplified
-  {
-    id: "cemetery",
-    label: "Cemetery Management",
-    icon: MdLocationOn,
+    id: "water-drainage",
+    label: "Water Supply & Drainage",
+    icon: FiDroplet,
     children: [
-      { id: "cemetery-creation", label: "Create Cemetery", href: "/admin/cemetery-map", icon: FiMap },
-      { id: "cemetery-management", label: "Manage Cemeteries", href: "/admin/cemetery", icon: GiTombstone },
-      { id: "cemetery-plots", label: "Plot Management", href: "/admin/cemetery/plots", icon: MdLocationOn }
+      { id: "water-requests", label: "Water Connection Requests", href: "/admin/water/requests", icon: FiDroplet },
+      { id: "drainage-requests", label: "Drainage Requests", href: "/admin/drainage/requests", icon: FiSlash },
+      { id: "water-permits", label: "Water Permits", href: "/admin/water/permits", icon: FiFileText },
+      { id: "infrastructure-map", label: "Infrastructure Mapping", href: "/admin/water/infrastructure", icon: FiMap },
+      { id: "billing-management", label: "Billing Management", href: "/admin/water/billing", icon: FiDollarSign }
     ]
   },
 
-  // ADMIN-SPECIFIC FUNCTIONS
+  // MICROSERVICE 3: ASSETS INVENTORY & WAREHOUSE MANAGEMENT
+  {
+    id: "assets-inventory",
+    label: "Assets & Inventory",
+    icon: FiPackage,
+    children: [
+      { id: "asset-registry", label: "Asset Registry", href: "/admin/assets/registry", icon: FiDatabase },
+      { id: "inventory-management", label: "Inventory Management", href: "/admin/inventory", icon: FiPackage },
+      { id: "warehouse-operations", label: "Warehouse Operations", href: "/admin/warehouse", icon: FiTruck },
+      { id: "procurement", label: "Procurement", href: "/admin/procurement", icon: FiShoppingCart },
+      { id: "asset-maintenance", label: "Asset Maintenance", href: "/admin/assets/maintenance", icon: FiTool }
+    ]
+  },
+
+  // MICROSERVICE 4: FACILITY MANAGEMENT
+  {
+    id: "facility-management",
+    label: "Facility Management",
+    icon: FiHome,
+    children: [
+      { id: "facility-booking", label: "Facility Booking", href: "/admin/facilities/booking", icon: FiCalendar },
+      { id: "facility-maintenance", label: "Facility Maintenance", href: "/admin/facilities/maintenance", icon: FiSettings },
+      { id: "facility-resources", label: "Resource Management", href: "/admin/facilities/resources", icon: FiGrid },
+      { id: "facility-schedules", label: "Event Scheduling", href: "/admin/facilities/schedules", icon: FiClock },
+      { id: "facility-reports", label: "Facility Reports", href: "/admin/facilities/reports", icon: FiBarChart }
+    ]
+  },
+
+  // SYSTEM ADMINISTRATION
   {
     id: "users",
     label: "User Management",
@@ -86,21 +136,23 @@ const sidebarItems: SidebarItem[] = [
     label: "System Administration",
     icon: FiSettings,
     children: [
+      { id: "service-health", label: "Service Health Monitor", href: "/admin/system/health", icon: FiActivity },
       { id: "audit-logs", label: "Audit Logs", href: "/admin/system/audit-logs", icon: FiClipboard },
       { id: "fee-management", label: "Fee Management", href: "/admin/system/fees", icon: FiDollarSign },
       { id: "system-settings", label: "System Settings", href: "/admin/system/settings", icon: FiSettings }
     ]
   },
 
-  // ADMIN-SPECIFIC REPORTS
+  // ANALYTICS & REPORTS
   {
     id: "reports",
     label: "Reports & Analytics",
     icon: FiBarChart,
     children: [
-      { id: "dashboard-analytics", label: "Dashboard Analytics", href: "/admin/reports/dashboard", icon: FiTrendingUp },
-      { id: "audit-reports", label: "Audit Reports", href: "/admin/reports/audit", icon: FiClipboard },
-      { id: "financial-reports", label: "Financial Reports", href: "/admin/reports/financial", icon: FiDollarSign }
+      { id: "cross-service-analytics", label: "Cross-Service Analytics", href: "/admin/reports/cross-service", icon: FiTrendingUp },
+      { id: "service-performance", label: "Service Performance", href: "/admin/reports/performance", icon: FiActivity },
+      { id: "financial-reports", label: "Financial Reports", href: "/admin/reports/financial", icon: FiDollarSign },
+      { id: "operational-reports", label: "Operational Reports", href: "/admin/reports/operational", icon: FiFileText }
     ]
   }
 ];
@@ -123,10 +175,16 @@ export default function AdminSidebar({ isCollapsed, onToggle }: AdminSidebarProp
     return pathname === href || pathname.startsWith(cleanHref + "/")
   }
 
-  const isParentActive = (item: SidebarItem) => {
+  const isParentActive = (item: SidebarItem): boolean => {
     if (item.href && isActive(item.href)) return true
     if (item.children) {
-      return item.children.some(child => isActive(child.href))
+      return item.children.some(child => {
+        if (child.href && isActive(child.href)) return true
+        if (child.children) {
+          return child.children.some(grandchild => isActive(grandchild.href))
+        }
+        return false
+      })
     }
     return false
   }
@@ -141,13 +199,42 @@ export default function AdminSidebar({ isCollapsed, onToggle }: AdminSidebarProp
 
   // Auto-expand parent items when child is active
   useEffect(() => {
+    const itemsToExpand: string[] = []
+    
     sidebarItems.forEach(item => {
-      if (item.children && item.children.some(child => isActive(child.href))) {
-        if (!expandedItems.includes(item.id)) {
-          setExpandedItems(prev => [...prev, item.id])
+      if (item.children) {
+        // Check if any direct child is active
+        const hasActiveChild = item.children.some(child => {
+          if (child.href && isActive(child.href)) return true
+          if (child.children) {
+            // Check if any grandchild is active
+            const hasActiveGrandchild = child.children.some(grandchild => isActive(grandchild.href))
+            if (hasActiveGrandchild) {
+              itemsToExpand.push(child.id) // Also expand the child that has active grandchild
+            }
+            return hasActiveGrandchild
+          }
+          return false
+        })
+        
+        if (hasActiveChild) {
+          itemsToExpand.push(item.id)
         }
       }
     })
+    
+    // Update expanded items if there are items to expand
+    if (itemsToExpand.length > 0) {
+      setExpandedItems(prev => {
+        const newExpanded = [...prev]
+        itemsToExpand.forEach(id => {
+          if (!newExpanded.includes(id)) {
+            newExpanded.push(id)
+          }
+        })
+        return newExpanded
+      })
+    }
   }, [pathname])
 
   return (
@@ -315,64 +402,204 @@ export default function AdminSidebar({ isCollapsed, onToggle }: AdminSidebarProp
             {!isCollapsed && item.children && expandedItems.includes(item.id) && (
               <div className="mt-1 ml-4 space-y-1">
                 {item.children.map((child) => (
-                  <Link
-                    key={child.id}
-                    href={child.href || '#'}
-                    prefetch={true}
-                    className={`group relative flex items-center px-3 py-2 rounded-lg transition-all duration-200 overflow-hidden ${
-                      isActive(child.href)
-                        ? 'text-white shadow-sm'
-                        : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                    style={isActive(child.href) 
-                      ? {background: 'linear-gradient(135deg, #FDA811 0%, #E6951A 100%)'} 
-                      : {}
-                    }
-                  >
-                    {/* Animated background for hover - only show when not active */}
-                    {!isActive(child.href) && (
-                      <div className="absolute inset-0 bg-gray-50 rounded-lg transform scale-x-0 group-hover:scale-x-100 transition-transform duration-200 origin-left"></div>
-                    )}
-                    
-                    {/* Left accent bar */}
-                    <div className={`absolute left-0 top-1/2 transform -translate-y-1/2 w-0.5 rounded-r-full transition-all duration-200 ${
-                      isActive(child.href) 
-                        ? 'h-4 bg-white' 
-                        : 'h-0 bg-gray-400 group-hover:h-3'
-                    }`}></div>
-                    
-                    {/* Icon */}
-                    <div className={`relative z-10 w-6 h-6 rounded-md flex items-center justify-center transition-all duration-200 ${
-                      isActive(child.href) 
-                        ? '' 
-                        : 'group-hover:bg-white group-hover:shadow-sm'
-                    }`}>
-                      <child.icon size={14} className={`transition-colors duration-200 ${
-                        isActive(child.href) 
-                          ? 'text-white' 
-                          : 'group-hover:text-gray-700'
-                      }`} />
-                    </div>
-                    
-                    <div className="relative z-10 ml-2 flex-1">
-                      <span className={`font-medium text-xs transition-all duration-200 ${
-                        isActive(child.href) 
-                          ? 'text-white' 
-                          : 'group-hover:text-gray-800'
-                      }`}>
-                        {child.label}
-                      </span>
-                    </div>
-                    
-                    {child.badge && (
-                      <span 
-                        className="relative z-10 px-1.5 py-0.5 text-xs font-bold rounded-full text-white"
-                        style={{backgroundColor: '#FDA811'}}
+                  <div key={child.id}>
+                    {/* Child Item - Can be either a link or expandable parent */}
+                    {child.children ? (
+                      <button
+                        onClick={() => toggleExpanded(child.id)}
+                        className={`group relative flex items-center text-start w-full px-3 py-2 rounded-lg transition-all duration-200 overflow-hidden ${
+                          isParentActive(child)
+                            ? 'text-white shadow-sm'
+                            : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                        style={isParentActive(child) 
+                          ? {background: 'linear-gradient(135deg, #FDA811 0%, #E6951A 100%)'} 
+                          : {}
+                        }
                       >
-                        {child.badge}
-                      </span>
+                        {/* Animated background for hover - only show when not active */}
+                        {!isParentActive(child) && (
+                          <div className="absolute inset-0 bg-gray-50 rounded-lg transform scale-x-0 group-hover:scale-x-100 transition-transform duration-200 origin-left"></div>
+                        )}
+                        
+                        {/* Left accent bar */}
+                        <div className={`absolute left-0 top-1/2 transform -translate-y-1/2 w-0.5 rounded-r-full transition-all duration-200 ${
+                          isParentActive(child) 
+                            ? 'h-4 bg-white' 
+                            : 'h-0 bg-gray-400 group-hover:h-3'
+                        }`}></div>
+                        
+                        {/* Icon */}
+                        <div className={`relative z-10 w-6 h-6 rounded-md flex items-center justify-center transition-all duration-200 ${
+                          isParentActive(child) 
+                            ? '' 
+                            : 'group-hover:bg-white group-hover:shadow-sm'
+                        }`}>
+                          <child.icon size={14} className={`transition-colors duration-200 ${
+                            isParentActive(child) 
+                              ? 'text-white' 
+                              : 'group-hover:text-gray-700'
+                          }`} />
+                        </div>
+                        
+                        <div className="relative z-10 ml-2 flex-1">
+                          <span className={`font-medium text-xs transition-all duration-200 ${
+                            isParentActive(child) 
+                              ? 'text-white' 
+                              : 'group-hover:text-gray-800'
+                          }`}>
+                            {child.label}
+                          </span>
+                        </div>
+                        
+                        {child.badge && (
+                          <span 
+                            className="relative z-10 px-1.5 py-0.5 text-xs font-bold rounded-full text-white mr-1"
+                            style={{backgroundColor: '#FDA811'}}
+                          >
+                            {child.badge}
+                          </span>
+                        )}
+                        
+                        {/* Expand/Collapse Arrow */}
+                        <div className="relative z-10">
+                          {expandedItems.includes(child.id) ? (
+                            <FiChevronDown className={`w-3 h-3 transition-colors duration-200 ${
+                              isParentActive(child) ? 'text-white' : 'text-gray-400'
+                            }`} />
+                          ) : (
+                            <FiChevronRight className={`w-3 h-3 transition-colors duration-200 ${
+                              isParentActive(child) ? 'text-white' : 'text-gray-400'
+                            }`} />
+                          )}
+                        </div>
+                      </button>
+                    ) : (
+                      <Link
+                        href={child.href || '#'}
+                        prefetch={true}
+                        className={`group relative flex items-center px-3 py-2 rounded-lg transition-all duration-200 overflow-hidden ${
+                          isActive(child.href)
+                            ? 'text-white shadow-sm'
+                            : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                        style={isActive(child.href) 
+                          ? {background: 'linear-gradient(135deg, #FDA811 0%, #E6951A 100%)'} 
+                          : {}
+                        }
+                      >
+                        {/* Animated background for hover - only show when not active */}
+                        {!isActive(child.href) && (
+                          <div className="absolute inset-0 bg-gray-50 rounded-lg transform scale-x-0 group-hover:scale-x-100 transition-transform duration-200 origin-left"></div>
+                        )}
+                        
+                        {/* Left accent bar */}
+                        <div className={`absolute left-0 top-1/2 transform -translate-y-1/2 w-0.5 rounded-r-full transition-all duration-200 ${
+                          isActive(child.href) 
+                            ? 'h-4 bg-white' 
+                            : 'h-0 bg-gray-400 group-hover:h-3'
+                        }`}></div>
+                        
+                        {/* Icon */}
+                        <div className={`relative z-10 w-6 h-6 rounded-md flex items-center justify-center transition-all duration-200 ${
+                          isActive(child.href) 
+                            ? '' 
+                            : 'group-hover:bg-white group-hover:shadow-sm'
+                        }`}>
+                          <child.icon size={14} className={`transition-colors duration-200 ${
+                            isActive(child.href) 
+                              ? 'text-white' 
+                              : 'group-hover:text-gray-700'
+                          }`} />
+                        </div>
+                        
+                        <div className="relative z-10 ml-2 flex-1">
+                          <span className={`font-medium text-xs transition-all duration-200 ${
+                            isActive(child.href) 
+                              ? 'text-white' 
+                              : 'group-hover:text-gray-800'
+                          }`}>
+                            {child.label}
+                          </span>
+                        </div>
+                        
+                        {child.badge && (
+                          <span 
+                            className="relative z-10 px-1.5 py-0.5 text-xs font-bold rounded-full text-white"
+                            style={{backgroundColor: '#FDA811'}}
+                          >
+                            {child.badge}
+                          </span>
+                        )}
+                      </Link>
                     )}
-                  </Link>
+
+                    {/* Sub-sub Items (Third Level) */}
+                    {child.children && expandedItems.includes(child.id) && (
+                      <div className="mt-1 ml-6 space-y-1">
+                        {child.children.map((grandchild) => (
+                          <Link
+                            key={grandchild.id}
+                            href={grandchild.href || '#'}
+                            prefetch={true}
+                            className={`group relative flex items-center px-3 py-1.5 rounded-md transition-all duration-200 overflow-hidden ${
+                              isActive(grandchild.href)
+                                ? 'text-white shadow-sm'
+                                : 'text-gray-400 hover:text-gray-600'
+                            }`}
+                            style={isActive(grandchild.href) 
+                              ? {background: 'linear-gradient(135deg, #66BB6A 0%, #4CAF50 100%)'} 
+                              : {}
+                            }
+                          >
+                            {/* Animated background for hover - only show when not active */}
+                            {!isActive(grandchild.href) && (
+                              <div className="absolute inset-0 bg-gray-50 rounded-md transform scale-x-0 group-hover:scale-x-100 transition-transform duration-200 origin-left"></div>
+                            )}
+                            
+                            {/* Left accent bar */}
+                            <div className={`absolute left-0 top-1/2 transform -translate-y-1/2 w-0.5 rounded-r-full transition-all duration-200 ${
+                              isActive(grandchild.href) 
+                                ? 'h-3 bg-white' 
+                                : 'h-0 bg-gray-400 group-hover:h-2'
+                            }`}></div>
+                            
+                            {/* Icon */}
+                            <div className={`relative z-10 w-5 h-5 rounded-sm flex items-center justify-center transition-all duration-200 ${
+                              isActive(grandchild.href) 
+                                ? '' 
+                                : 'group-hover:bg-white group-hover:shadow-sm'
+                            }`}>
+                              <grandchild.icon size={12} className={`transition-colors duration-200 ${
+                                isActive(grandchild.href) 
+                                  ? 'text-white' 
+                                  : 'group-hover:text-gray-700'
+                              }`} />
+                            </div>
+                            
+                            <div className="relative z-10 ml-2 flex-1">
+                              <span className={`font-medium text-xs transition-all duration-200 ${
+                                isActive(grandchild.href) 
+                                  ? 'text-white' 
+                                  : 'group-hover:text-gray-700'
+                              }`}>
+                                {grandchild.label}
+                              </span>
+                            </div>
+                            
+                            {grandchild.badge && (
+                              <span 
+                                className="relative z-10 px-1 py-0.5 text-xs font-bold rounded-full text-white"
+                                style={{backgroundColor: '#4CAF50'}}
+                              >
+                                {grandchild.badge}
+                              </span>
+                            )}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             )}

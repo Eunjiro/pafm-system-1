@@ -250,9 +250,91 @@ export default function CemeteryPlotsPage() {
       try {
         setLoading(true)
         
-        console.log('Loading cemetery data from new backend API...')
+        console.log('Loading cemetery plot data from backend API...')
         
-        // Load data from new cemetery API
+        // First, try to load all plots directly from the backend
+        const backendResponse = await fetch('http://localhost:3001/api/plots', {
+          headers: {
+            'Authorization': 'Bearer test-token'
+          }
+        })
+        
+        if (backendResponse.ok) {
+          const backendResult = await backendResponse.json()
+          console.log('Backend plots API result:', backendResult)
+          
+          if (backendResult.success && backendResult.data && backendResult.data.length > 0) {
+            // Transform backend plot data to match our interface
+            const allPlots: CemeteryPlot[] = backendResult.data.map((plot: any) => ({
+              id: plot.id.toString(),
+              plotNumber: plot.plotNumber || plot.plotCode || plot.lot || `Plot-${plot.id}`,
+              section: plot.section || 'Unknown Section',
+              block: plot.block || 'Unknown Block',
+              lot: plot.lot || plot.plotCode || `Lot-${plot.id}`,
+              coordinates: {
+                lat: plot.latitude ? parseFloat(plot.latitude) : 14.6760,
+                lng: plot.longitude ? parseFloat(plot.longitude) : 121.0437
+              },
+              size: (plot.size ? plot.size.toLowerCase() : 'standard') as 'standard' | 'large' | 'family' | 'niche',
+              type: 'ground_burial',
+              status: (plot.status ? (
+                plot.status.toLowerCase() === 'vacant' ? 'vacant' : 
+                plot.status.toLowerCase() === 'occupied' ? 'occupied' : 
+                plot.status.toLowerCase() === 'reserved' ? 'reserved' : 'vacant'
+              ) : 'vacant') as 'vacant' | 'reserved' | 'occupied' | 'unavailable' | 'blocked',
+              occupiedBy: plot.assignments && plot.assignments.length > 0 ? {
+                name: `${plot.assignments[0].deceased?.firstName || ''} ${plot.assignments[0].deceased?.lastName || ''}`.trim() || 'Unknown',
+                dateOfBirth: plot.assignments[0].deceased?.dateOfBirth || '',
+                dateOfDeath: plot.assignments[0].deceased?.dateOfDeath || '',
+                burialDate: plot.assignments[0].assignedAt || '',
+                permitNumber: plot.assignments[0].permitId?.toString() || '',
+                registrationNumber: plot.assignments[0].deceased?.id?.toString() || ''
+              } : undefined,
+              assignments: plot.assignments ? plot.assignments.map((assignment: any) => ({
+                id: assignment.id.toString(),
+                layer: assignment.layer || 1,
+                deceasedName: `${assignment.deceased?.firstName || ''} ${assignment.deceased?.lastName || ''}`.trim() || 'Unknown',
+                dateOfBirth: assignment.deceased?.dateOfBirth || '',
+                dateOfDeath: assignment.deceased?.dateOfDeath || '',
+                burialDate: assignment.assignedAt || '',
+                status: assignment.status || 'assigned'
+              })) : [],
+              assignedDate: plot.assignments && plot.assignments.length > 0 ? plot.assignments[0].assignedAt : undefined,
+              lastUpdated: plot.updatedAt || new Date().toISOString(),
+              dimensions: {
+                length: parseFloat(plot.length) || 2.0,
+                width: parseFloat(plot.width) || 1.0,
+                depth: parseFloat(plot.depth) || 2.0
+              },
+              pricing: {
+                baseFee: parseFloat(plot.baseFee) || 5000,
+                maintenanceFee: parseFloat(plot.maintenanceFee) || 500,
+                totalFee: (parseFloat(plot.baseFee) || 5000) + (parseFloat(plot.maintenanceFee) || 500)
+              },
+              restrictions: [],
+              notes: plot.notes || '',
+              gravestone: plot.gravestones && plot.gravestones.length > 0 ? {
+                material: (plot.gravestones[0].material ? plot.gravestones[0].material.toLowerCase() : 'concrete'),
+                inscription: plot.gravestones[0].inscription || '',
+                dateInstalled: plot.gravestones[0].dateInstalled || '',
+                condition: (plot.gravestones[0].condition ? plot.gravestones[0].condition.toLowerCase() : 'good')
+              } : undefined,
+              maxLayers: plot.maxLayers || 3
+            }))
+            
+            console.log('Loaded plots from backend:', allPlots.length)
+            setPlots(allPlots)
+            
+            // Calculate statistics from plots data
+            calculateStatisticsFromPlots(allPlots)
+            setLoading(false)
+            return
+          }
+        }
+        
+        console.log('Falling back to cemetery structure API...')
+        
+        // Fallback: Load data from cemetery structure API
         const response = await fetch('/api/cemeteries')
         console.log('Cemetery API response status:', response.status)
         
@@ -822,7 +904,7 @@ export default function CemeteryPlotsPage() {
           citizenship: 'Filipino', // Default
           civilStatus: 'Single' // Default
         },
-        permitId: burialData.permitNumber || null,
+        permitId: burialData.permitNumber && burialData.permitNumber.trim() ? parseInt(burialData.permitNumber) : null,
         layer: burialData.layer || 1, // Include layer information
         notes: `Plot Management Assignment - Layer ${burialData.layer}${burialData.permitNumber ? `, Permit: ${burialData.permitNumber}` : ''}${burialData.registrationNumber ? `, Registration: ${burialData.registrationNumber}` : ''}${burialData.contactPerson ? `, Contact: ${burialData.contactPerson} (${burialData.relationship}) - ${burialData.contactNumber}` : ''}${burialData.notes ? `, Additional Notes: ${burialData.notes}` : ''}`
       }
