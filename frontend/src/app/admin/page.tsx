@@ -125,329 +125,243 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
-      {/* System Dashboard Header */}
-      <div className="relative overflow-hidden mb-6">
-        <div className="relative bg-gradient-to-br from-white via-gray-50 to-white shadow-xl mx-6 mt-6 rounded-3xl border-2 border-gray-100">
-          <div 
-            className="h-2 w-full rounded-t-3xl"
-            style={{
-              background: 'linear-gradient(90deg, #4CAF50 0%, #4A90E2 35%, #FDA811 70%, #9C27B0 100%)'
-            }}
-          />
-          
-          <div className="px-8 py-8">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-6">
-                <div className="relative">
-                  <div 
-                    className="w-20 h-20 rounded-3xl flex items-center justify-center shadow-2xl"
-                    style={{
-                      background: 'linear-gradient(135deg, #4CAF50 0%, #45a049 100%)'
-                    }}
-                  >
-                    <MdDashboard className="text-white text-4xl" />
-                  </div>
-                  <div className="absolute -top-1 -right-1 w-6 h-6 bg-green-400 rounded-full animate-pulse border-2 border-white shadow-lg"></div>
-                </div>
-                
-                <div>
-                  <h1 className="text-4xl font-black bg-gradient-to-r from-green-600 via-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
-                    System Dashboard
-                  </h1>
-                  <p className="text-gray-600 font-medium mb-3">
-                    Philippine AFPSLAI Marikina Municipal System
-                  </p>
-                  <div className="flex items-center space-x-4">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse"></div>
-                      <span className="text-sm font-semibold text-green-700">All Services Online</span>
-                    </div>
-                    <span className="text-gray-300">•</span>
-                    <div className="flex items-center space-x-2">
-                      <FiClock className="text-gray-500" size={14} />
-                      <span className="text-sm text-gray-700 font-mono">
-                        {currentTime.toLocaleTimeString()}
-                      </span>
-                    </div>
-                    <span className="text-gray-300">•</span>
-                    <div className="flex items-center space-x-2">
-                      <FiUser className="text-gray-500" size={14} />
-                      <span className="text-sm text-gray-700">{session?.user?.name || 'Admin'}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="flex items-center space-x-4">
-                <div className="text-right mr-4">
-                  <p className="text-xs text-gray-500 font-medium mb-1">System Uptime</p>
-                  <div className="flex items-center space-x-3">
-                    <div className="w-32 h-3 bg-gray-200 rounded-full overflow-hidden shadow-inner">
-                      <div 
-                        className="h-full rounded-full bg-gradient-to-r from-green-400 to-green-500 shadow-lg"
-                        style={{ width: systemStats.systemUptime }}
-                      />
-                    </div>
-                    <span className="text-sm font-bold text-green-600">
-                      {systemStats.systemUptime}
-                    </span>
-                  </div>
-                </div>
-                
-                <div className="flex space-x-3">
-                  <button 
-                    className="group p-4 rounded-2xl transition-all duration-300 hover:shadow-xl hover:scale-110 bg-gradient-to-br from-blue-500 to-blue-600"
-                    onClick={() => window.location.reload()}
-                  >
-                    <FiRefreshCw className="group-hover:rotate-180 transition-transform duration-500 text-white" size={20} />
-                  </button>
-                  
-                  <button 
-                    className="group p-4 rounded-2xl transition-all duration-300 hover:shadow-xl hover:scale-110 bg-gradient-to-br from-green-500 to-green-600"
-                    onClick={() => router.push('/admin/settings')}
-                  >
-                    <FiSettings className="group-hover:rotate-90 transition-transform duration-300 text-white" size={20} />
-                  </button>
-                  
-                  <button 
-                    className="group p-4 rounded-2xl transition-all duration-300 hover:shadow-xl hover:scale-110 bg-gradient-to-br from-orange-500 to-orange-600"
-                    onClick={() => router.push('/admin/analytics')}
-                  >
-                    <FiBarChart className="group-hover:scale-110 transition-transform duration-300 text-white" size={20} />
-                  </button>
-                </div>
-              </div>
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">System Dashboard</h1>
+          <p className="text-gray-600 mt-1">Philippine AFPSLAI Marikina Municipal System</p>
+          <div className="flex items-center space-x-4 mt-2">
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-sm font-medium text-green-700">All Services Online</span>
             </div>
+            <span className="text-gray-300">•</span>
+            <div className="flex items-center space-x-2">
+              <FiClock className="text-gray-500" size={14} />
+              <span className="text-sm text-gray-600">
+                {currentTime.toLocaleTimeString()}
+              </span>
+            </div>
+            <span className="text-gray-300">•</span>
+            <div className="flex items-center space-x-2">
+              <FiUser className="text-gray-500" size={14} />
+              <span className="text-sm text-gray-600">{session?.user?.name || 'Admin'}</span>
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 bg-[#4CAF50] text-white rounded-lg hover:bg-[#45a049] transition-colors flex items-center gap-2"
+        >
+          <FiRefreshCw className="w-4 h-4" />
+          Refresh Data
+        </button>
+      </div>
+
+      {/* System Overview Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Total Users */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="p-3 bg-blue-100 rounded-lg">
+              <FiUsers className="w-6 h-6 text-blue-600" />
+            </div>
+            <span className="text-2xl font-bold text-gray-800">{systemStats.totalUsers.toLocaleString()}</span>
+          </div>
+          <h3 className="text-sm font-medium text-gray-600">Total Users</h3>
+          <div className="mt-3 flex items-center gap-2 text-xs">
+            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
+              {systemStats.activeUsers} active
+            </span>
+          </div>
+        </div>
+
+        {/* Active Services */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="p-3 bg-green-100 rounded-lg">
+              <FiServer className="w-6 h-6 text-green-600" />
+            </div>
+            <span className="text-2xl font-bold text-gray-800">{systemStats.activeServices}</span>
+          </div>
+          <h3 className="text-sm font-medium text-gray-600">Active Services</h3>
+          <div className="mt-3 flex items-center gap-2 text-xs">
+            <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full">
+              All online
+            </span>
+          </div>
+        </div>
+
+        {/* Total Transactions */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="p-3 bg-orange-100 rounded-lg">
+              <FiDatabase className="w-6 h-6 text-orange-600" />
+            </div>
+            <span className="text-2xl font-bold text-gray-800">{systemStats.totalTransactions.toLocaleString()}</span>
+          </div>
+          <h3 className="text-sm font-medium text-gray-600">Total Transactions</h3>
+          <div className="mt-3 flex items-center gap-2 text-xs">
+            <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded-full">
+              {systemStats.todayTransactions} today
+            </span>
+          </div>
+        </div>
+
+        {/* System Health */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="p-3 bg-purple-100 rounded-lg">
+              <FiCpu className="w-6 h-6 text-purple-600" />
+            </div>
+            <span className="text-2xl font-bold text-green-600">{systemStats.systemUptime}</span>
+          </div>
+          <h3 className="text-sm font-medium text-gray-600">System Uptime</h3>
+          <div className="mt-3 flex items-center gap-2 text-xs">
+            <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full">
+              Excellent
+            </span>
           </div>
         </div>
       </div>
 
-      <div className="px-6 pb-6 space-y-6">
-        {/* System Overview Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Total Users */}
-          <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100 hover:shadow-xl transition-all duration-300">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
-                <FiUsers className="text-white text-2xl" />
-              </div>
-              <div className="text-right">
-                <div className="text-3xl font-black text-gray-900">{systemStats.totalUsers.toLocaleString()}</div>
-                <div className="text-xs font-medium text-blue-600 flex items-center justify-end mt-1">
-                  <FiActivity size={12} className="mr-1" />
-                  {systemStats.activeUsers} active
-                </div>
-              </div>
-            </div>
-            <h3 className="text-sm font-bold text-gray-700">Total Users</h3>
-            <p className="text-xs text-gray-500 mt-1">Registered in system</p>
-          </div>
-
-          {/* Active Services */}
-          <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100 hover:shadow-xl transition-all duration-300">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center shadow-lg">
-                <FiServer className="text-white text-2xl" />
-              </div>
-              <div className="text-right">
-                <div className="text-3xl font-black text-gray-900">{systemStats.activeServices}</div>
-                <div className="text-xs font-medium text-green-600 flex items-center justify-end mt-1">
-                  <FiCheckCircle size={12} className="mr-1" />
-                  All online
-                </div>
-              </div>
-            </div>
-            <h3 className="text-sm font-bold text-gray-700">Active Services</h3>
-            <p className="text-xs text-gray-500 mt-1">Microservices running</p>
-          </div>
-
-          {/* Total Transactions */}
-          <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100 hover:shadow-xl transition-all duration-300">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-lg">
-                <FiDatabase className="text-white text-2xl" />
-              </div>
-              <div className="text-right">
-                <div className="text-3xl font-black text-gray-900">{systemStats.totalTransactions.toLocaleString()}</div>
-                <div className="text-xs font-medium text-orange-600 flex items-center justify-end mt-1">
-                  <FiTrendingUp size={12} className="mr-1" />
-                  {systemStats.todayTransactions} today
-                </div>
-              </div>
-            </div>
-            <h3 className="text-sm font-bold text-gray-700">Total Transactions</h3>
-            <p className="text-xs text-gray-500 mt-1">Across all services</p>
-          </div>
-
-          {/* System Health */}
-          <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100 hover:shadow-xl transition-all duration-300">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-lg">
-                <FiCpu className="text-white text-2xl" />
-              </div>
-              <div className="text-right">
-                <div className="text-3xl font-black text-green-600">{systemStats.systemUptime}</div>
-                <div className="text-xs font-medium text-purple-600 flex items-center justify-end mt-1">
-                  <FiZap size={12} className="mr-1" />
-                  Excellent
-                </div>
-              </div>
-            </div>
-            <h3 className="text-sm font-bold text-gray-700">System Uptime</h3>
-            <p className="text-xs text-gray-500 mt-1">Last 30 days average</p>
+      {/* Microservices Status */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-gray-800">Microservices Status</h2>
+          <div className="flex items-center space-x-2 text-sm text-gray-600">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span className="font-medium">All systems operational</span>
           </div>
         </div>
 
-        {/* Microservices Dashboard */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-black text-gray-900">Microservices Status</h2>
-            <div className="flex items-center space-x-2 text-sm text-gray-600">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="font-medium">All systems operational</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {services.map((service) => {
-              const IconComponent = service.icon
-              return (
-                <div 
-                  key={service.id}
-                  className="bg-white rounded-3xl shadow-xl p-8 border-2 border-gray-100 hover:shadow-2xl transition-all duration-300 group cursor-pointer relative overflow-hidden"
-                  onClick={() => router.push(service.route)}
-                >
-                  {/* Background decoration */}
-                  <div 
-                    className="absolute top-0 right-0 w-40 h-40 rounded-full opacity-5 transform translate-x-20 -translate-y-20"
-                    style={{ backgroundColor: service.color }}
-                  />
-                  
-                  <div className="relative z-10">
-                    {/* Header */}
-                    <div className="flex items-start justify-between mb-6">
-                      <div className="flex items-center space-x-4">
-                        <div 
-                          className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300"
-                          style={{ backgroundColor: service.color }}
-                        >
-                          <IconComponent className="text-white text-3xl" />
-                        </div>
-                        <div>
-                          <h3 className="text-xl font-bold text-gray-900 mb-1">{service.name}</h3>
-                          <p className="text-sm text-gray-600">{service.description}</p>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center space-x-2 px-3 py-1.5 bg-green-50 rounded-full border border-green-200">
-                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                        <span className="text-xs font-bold text-green-700">{service.status.toUpperCase()}</span>
-                      </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {services.map((service) => {
+            const IconComponent = service.icon
+            return (
+              <div 
+                key={service.id}
+                className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md hover:border-[#4CAF50] transition-all cursor-pointer group"
+                onClick={() => router.push(service.route)}
+              >
+                {/* Header */}
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center space-x-3">
+                    <div 
+                      className="w-12 h-12 rounded-lg flex items-center justify-center"
+                      style={{ backgroundColor: service.color }}
+                    >
+                      <IconComponent className="text-white text-2xl" />
                     </div>
-
-                    {/* Stats Grid */}
-                    <div className="grid grid-cols-3 gap-4 mb-6">
-                      <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                        <div className="flex items-center space-x-2 mb-2">
-                          <FiActivity className="text-orange-500" size={16} />
-                          <span className="text-xs font-medium text-gray-600">Pending</span>
-                        </div>
-                        <div className="text-2xl font-black text-gray-900">{service.stats.pending}</div>
-                      </div>
-
-                      <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                        <div className="flex items-center space-x-2 mb-2">
-                          <FiCheckCircle className="text-green-500" size={16} />
-                          <span className="text-xs font-medium text-gray-600">Processed</span>
-                        </div>
-                        <div className="text-2xl font-black text-gray-900">{service.stats.processed}</div>
-                      </div>
-
-                      <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                        <div className="flex items-center space-x-2 mb-2">
-                          <FiTrendingUp className="text-blue-500" size={16} />
-                          <span className="text-xs font-medium text-gray-600">Today</span>
-                        </div>
-                        <div className="text-2xl font-black text-gray-900">{service.stats.today}</div>
-                      </div>
-                    </div>
-
-                    {/* Bottom Info */}
-                    <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-                      <div className="flex items-center space-x-4">
-                        <div className="flex items-center space-x-2">
-                          <FiZap className="text-gray-400" size={14} />
-                          <span className="text-sm text-gray-600">
-                            <span className="font-semibold text-gray-900">{service.uptime}</span> uptime
-                          </span>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <FiDatabase className="text-gray-400" size={14} />
-                          <span className="text-sm text-gray-600">
-                            <span className="font-semibold text-gray-900">{service.totalRecords.toLocaleString()}</span> records
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center space-x-2 text-sm font-medium text-gray-400 group-hover:text-gray-700 transition-colors">
-                        <span>View Details</span>
-                        <svg className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                      </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800">{service.name}</h3>
+                      <p className="text-sm text-gray-600">{service.description}</p>
                     </div>
                   </div>
+                  
+                  <div className="flex items-center space-x-2 px-2 py-1 bg-green-50 rounded-full">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span className="text-xs font-medium text-green-700">{service.status}</span>
+                  </div>
                 </div>
-              )
-            })}
-          </div>
+
+                {/* Stats Grid */}
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                    <div className="flex items-center space-x-1 mb-1">
+                      <FiActivity className="text-orange-500" size={14} />
+                      <span className="text-xs text-gray-600">Pending</span>
+                    </div>
+                    <div className="text-xl font-bold text-gray-900">{service.stats.pending}</div>
+                  </div>
+
+                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                    <div className="flex items-center space-x-1 mb-1">
+                      <FiCheckCircle className="text-green-500" size={14} />
+                      <span className="text-xs text-gray-600">Processed</span>
+                    </div>
+                    <div className="text-xl font-bold text-gray-900">{service.stats.processed}</div>
+                  </div>
+
+                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                    <div className="flex items-center space-x-1 mb-1">
+                      <FiTrendingUp className="text-blue-500" size={14} />
+                      <span className="text-xs text-gray-600">Today</span>
+                    </div>
+                    <div className="text-xl font-bold text-gray-900">{service.stats.today}</div>
+                  </div>
+                </div>
+
+                {/* Bottom Info */}
+                <div className="flex items-center justify-between pt-3 border-t border-gray-200">
+                  <div className="flex items-center space-x-4 text-sm text-gray-600">
+                    <div className="flex items-center space-x-1">
+                      <FiZap className="text-gray-400" size={14} />
+                      <span><span className="font-medium text-gray-900">{service.uptime}</span> uptime</span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <FiDatabase className="text-gray-400" size={14} />
+                      <span><span className="font-medium text-gray-900">{service.totalRecords.toLocaleString()}</span> records</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2 text-sm font-medium text-gray-400 group-hover:text-[#4CAF50] transition-colors">
+                    <span>View</span>
+                    <svg className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
         </div>
+      </div>
 
-        {/* Quick Actions */}
-        <div className="bg-gradient-to-br from-white to-gray-50 rounded-3xl shadow-xl p-8 border-2 border-gray-100">
-          <h2 className="text-2xl font-black text-gray-900 mb-6">Quick Actions</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <button 
-              onClick={() => router.push('/admin/users')}
-              className="flex flex-col items-center space-y-3 p-6 rounded-2xl bg-white border-2 border-gray-200 hover:border-blue-400 hover:shadow-lg transition-all duration-300 group"
-            >
-              <div className="w-12 h-12 rounded-xl bg-blue-50 group-hover:bg-blue-500 flex items-center justify-center transition-colors">
-                <FiUsers className="text-blue-500 group-hover:text-white text-2xl transition-colors" />
-              </div>
-              <span className="text-sm font-bold text-gray-700 group-hover:text-blue-600 transition-colors">Manage Users</span>
-            </button>
+      {/* Quick Actions */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h2 className="text-xl font-semibold text-gray-800 mb-4">Quick Actions</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <button 
+            onClick={() => router.push('/admin/users')}
+            className="flex flex-col items-center space-y-2 p-4 rounded-lg bg-gray-50 border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-all group"
+          >
+            <div className="w-10 h-10 rounded-lg bg-blue-100 group-hover:bg-blue-500 flex items-center justify-center transition-colors">
+              <FiUsers className="text-blue-500 group-hover:text-white text-xl transition-colors" />
+            </div>
+            <span className="text-sm font-medium text-gray-700 group-hover:text-blue-600 transition-colors">Manage Users</span>
+          </button>
 
-            <button 
-              onClick={() => router.push('/admin/analytics')}
-              className="flex flex-col items-center space-y-3 p-6 rounded-2xl bg-white border-2 border-gray-200 hover:border-green-400 hover:shadow-lg transition-all duration-300 group"
-            >
-              <div className="w-12 h-12 rounded-xl bg-green-50 group-hover:bg-green-500 flex items-center justify-center transition-colors">
-                <FiBarChart className="text-green-500 group-hover:text-white text-2xl transition-colors" />
-              </div>
-              <span className="text-sm font-bold text-gray-700 group-hover:text-green-600 transition-colors">View Analytics</span>
-            </button>
+          <button 
+            onClick={() => router.push('/admin/analytics')}
+            className="flex flex-col items-center space-y-2 p-4 rounded-lg bg-gray-50 border border-gray-200 hover:border-green-400 hover:bg-green-50 transition-all group"
+          >
+            <div className="w-10 h-10 rounded-lg bg-green-100 group-hover:bg-green-500 flex items-center justify-center transition-colors">
+              <FiBarChart className="text-green-500 group-hover:text-white text-xl transition-colors" />
+            </div>
+            <span className="text-sm font-medium text-gray-700 group-hover:text-green-600 transition-colors">View Analytics</span>
+          </button>
 
-            <button 
-              onClick={() => router.push('/admin/settings')}
-              className="flex flex-col items-center space-y-3 p-6 rounded-2xl bg-white border-2 border-gray-200 hover:border-orange-400 hover:shadow-lg transition-all duration-300 group"
-            >
-              <div className="w-12 h-12 rounded-xl bg-orange-50 group-hover:bg-orange-500 flex items-center justify-center transition-colors">
-                <FiSettings className="text-orange-500 group-hover:text-white text-2xl transition-colors" />
-              </div>
-              <span className="text-sm font-bold text-gray-700 group-hover:text-orange-600 transition-colors">System Settings</span>
-            </button>
+          <button 
+            onClick={() => router.push('/admin/settings')}
+            className="flex flex-col items-center space-y-2 p-4 rounded-lg bg-gray-50 border border-gray-200 hover:border-orange-400 hover:bg-orange-50 transition-all group"
+          >
+            <div className="w-10 h-10 rounded-lg bg-orange-100 group-hover:bg-orange-500 flex items-center justify-center transition-colors">
+              <FiSettings className="text-orange-500 group-hover:text-white text-xl transition-colors" />
+            </div>
+            <span className="text-sm font-medium text-gray-700 group-hover:text-orange-600 transition-colors">System Settings</span>
+          </button>
 
-            <button 
-              onClick={() => router.push('/admin/health')}
-              className="flex flex-col items-center space-y-3 p-6 rounded-2xl bg-white border-2 border-gray-200 hover:border-purple-400 hover:shadow-lg transition-all duration-300 group"
-            >
-              <div className="w-12 h-12 rounded-xl bg-purple-50 group-hover:bg-purple-500 flex items-center justify-center transition-colors">
-                <FiShield className="text-purple-500 group-hover:text-white text-2xl transition-colors" />
-              </div>
-              <span className="text-sm font-bold text-gray-700 group-hover:text-purple-600 transition-colors">Service Health</span>
-            </button>
-          </div>
+          <button 
+            onClick={() => router.push('/admin/health')}
+            className="flex flex-col items-center space-y-2 p-4 rounded-lg bg-gray-50 border border-gray-200 hover:border-purple-400 hover:bg-purple-50 transition-all group"
+          >
+            <div className="w-10 h-10 rounded-lg bg-purple-100 group-hover:bg-purple-500 flex items-center justify-center transition-colors">
+              <FiShield className="text-purple-500 group-hover:text-white text-xl transition-colors" />
+            </div>
+            <span className="text-sm font-medium text-gray-700 group-hover:text-purple-600 transition-colors">Service Health</span>
+          </button>
         </div>
       </div>
     </div>

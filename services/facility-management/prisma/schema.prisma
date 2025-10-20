@@ -1,0 +1,236 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User Model (Staff/Admin)
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  role      UserRole @default(STAFF)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  handledRequests FacilityRequest[] @relation("HandledBy")
+  inspections     Inspection[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  STAFF
+  ADMIN
+  SUPERVISOR
+}
+
+// Facility Model
+model Facility {
+  id          Int      @id @default(autoincrement())
+  name        String
+  type        String // Conference Hall, Gym, Training Room, Auditorium, etc.
+  capacity    Int
+  description String?
+  amenities   String[] // ["Projector", "Stage", "Air Conditioning", "WiFi"]
+  location    String
+  isActive    Boolean  @default(true)
+  hourlyRate  Float    @default(0) // for private events
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  requests      FacilityRequest[]
+  blackoutDates BlackoutDate[]
+
+  @@map("facilities")
+}
+
+// Blackout Dates (Maintenance, LGU-only use)
+model BlackoutDate {
+  id         Int      @id @default(autoincrement())
+  facilityId Int
+  startDate  DateTime
+  endDate    DateTime
+  reason     String
+  type       BlackoutType @default(MAINTENANCE)
+  createdAt  DateTime @default(now())
+
+  facility Facility @relation(fields: [facilityId], references: [id], onDelete: Cascade)
+
+  @@map("blackout_dates")
+}
+
+enum BlackoutType {
+  MAINTENANCE
+  LGU_ONLY
+  SPECIAL_EVENT
+}
+
+// Facility Request Model
+model FacilityRequest {
+  id                  Int      @id @default(autoincrement())
+  requestNumber       String   @unique // AUTO-GEN: FR-2025-0001
+  
+  // Applicant Information
+  applicantName       String
+  organizationName    String?
+  contactPerson       String
+  contactNumber       String
+  email               String?
+  
+  // Request Details
+  facilityId          Int
+  activityType        ActivityType
+  activityPurpose     String
+  scheduleStart       DateTime
+  scheduleEnd         DateTime
+  estimatedParticipants Int
+  
+  // Requirements
+  layoutRequirements  String? // chairs, stage, projector, etc.
+  equipmentNeeds      String?
+  governmentPermit    String? // file path
+  barangayEndorsement String? // file path
+  healthClearance     String? // file path
+  otherDocuments      String? // file paths (JSON array)
+  
+  // Classification
+  eventType           EventType @default(PRIVATE)
+  
+  // Status & Processing
+  status              RequestStatus @default(PENDING_REVIEW)
+  remarks             String?
+  handledById         Int?
+  reviewedAt          DateTime?
+  approvedAt          DateTime?
+  rejectedAt          DateTime?
+  cancelledAt         DateTime?
+  cancellationReason  String?
+  
+  // Payment
+  paymentStatus       PaymentStatus @default(PENDING)
+  paymentType         PaymentType?
+  totalAmount         Float @default(0)
+  paymentProof        String? // mock receipt
+  paidAt              DateTime?
+  
+  // Event Operations
+  gatePass            String? // QR code or access code
+  actualStartTime     DateTime?
+  actualEndTime       DateTime?
+  eventStatus         EventStatus @default(SCHEDULED)
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  facility            Facility @relation(fields: [facilityId], references: [id])
+  handledBy           User? @relation("HandledBy", fields: [handledById], references: [id])
+  inspections         Inspection[]
+  statusHistory       StatusHistory[]
+
+  @@map("facility_requests")
+}
+
+enum ActivityType {
+  MEETING
+  SEMINAR
+  SPORTS
+  TRAINING
+  EXHIBIT
+  OUTREACH
+  CULTURAL_EVENT
+  OTHERS
+}
+
+enum EventType {
+  GOVERNMENT // Priority, Payment-Exempt
+  PRIVATE    // Require payment/endorsement
+}
+
+enum RequestStatus {
+  PENDING_REVIEW
+  AWAITING_REQUIREMENTS
+  AWAITING_PAYMENT
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  EXEMPTED
+  WAIVED
+  VERIFIED
+}
+
+enum PaymentType {
+  CASH
+  CHECK
+  ONLINE_TRANSFER
+  EXEMPTED
+  WAIVED
+}
+
+enum EventStatus {
+  SCHEDULED
+  IN_USE
+  COMPLETED
+  NO_SHOW
+  CANCELLED
+}
+
+// Inspection Model (Post-Event)
+model Inspection {
+  id                Int      @id @default(autoincrement())
+  requestId         Int
+  inspectedById     Int
+  inspectionDate    DateTime @default(now())
+  
+  // Inspection Results
+  hasDamages        Boolean  @default(false)
+  damageDescription String?
+  violations        String?
+  photos            String[] // file paths
+  
+  status            InspectionStatus @default(NO_ISSUES)
+  billingAmount     Float @default(0)
+  remarks           String?
+  
+  createdAt         DateTime @default(now())
+  
+  request           FacilityRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  inspector         User @relation(fields: [inspectedById], references: [id])
+
+  @@map("inspections")
+}
+
+enum InspectionStatus {
+  NO_ISSUES
+  WITH_DAMAGES
+  WITH_VIOLATIONS
+  PENDING_BILLING
+}
+
+// Status History for Audit Trail
+model StatusHistory {
+  id        Int      @id @default(autoincrement())
+  requestId Int
+  fromStatus String?
+  toStatus  String
+  changedBy String  // user email or "SYSTEM"
+  remarks   String?
+  createdAt DateTime @default(now())
+  
+  request FacilityRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@map("status_history")
+}

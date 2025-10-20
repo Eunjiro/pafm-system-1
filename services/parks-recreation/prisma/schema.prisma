@@ -1,0 +1,429 @@
+// Parks & Recreation Service - Prisma Schema
+// PAFM System - Public Amenity & Venue Management
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum AmenityType {
+  COTTAGE
+  TABLE
+  ROOM
+  POOL_AREA
+  PAVILION
+  OTHER
+}
+
+enum VenueType {
+  PICNIC_GROUND
+  BASKETBALL_COURT
+  TENNIS_COURT
+  AMPHITHEATER
+  MULTIPURPOSE_HALL
+  FUNCTION_ROOM
+  COVERED_COURT
+  OTHER
+}
+
+enum EventType {
+  BIRTHDAY
+  WEDDING
+  ASSEMBLY
+  OUTREACH
+  LGU_EVENT
+  CORPORATE
+  SPORTS
+  CONCERT
+  OTHER
+}
+
+enum ReservationStatus {
+  PENDING_REVIEW
+  AWAITING_PAYMENT
+  PAID
+  APPROVED
+  REJECTED
+  CANCELLED
+  CHECKED_IN
+  NO_SHOW
+  COMPLETED
+}
+
+enum PaymentStatus {
+  UNPAID
+  AWAITING_VERIFICATION
+  PAID
+  EXEMPTED
+  REFUNDED
+}
+
+enum MaintenanceIssueType {
+  DAMAGED_BENCH
+  FALLEN_TREE
+  LIGHTING_ISSUE
+  VANDALISM
+  PLAYGROUND_DAMAGE
+  DRAINAGE_ISSUE
+  LANDSCAPING
+  SAFETY_HAZARD
+  CLEANLINESS
+  OTHER
+}
+
+enum MaintenanceStatus {
+  PENDING_INSPECTION
+  UNDER_INSPECTION
+  APPROVED_FOR_REPAIR
+  PENDING_MATERIALS
+  PENDING_BUDGET
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum MaintenancePriority {
+  NORMAL
+  HIGH
+  HAZARD
+}
+
+enum RequesterType {
+  RESIDENT
+  NON_RESIDENT
+  LGU
+  ORGANIZATION
+}
+
+// ============================================
+// WATER PARK AMENITY MODELS
+// ============================================
+
+model Amenity {
+  id              Int      @id @default(autoincrement())
+  name            String
+  type            AmenityType
+  description     String?  @db.Text
+  capacity        Int
+  hourlyRate      Decimal  @db.Decimal(10, 2)
+  dailyRate       Decimal  @db.Decimal(10, 2)
+  imageUrl        String?
+  isActive        Boolean  @default(true)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  reservations    AmenityReservation[]
+  blockouts       AmenityBlockout[]
+  
+  @@index([type])
+  @@index([isActive])
+}
+
+model AmenityReservation {
+  id                    Int      @id @default(autoincrement())
+  bookingCode           String   @unique
+  
+  // Requester Info
+  requesterName         String
+  requesterEmail        String?
+  requesterPhone        String
+  requesterType         RequesterType @default(RESIDENT)
+  proofOfResidencyUrl   String?
+  
+  // Reservation Details
+  amenityId             Int
+  reservationDate       DateTime
+  startTime             String
+  endTime               String
+  numberOfGuests        Int
+  specialRequests       String?  @db.Text
+  
+  // Status & Payment
+  status                ReservationStatus @default(PENDING_REVIEW)
+  paymentStatus         PaymentStatus @default(UNPAID)
+  totalAmount           Decimal  @db.Decimal(10, 2)
+  paymentMethod         String?
+  paymentProofUrl       String?
+  paidAt                DateTime?
+  
+  // QR & Entry
+  qrCode                String?  @db.Text
+  checkedInAt           DateTime?
+  checkedInBy           String?
+  
+  // Tracking
+  reviewedBy            String?
+  reviewedAt            DateTime?
+  approvedBy            String?
+  approvedAt            DateTime?
+  rejectedBy            String?
+  rejectedAt            DateTime?
+  rejectionReason       String?  @db.Text
+  cancelledBy           String?
+  cancelledAt           DateTime?
+  cancellationReason    String?  @db.Text
+  
+  // Auto-cancel tracking
+  holdExpiresAt         DateTime?
+  paymentDueAt          DateTime?
+  
+  remarks               String?  @db.Text
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  
+  // Relations
+  amenity               Amenity  @relation(fields: [amenityId], references: [id])
+  
+  @@index([bookingCode])
+  @@index([status])
+  @@index([reservationDate])
+  @@index([amenityId])
+  @@index([requesterEmail])
+}
+
+model AmenityBlockout {
+  id          Int      @id @default(autoincrement())
+  amenityId   Int
+  startDate   DateTime
+  endDate     DateTime
+  reason      String
+  createdBy   String
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  amenity     Amenity  @relation(fields: [amenityId], references: [id])
+  
+  @@index([amenityId])
+  @@index([startDate, endDate])
+}
+
+// ============================================
+// VENUE RENTAL / EVENT BOOKING MODELS
+// ============================================
+
+model Venue {
+  id              Int      @id @default(autoincrement())
+  name            String
+  type            VenueType
+  description     String?  @db.Text
+  capacity        Int
+  hourlyRate      Decimal  @db.Decimal(10, 2)
+  dailyRate       Decimal  @db.Decimal(10, 2)
+  imageUrl        String?
+  amenities       String?  @db.Text
+  requiresPermit  Boolean  @default(false)
+  isActive        Boolean  @default(true)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  bookings        VenueBooking[]
+  blockouts       VenueBlockout[]
+  
+  @@index([type])
+  @@index([isActive])
+}
+
+model VenueBooking {
+  id                    Int      @id @default(autoincrement())
+  bookingCode           String   @unique
+  
+  // Applicant Info
+  applicantName         String
+  organizationName      String?
+  applicantEmail        String?
+  applicantPhone        String
+  contactPerson         String
+  requesterType         RequesterType @default(RESIDENT)
+  
+  // Event Details
+  eventType             EventType
+  eventTitle            String
+  venueId               Int
+  eventDate             DateTime
+  startTime             String
+  endTime               String
+  estimatedAttendees    Int
+  setupRequirements     String?  @db.Text
+  layoutFileUrl         String?
+  
+  // Permits & Clearances
+  governmentPermitUrl   String?
+  barangayEndorsementUrl String?
+  
+  // Status & Payment
+  status                ReservationStatus @default(PENDING_REVIEW)
+  paymentStatus         PaymentStatus @default(UNPAID)
+  totalAmount           Decimal  @db.Decimal(10, 2)
+  paymentMethod         String?
+  paymentProofUrl       String?
+  paidAt                DateTime?
+  
+  // Gate Pass
+  qrCode                String?  @db.Text
+  gatePassUrl           String?
+  checkedInAt           DateTime?
+  checkedInBy           String?
+  eventCompletedAt      DateTime?
+  
+  // Tracking
+  reviewedBy            String?
+  reviewedAt            DateTime?
+  approvedBy            String?
+  approvedAt            DateTime?
+  rejectedBy            String?
+  rejectedAt            DateTime?
+  rejectionReason       String?  @db.Text
+  cancelledBy           String?
+  cancelledAt           DateTime?
+  cancellationReason    String?  @db.Text
+  
+  // Auto-cancel tracking
+  holdExpiresAt         DateTime?
+  paymentDueAt          DateTime?
+  
+  remarks               String?  @db.Text
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  
+  // Relations
+  venue                 Venue    @relation(fields: [venueId], references: [id])
+  
+  @@index([bookingCode])
+  @@index([status])
+  @@index([eventDate])
+  @@index([venueId])
+  @@index([applicantEmail])
+}
+
+model VenueBlockout {
+  id          Int      @id @default(autoincrement())
+  venueId     Int
+  startDate   DateTime
+  endDate     DateTime
+  reason      String
+  createdBy   String
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  venue       Venue    @relation(fields: [venueId], references: [id])
+  
+  @@index([venueId])
+  @@index([startDate, endDate])
+}
+
+// ============================================
+// PARKS MAINTENANCE MODELS
+// ============================================
+
+model Park {
+  id              Int      @id @default(autoincrement())
+  name            String
+  location        String
+  address         String?  @db.Text
+  size            String?
+  description     String?  @db.Text
+  imageUrl        String?
+  isActive        Boolean  @default(true)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  maintenanceRequests MaintenanceRequest[]
+  
+  @@index([name])
+}
+
+model MaintenanceRequest {
+  id                  Int      @id @default(autoincrement())
+  ticketNumber        String   @unique
+  
+  // Reporter Info
+  reporterName        String?
+  reporterEmail       String?
+  reporterPhone       String?
+  isAnonymous         Boolean  @default(false)
+  
+  // Issue Details
+  parkId              Int
+  issueType           MaintenanceIssueType
+  description         String   @db.Text
+  photoUrls           String?  @db.Text
+  videoUrl            String?
+  location            String?
+  
+  // Status & Priority
+  status              MaintenanceStatus @default(PENDING_INSPECTION)
+  priority            MaintenancePriority @default(NORMAL)
+  
+  // Inspection
+  inspectedBy         String?
+  inspectedAt         DateTime?
+  inspectionNotes     String?  @db.Text
+  
+  // Approval & Procurement
+  approvedBy          String?
+  approvedAt          DateTime?
+  materialsNeeded     String?  @db.Text
+  estimatedCost       Decimal? @db.Decimal(12, 2)
+  
+  // Implementation
+  assignedTo          String?
+  assignedAt          DateTime?
+  startedAt           DateTime?
+  completedAt         DateTime?
+  beforePhotoUrls     String?  @db.Text
+  afterPhotoUrls      String?  @db.Text
+  completionNotes     String?  @db.Text
+  
+  // Cancellation
+  cancelledBy         String?
+  cancelledAt         DateTime?
+  cancellationReason  String?  @db.Text
+  
+  remarks             String?  @db.Text
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  // Relations
+  park                Park     @relation(fields: [parkId], references: [id])
+  
+  @@index([ticketNumber])
+  @@index([status])
+  @@index([priority])
+  @@index([parkId])
+  @@index([issueType])
+}
+
+// ============================================
+// SYSTEM CONFIGURATION
+// ============================================
+
+model SystemSettings {
+  id                        Int      @id @default(autoincrement())
+  key                       String   @unique
+  value                     String   @db.Text
+  description               String?
+  
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+}

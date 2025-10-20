@@ -37,10 +37,7 @@ app.use('/api/storage', require('./routes/storage'));
 app.use('/api/ris', require('./routes/ris'));
 app.use('/api/physical-inventory', require('./routes/physical-inventory'));
 app.use('/api/issuances', require('./routes/issuances'));
-// app.use('/api/purchase-orders', require('./routes/purchaseOrders'));
-// app.use('/api/delivery-receipts', require('./routes/deliveryReceipts'));
-// app.use('/api/stock', require('./routes/stock'));
-// app.use('/api/reports', require('./routes/reports'));
+
 
 // Error handling
 app.use((err, req, res, next) => {

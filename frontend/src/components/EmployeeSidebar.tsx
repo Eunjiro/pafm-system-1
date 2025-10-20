@@ -153,26 +153,35 @@ export default function EmployeeSidebar({ isCollapsed, onToggle }: EmployeeSideb
   }, [pathname])
 
   return (
-    <div className={`bg-white shadow-md transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-64'} h-screen border-r border-gray-100 relative flex flex-col`}>
+    <div className={`bg-gradient-to-b from-gray-50 to-white shadow-xl transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-64'} h-screen border-r border-gray-200 relative flex flex-col`}>
       
       {/* Header */}
-      <div className="px-4 py-6">
+      <div className="px-4 py-6 border-b border-gray-200 bg-white/80 backdrop-blur-sm">
         <div className="flex items-center justify-between">
           {!isCollapsed && (
-            <h2 className="text-lg font-semibold text-gray-800">Employee Portal</h2>
+            <div className="flex-1">
+              <h2 className="text-lg font-bold bg-gradient-to-r from-green-600 to-green-500 bg-clip-text text-transparent">
+                Employee Portal
+              </h2>
+              <p className="text-xs text-gray-500 mt-0.5">PAFM System</p>
+            </div>
           )}
           <button
             onClick={onToggle}
-            className="p-2 rounded-lg transition-all duration-200 hover:scale-105"
-            style={{backgroundColor: '#4CAF50', color: 'white'}}
+            className="p-2.5 rounded-xl transition-all duration-200 hover:scale-105 shadow-md hover:shadow-lg group"
+            style={{ background: 'linear-gradient(135deg, #4CAF50 0%, #45a049 100%)', color: 'white' }}
           >
-            {isCollapsed ? <FiMenu size={18} /> : <FiX size={18} />}
+            {isCollapsed ? (
+              <FiMenu size={18} className="group-hover:rotate-180 transition-transform duration-300" />
+            ) : (
+              <FiX size={18} className="group-hover:rotate-90 transition-transform duration-300" />
+            )}
           </button>
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
         {sidebarItems.map((item) => (
           <div key={item.id}>
             {/* Parent Item */}

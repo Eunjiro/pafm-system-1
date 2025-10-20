@@ -9,46 +9,65 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // Primary Brand Color (Green)
         primary: {
-          50: '#f0f9f0',
-          100: '#dcf2dc',
-          200: '#bae5ba',
-          300: '#8fd18f',
-          400: '#5fb75f',
-          500: '#4CAF50', // Primary color
-          600: '#43a047',
-          700: '#388e3c',
-          800: '#2e7d32',
-          900: '#1b5e20',
-          950: '#0d3f0f',
+          50: '#E8F5E9',
+          100: '#C8E6C9',
+          200: '#A5D6A7',
+          300: '#81C784',
+          400: '#66BB6A',
+          500: '#4CAF50', // Main primary
+          600: '#43A047',
+          700: '#388E3C',
+          800: '#2E7D32',
+          900: '#1B5E20',
+          950: '#0D3F0F',
         },
+        // Secondary Brand Color (Blue)
         secondary: {
-          50: '#f0f7ff',
-          100: '#e0efff',
-          200: '#bae1ff',
-          300: '#7ccdff',
-          400: '#36b5ff',
-          500: '#4A90E2', // Secondary color
-          600: '#0284c7',
-          700: '#0369a1',
-          800: '#075985',
-          900: '#0c4a6e',
-          950: '#082f49',
+          50: '#E3F2FD',
+          100: '#BBDEFB',
+          200: '#90CAF9',
+          300: '#64B5F6',
+          400: '#42A5F5',
+          500: '#4A90E2', // Main secondary
+          600: '#1E88E5',
+          700: '#1976D2',
+          800: '#1565C0',
+          900: '#0D47A1',
+          950: '#082F49',
         },
+        // Accent Color (Orange/Amber)
         accent: {
-          50: '#fffbeb',
-          100: '#fef3c7',
-          200: '#fde68a',
-          300: '#fcd34d',
-          400: '#fbbf24',
-          500: '#FDA811', // Accent color
-          600: '#d97706',
-          700: '#b45309',
-          800: '#92400e',
-          900: '#78350f',
-          950: '#451a03',
+          50: '#FFF8E1',
+          100: '#FFECB3',
+          200: '#FFE082',
+          300: '#FFD54F',
+          400: '#FFCA28',
+          500: '#FDA811', // Main accent
+          600: '#F57C00',
+          700: '#EF6C00',
+          800: '#E65100',
+          900: '#BF360C',
+          950: '#7F2300',
         },
-        background: '#FBFBFB', // Background color
+        // Purple for special features
+        purple: {
+          50: '#F3E5F5',
+          100: '#E1BEE7',
+          200: '#CE93D8',
+          300: '#BA68C8',
+          400: '#AB47BC',
+          500: '#9C27B0',
+          600: '#8E24AA',
+          700: '#7B1FA2',
+          800: '#6A1B9A',
+          900: '#4A148C',
+          950: '#2E0854',
+        },
+        // System colors
+        background: '#FBFBFB',
+        foreground: '#212121',
       },
       fontFamily: {
         sans: [
