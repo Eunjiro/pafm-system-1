@@ -635,10 +635,10 @@ export default function AdminPermitsIndex() {
 
         {/* Permit Detail Modal */}
         {showDetailModal && selectedPermit && (
-          <div className="fixed inset-0 flex items-center justify-center z-50 animate-fadeIn bg-black bg-opacity-50">
+          <div className="fixed inset-0 flex items-center justify-center z-[9999] animate-fadeIn">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto animate-slideUp">
               {/* Modal Header */}
-              <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 rounded-t-2xl">
+              <div className="px-8 py-6 border-b border-gray-200">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
                     <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
@@ -785,24 +785,22 @@ export default function AdminPermitsIndex() {
               </div>
               
               {/* Modal Footer */}
-              <div className="px-6 py-4 bg-gray-50 rounded-b-2xl border-t border-gray-200">
-                <div className="flex justify-between items-center">
-                  <div className="flex space-x-3">
-                    <button
-                      onClick={() => {
-                        setShowDetailModal(false);
-                        setShowOverrideModal(true);
-                      }}
-                      className="px-4 py-2 text-red-600 border border-red-300 rounded-lg font-medium hover:bg-red-50 transition-all duration-200"
-                    >
-                      Admin Override
-                    </button>
-                  </div>
+              <div className="px-8 py-6 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
+                <div className="flex justify-end space-x-3">
                   <button
                     onClick={() => setShowDetailModal(false)}
-                    className="px-6 py-2 text-gray-600 border border-gray-300 rounded-lg font-medium hover:bg-gray-100 transition-all duration-200"
+                    className="px-6 py-3 text-gray-700 bg-white border-2 border-gray-300 rounded-xl hover:bg-gray-50 font-medium transition-all"
                   >
                     Close
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowDetailModal(false);
+                      setShowOverrideModal(true);
+                    }}
+                    className="px-6 py-3 bg-orange-500 text-white rounded-xl hover:bg-orange-600 font-bold transition-all duration-200 hover:shadow-lg transform hover:scale-105"
+                  >
+                    Admin Override
                   </button>
                 </div>
               </div>
@@ -812,48 +810,48 @@ export default function AdminPermitsIndex() {
 
         {/* Admin Override Modal */}
         {showOverrideModal && selectedPermit && (
-          <div className="fixed inset-0 flex items-center justify-center z-50 animate-fadeIn bg-black bg-opacity-50">
+          <div className="fixed inset-0 flex items-center justify-center z-[9999] animate-fadeIn">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-slideUp">
               {/* Modal Header */}
-              <div className="px-6 py-4 border-b border-gray-200">
+              <div className="px-8 py-6 border-b border-gray-200">
                 <div className="flex items-center space-x-3">
                   <div 
-                    className="w-10 h-10 rounded-xl flex items-center justify-center"
-                    style={{backgroundColor: '#FF5722'}}
+                    className="w-12 h-12 rounded-full flex items-center justify-center"
+                    style={{backgroundColor: '#FFF3E0'}}
                   >
-                    <div className="text-white">
-                      <FiShield size={20} />
-                    </div>
+                    <FiShield size={24} color="#FDA811" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-gray-900">Admin Override</h3>
-                    <p className="text-sm text-gray-500">Permit #{selectedPermit?.id} - {selectedPermit?.permitType}</p>
+                    <h3 className="text-xl font-bold text-gray-900">Administrative Override</h3>
+                    <p className="text-sm text-gray-600">
+                      Permit #{selectedPermit?.id} - {selectedPermit?.permitType}
+                    </p>
                   </div>
                 </div>
               </div>
               
               {/* Modal Body */}
-              <div className="px-6 py-6 space-y-6">
+              <div className="px-8 py-6 space-y-6">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-3">
+                  <label className="block text-sm font-bold text-gray-700 mb-3">
                     Override Action
                   </label>
                   <select 
                     value={overrideAction} 
                     onChange={(e) => setOverrideAction(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl font-medium focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
                   >
-                    <option value="approve">Force Approve</option>
-                    <option value="reject">Force Reject</option>
-                    <option value="waive_fee">Waive Fee</option>
-                    <option value="adjust_fee">Adjust Fee</option>
-                    <option value="reset_status">Reset Status</option>
+                    <option value="approve">Force Approve Permit</option>
+                    <option value="reject">Force Reject Permit</option>
+                    <option value="waive_fee">Waive Processing Fee</option>
+                    <option value="adjust_fee">Adjust Fee Amount</option>
+                    <option value="reset_status">Reset Status to Pending</option>
                   </select>
                 </div>
 
                 {overrideAction === 'adjust_fee' && (
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-3">
+                    <label className="block text-sm font-bold text-gray-700 mb-3">
                       New Amount (₱)
                     </label>
                     <input
@@ -861,7 +859,7 @@ export default function AdminPermitsIndex() {
                       value={newAmount}
                       onChange={(e) => setNewAmount(e.target.value)}
                       placeholder="Enter new amount..."
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl font-medium focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
                       min="0"
                       step="0.01"
                     />
@@ -869,17 +867,25 @@ export default function AdminPermitsIndex() {
                 )}
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-3">
-                    Reason for Override <span className="text-red-500">*</span>
+                  <label className="block text-sm font-bold text-gray-700 mb-3">
+                    Justification for Override <span className="text-red-500">*</span>
                   </label>
                   <textarea
                     value={overrideReason}
                     onChange={(e) => setOverrideReason(e.target.value)}
-                    placeholder="Enter detailed reason for administrative override..."
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl font-medium focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                    placeholder="Provide detailed reasoning for this administrative override. This will be logged for audit purposes..."
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all resize-none"
                     rows={4}
                     required
                   />
+                  <div className="flex justify-between mt-2">
+                    <span className="text-xs text-gray-500">
+                      This action will be recorded in the audit log
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      {overrideReason.length}/500
+                    </span>
+                  </div>
                 </div>
 
                 <div className="p-4 bg-yellow-50 rounded-xl border border-yellow-200">
@@ -898,7 +904,7 @@ export default function AdminPermitsIndex() {
               </div>
               
               {/* Modal Footer */}
-              <div className="px-6 py-4 bg-gray-50 rounded-b-2xl border-t border-gray-200">
+              <div className="px-8 py-6 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
                 <div className="flex justify-end space-x-3">
                   <button
                     onClick={() => {
@@ -907,18 +913,20 @@ export default function AdminPermitsIndex() {
                       setOverrideReason('');
                       setNewAmount('');
                     }}
-                    className="px-6 py-3 text-gray-600 border border-gray-300 rounded-xl font-medium hover:bg-gray-100 transition-all duration-200"
+                    className="px-6 py-3 text-gray-700 bg-white border-2 border-gray-300 rounded-xl hover:bg-gray-50 font-medium transition-all"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleOverride}
                     disabled={!overrideReason.trim() || (overrideAction === 'adjust_fee' && !newAmount)}
-                    className="px-6 py-3 text-white rounded-xl font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-                    style={{backgroundColor: '#FF5722'}}
+                    className="px-8 py-3 text-white rounded-xl font-bold disabled:opacity-50 flex items-center gap-3 transition-all duration-200 hover:shadow-lg transform hover:scale-105"
+                    style={{backgroundColor: '#FDA811'}}
                   >
-                    <FiShield size={16} />
-                    <span>Execute Override</span>
+                    {loading && (
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                    )}
+                    {loading ? 'Processing Override...' : 'Execute Override'}
                   </button>
                 </div>
               </div>

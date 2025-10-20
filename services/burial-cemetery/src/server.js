@@ -17,6 +17,7 @@ const plotRoutes = require('./routes/plots');
 const cemeteryRoutes = require('./routes/cemeteries');
 const cemeterySectionRoutes = require('./routes/cemetery-sections');
 const cemeteryBlockRoutes = require('./routes/cemetery-blocks');
+const dashboardRoutes = require('./routes/dashboard');
 const errorHandler = require('./middleware/errorHandler');
 const { authenticateToken } = require('./middleware/auth');
 
@@ -159,6 +160,7 @@ app.use('/api/plots', authenticateToken, plotRoutes);
 app.use('/api/cemeteries', authenticateToken, cemeteryRoutes);
 app.use('/api/cemetery-sections', authenticateToken, cemeterySectionRoutes);
 app.use('/api/cemetery-blocks', authenticateToken, cemeteryBlockRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

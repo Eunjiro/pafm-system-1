@@ -170,69 +170,6 @@ export default function CremationPermitsPage() {
           </div>
         )}
 
-        {/* Cremation Permit Requirements */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100">
-          <div className="p-6">
-            <div className="flex items-start space-x-4">
-              <div className="w-16 h-16 rounded-2xl flex items-center justify-center bg-orange-500">
-                <div className="text-white">
-                  <FiZap size={24} />
-                </div>
-              </div>
-              <div className="flex-1">
-                <h3 className="text-xl font-bold text-gray-900">Cremation Permit Requirements</h3>
-                <p className="text-gray-600 mt-1">Authorization for crematorium services</p>
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-sm font-semibold text-gray-700">Required Documents:</p>
-                    <ul className="text-xs text-gray-600 mt-1 space-y-1">
-                      <li className="flex items-center space-x-1">
-                        <span className="w-1 h-1 bg-orange-400 rounded-full"></span>
-                        <span>Certified Death Certificate</span>
-                      </li>
-                      <li className="flex items-center space-x-1">
-                        <span className="w-1 h-1 bg-orange-400 rounded-full"></span>
-                        <span>Valid ID of Applicant</span>
-                      </li>
-                      <li className="flex items-center space-x-1">
-                        <span className="w-1 h-1 bg-orange-400 rounded-full"></span>
-                        <span>Burial Permit (for transfer)</span>
-                      </li>
-                      <li className="flex items-center space-x-1">
-                        <span className="w-1 h-1 bg-orange-400 rounded-full"></span>
-                        <span>Crematorium Receipt</span>
-                      </li>
-                      <li className="flex items-center space-x-1">
-                        <span className="w-1 h-1 bg-yellow-400 rounded-full"></span>
-                        <span>Medical Certificate (if required)</span>
-                      </li>
-                      <li className="flex items-center space-x-1">
-                        <span className="w-1 h-1 bg-yellow-400 rounded-full"></span>
-                        <span>Family Consent Form</span>
-                      </li>
-                    </ul>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-700">Fees:</p>
-                    <ul className="text-xs text-gray-600 mt-1 space-y-1">
-                      <li>Cremation Permit: ₱300</li>
-                      <li>Processing Fee: ₱150</li>
-                      <li>Verification Fee: ₱100</li>
-                      <li>Additional Services: ₱450</li>
-                    </ul>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-700">Processing:</p>
-                    <p className="text-xs text-gray-600 mt-1">2-3 working days</p>
-                    <p className="text-xs text-gray-600">Crematorium coordination</p>
-                    <p className="text-xs text-gray-600">Same-day pickup available</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">

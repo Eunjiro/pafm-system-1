@@ -27,65 +27,56 @@ interface SidebarItem {
   badge?: string
 }
 
-const sidebarItems: SidebarItem[] = [
+interface SidebarSection {
+  id: string
+  title: string
+  items: SidebarItem[]
+}
+
+const sidebarSections: SidebarSection[] = [
+  // MAIN SECTION
   {
-    id: "dashboard",
-    label: "Dashboard",
-    href: "/admin",
-    icon: MdDashboard
+    id: "main",
+    title: "",
+    items: [
+      {
+        id: "dashboard",
+        label: "Dashboard",
+        href: "/admin",
+        icon: MdDashboard
+      }
+    ]
   },
   
-  // MICROSERVICE 1: CEMETERY & BURIAL MANAGEMENT
+  // MICROSERVICES SECTION
   {
-    id: "cemetery-burial",
-    label: "Cemetery & Burial Management",
-    icon: GiTombstone,
-    children: [
-      // Death Registration Module
+    id: "services",
+    title: "SERVICES",
+    items: [
+      // MICROSERVICE 1: CEMETERY & BURIAL MANAGEMENT
       {
-        id: "death-registration",
-        label: "Death Registrations",
-        href: "/admin/death-registration",
-        icon: MdLocalHospital
-      },
-      // Permit Management Module
-      {
-        id: "permits",
-        label: "Permit Management",
-        icon: MdAssignment,
+        id: "cemetery-burial",
+        label: "Cemetery & Burial",
+        icon: GiTombstone,
         children: [
+          { id: "cemetery-dashboard", label: "Dashboard", href: "/admin/cemetery-burial", icon: MdDashboard },
+          { id: "death-registration", label: "Death Registrations", href: "/admin/death-registration", icon: MdLocalHospital },
           { id: "permits-overview", label: "All Permits", href: "/admin/permits", icon: MdAssignment },
           { id: "burial-permits", label: "Burial Permits", href: "/admin/permits/burial", icon: FiUsers },
           { id: "exhumation-permits", label: "Exhumation Permits", href: "/admin/permits/exhumation", icon: FiClipboard },
-          { id: "cremation-permits", label: "Cremation Permits", href: "/admin/permits/cremation", icon: FiTrendingUp }
-        ]
-      },
-      // Certificate Management Module
-      {
-        id: "certificates",
-        label: "Certificate Requests",
-        href: "/admin/certificates",
-        icon: FiAward
-      },
-      // Cemetery Infrastructure Module
-      {
-        id: "cemetery",
-        label: "Cemetery Management",
-        icon: MdLocationOn,
-        children: [
+          { id: "cremation-permits", label: "Cremation Permits", href: "/admin/permits/cremation", icon: FiTrendingUp },
+          { id: "certificates", label: "Certificate Requests", href: "/admin/certificates", icon: FiAward },
           { id: "cemetery-creation", label: "Create Cemetery", href: "/admin/cemetery-map", icon: FiMap },
           { id: "cemetery-management", label: "Manage Cemeteries", href: "/admin/cemetery", icon: GiTombstone },
           { id: "cemetery-plots", label: "Plot Management", href: "/admin/cemetery/plots", icon: MdLocationOn }
         ]
-      }
-    ]
-  },
+      },
 
-  // MICROSERVICE 2: WATER SUPPLY & DRAINAGE REQUEST
-  {
-    id: "water-drainage",
-    label: "Water Supply & Drainage",
-    icon: FiDroplet,
+      // MICROSERVICE 2: WATER SUPPLY & DRAINAGE REQUEST
+      {
+        id: "water-drainage",
+        label: "Water & Drainage",
+        icon: FiDroplet,
     children: [
       { id: "water-supply", label: "Water Supply Management", href: "/admin/water-supply", icon: FiDroplet },
       { id: "drainage-management", label: "Drainage Management", href: "/admin/drainage", icon: FiSlash },
@@ -94,64 +85,79 @@ const sidebarItems: SidebarItem[] = [
     ]
   },
 
-  // MICROSERVICE 3: ASSETS INVENTORY & WAREHOUSE MANAGEMENT
-  {
-    id: "assets-inventory",
-    label: "Assets & Inventory",
-    icon: FiPackage,
+      // MICROSERVICE 3: ASSETS INVENTORY & WAREHOUSE MANAGEMENT
+      {
+        id: "assets-inventory",
+        label: "Assets & Inventory",
+        icon: FiPackage,
     children: [
-      { id: "asset-registry", label: "Asset Registry", href: "/admin/assets/registry", icon: FiDatabase },
-      { id: "inventory-management", label: "Inventory Management", href: "/admin/inventory", icon: FiPackage },
-      { id: "warehouse-operations", label: "Warehouse Operations", href: "/admin/warehouse", icon: FiTruck },
-      { id: "procurement", label: "Procurement", href: "/admin/procurement", icon: FiShoppingCart },
-      { id: "asset-maintenance", label: "Asset Maintenance", href: "/admin/assets/maintenance", icon: FiTool }
+      { id: "asset-dashboard", label: "Dashboard", href: "/admin/asset-inventory", icon: MdDashboard },
+      { id: "receiving", label: "Receiving of Supplies", href: "/admin/asset-inventory/receiving", icon: FiTruck },
+      { id: "storage", label: "Storage & Processing", href: "/admin/asset-inventory/storage", icon: FiDatabase },
+      { id: "ris", label: "RIS Management", href: "/admin/asset-inventory/ris", icon: FiFileText },
+      { id: "issuance", label: "Asset Issuance", href: "/admin/asset-inventory/issuance", icon: FiShoppingCart },
+      { id: "physical-count", label: "Physical Inventory", href: "/admin/asset-inventory/physical-count", icon: FiClipboard },
+      { id: "inventory-reports", label: "Reports & Monitoring", href: "/admin/asset-inventory/reports", icon: FiBarChart }
     ]
   },
 
-  // MICROSERVICE 4: FACILITY MANAGEMENT
-  {
-    id: "facility-management",
-    label: "Facility Management",
-    icon: FiHome,
+      // MICROSERVICE 4: FACILITY MANAGEMENT
+      {
+        id: "facility-management",
+        label: "Facility Management",
+        icon: FiHome,
     children: [
       { id: "facility-booking", label: "Facility Booking", href: "/admin/facilities/booking", icon: FiCalendar },
       { id: "facility-maintenance", label: "Facility Maintenance", href: "/admin/facilities/maintenance", icon: FiSettings },
       { id: "facility-resources", label: "Resource Management", href: "/admin/facilities/resources", icon: FiGrid },
       { id: "facility-schedules", label: "Event Scheduling", href: "/admin/facilities/schedules", icon: FiClock },
       { id: "facility-reports", label: "Facility Reports", href: "/admin/facilities/reports", icon: FiBarChart }
+        ]
+      }
     ]
   },
 
-  // SYSTEM ADMINISTRATION
+  // ADMINISTRATION SECTION
   {
-    id: "users",
-    label: "User Management",
-    href: "/admin/users",
-    icon: FiUsers
-  },
-
-  {
-    id: "system",
-    label: "System Administration",
-    icon: FiSettings,
+    id: "administration",
+    title: "ADMINISTRATION",
+    items: [
+      {
+        id: "users",
+        label: "User Management",
+        href: "/admin/users",
+        icon: FiUsers
+      },
+      {
+        id: "system",
+        label: "System Settings",
+        icon: FiSettings,
     children: [
       { id: "service-health", label: "Service Health Monitor", href: "/admin/system/health", icon: FiActivity },
       { id: "audit-logs", label: "Audit Logs", href: "/admin/system/audit-logs", icon: FiClipboard },
       { id: "fee-management", label: "Fee Management", href: "/admin/system/fees", icon: FiDollarSign },
-      { id: "system-settings", label: "System Settings", href: "/admin/system/settings", icon: FiSettings }
+        { id: "system-settings", label: "System Settings", href: "/admin/system/settings", icon: FiSettings }
+        ]
+      }
     ]
   },
 
-  // ANALYTICS & REPORTS
+  // ANALYTICS SECTION
   {
-    id: "reports",
-    label: "Reports & Analytics",
-    icon: FiBarChart,
-    children: [
-      { id: "cross-service-analytics", label: "Cross-Service Analytics", href: "/admin/reports/cross-service", icon: FiTrendingUp },
-      { id: "service-performance", label: "Service Performance", href: "/admin/reports/performance", icon: FiActivity },
-      { id: "financial-reports", label: "Financial Reports", href: "/admin/reports/financial", icon: FiDollarSign },
-      { id: "operational-reports", label: "Operational Reports", href: "/admin/reports/operational", icon: FiFileText }
+    id: "analytics",
+    title: "ANALYTICS & REPORTING",
+    items: [
+      {
+        id: "reports",
+        label: "Reports & Analytics",
+        icon: FiBarChart,
+        children: [
+          { id: "cross-service-analytics", label: "Cross-Service Analytics", href: "/admin/reports/cross-service", icon: FiTrendingUp },
+          { id: "service-performance", label: "Service Performance", href: "/admin/reports/performance", icon: FiActivity },
+          { id: "financial-reports", label: "Financial Reports", href: "/admin/reports/financial", icon: FiDollarSign },
+          { id: "operational-reports", label: "Operational Reports", href: "/admin/reports/operational", icon: FiFileText }
+        ]
+      }
     ]
   }
 ];
@@ -200,26 +206,28 @@ export default function AdminSidebar({ isCollapsed, onToggle }: AdminSidebarProp
   useEffect(() => {
     const itemsToExpand: string[] = []
     
-    sidebarItems.forEach(item => {
-      if (item.children) {
-        // Check if any direct child is active
-        const hasActiveChild = item.children.some(child => {
-          if (child.href && isActive(child.href)) return true
-          if (child.children) {
-            // Check if any grandchild is active
-            const hasActiveGrandchild = child.children.some(grandchild => isActive(grandchild.href))
-            if (hasActiveGrandchild) {
-              itemsToExpand.push(child.id) // Also expand the child that has active grandchild
+    sidebarSections.forEach(section => {
+      section.items.forEach(item => {
+        if (item.children) {
+          // Check if any direct child is active
+          const hasActiveChild = item.children.some(child => {
+            if (child.href && isActive(child.href)) return true
+            if (child.children) {
+              // Check if any grandchild is active
+              const hasActiveGrandchild = child.children.some(grandchild => isActive(grandchild.href))
+              if (hasActiveGrandchild) {
+                itemsToExpand.push(child.id) // Also expand the child that has active grandchild
+              }
+              return hasActiveGrandchild
             }
-            return hasActiveGrandchild
+            return false
+          })
+          
+          if (hasActiveChild) {
+            itemsToExpand.push(item.id)
           }
-          return false
-        })
-        
-        if (hasActiveChild) {
-          itemsToExpand.push(item.id)
         }
-      }
+      })
     })
     
     // Update expanded items if there are items to expand
@@ -237,28 +245,59 @@ export default function AdminSidebar({ isCollapsed, onToggle }: AdminSidebarProp
   }, [pathname])
 
   return (
-    <div className={`bg-white shadow-md transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-64'} h-screen border-r border-gray-100 relative flex flex-col`}>
+    <div className={`bg-gradient-to-b from-gray-50 to-white shadow-xl transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-64'} h-screen border-r border-gray-200 relative flex flex-col`}>
       
       {/* Header */}
-      <div className="px-4 py-6">
+      <div className="px-4 py-6 border-b border-gray-200 bg-white/80 backdrop-blur-sm">
         <div className="flex items-center justify-between">
           {!isCollapsed && (
-            <h2 className="text-lg font-semibold text-gray-800">Admin Portal</h2>
+            <div className="flex-1">
+              <h2 className="text-lg font-bold bg-gradient-to-r from-green-600 to-green-500 bg-clip-text text-transparent">
+                Admin Portal
+              </h2>
+              <p className="text-xs text-gray-500 mt-0.5">PAFM System</p>
+            </div>
           )}
           <button
             onClick={onToggle}
-            className="p-2 rounded-lg transition-all duration-200 hover:scale-105"
-            style={{backgroundColor: '#4CAF50', color: 'white'}}
+            className="p-2.5 rounded-xl transition-all duration-200 hover:scale-105 shadow-md hover:shadow-lg group"
+            style={{background: 'linear-gradient(135deg, #4CAF50 0%, #45a049 100%)', color: 'white'}}
           >
-            {isCollapsed ? <FiMenu size={18} /> : <FiX size={18} />}
+            {isCollapsed ? (
+              <FiMenu size={18} className="group-hover:rotate-180 transition-transform duration-300" />
+            ) : (
+              <FiX size={18} className="group-hover:rotate-90 transition-transform duration-300" />
+            )}
           </button>
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
-        {sidebarItems.map((item) => (
-          <div key={item.id}>
+      <nav className="flex-1 px-3 py-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
+        {sidebarSections.map((section, sectionIndex) => (
+          <div key={section.id} className="mb-6">
+            {/* Section Header */}
+            {!isCollapsed && section.title && (
+              <div className="px-3 mb-3 mt-2">
+                <div className="flex items-center gap-2">
+                  <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
+                  <h3 className="text-[10px] font-bold tracking-widest text-gray-400 uppercase whitespace-nowrap">
+                    {section.title}
+                  </h3>
+                  <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
+                </div>
+              </div>
+            )}
+            
+            {/* Collapsed Section Separator */}
+            {isCollapsed && sectionIndex > 0 && (
+              <div className="w-full h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent my-3"></div>
+            )}
+            
+            {/* Section Items */}
+            <div className="space-y-1">
+              {section.items.map((item) => (
+                <div key={item.id}>
             {/* Parent Item */}
             {item.children ? (
               <button
@@ -399,7 +438,9 @@ export default function AdminSidebar({ isCollapsed, onToggle }: AdminSidebarProp
 
             {/* Sub Items */}
             {!isCollapsed && item.children && expandedItems.includes(item.id) && (
-              <div className="mt-1 ml-4 space-y-1">
+              <div className="mt-1 ml-4 pl-3 space-y-1 border-l-2 border-green-500/30 relative">
+                {/* Left border indicator for open menu */}
+                <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-gradient-to-b from-green-500/50 via-green-500/30 to-transparent"></div>
                 {item.children.map((child) => (
                   <div key={child.id}>
                     {/* Child Item - Can be either a link or expandable parent */}
@@ -535,7 +576,9 @@ export default function AdminSidebar({ isCollapsed, onToggle }: AdminSidebarProp
 
                     {/* Sub-sub Items (Third Level) */}
                     {child.children && expandedItems.includes(child.id) && (
-                      <div className="mt-1 ml-6 space-y-1">
+                      <div className="mt-1 ml-6 pl-3 space-y-1 border-l-2 border-orange-500/30 relative">
+                        {/* Left border indicator for open submenu */}
+                        <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-gradient-to-b from-orange-500/50 via-orange-500/30 to-transparent"></div>
                         {child.children.map((grandchild) => (
                           <Link
                             key={grandchild.id}
@@ -602,6 +645,9 @@ export default function AdminSidebar({ isCollapsed, onToggle }: AdminSidebarProp
                 ))}
               </div>
             )}
+                </div>
+              ))}
+            </div>
           </div>
         ))}
       </nav>

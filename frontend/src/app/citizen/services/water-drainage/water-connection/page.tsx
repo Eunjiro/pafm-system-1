@@ -29,11 +29,11 @@ export default function WaterConnectionPage() {
     // Step 2: Property Information
     barangayId: '',
     propertyAddress: '',
-    propertyType: 'Residential',
-    ownershipType: 'Owner',
+    propertyType: 'OWNED', // OWNED, RENTED, LEASED
+    ownershipType: 'OWNED',
     
     // Step 3: Connection Details
-    connectionType: 'New Connection',
+    connectionType: 'RESIDENTIAL', // RESIDENTIAL, COMMERCIAL, INDUSTRIAL, INSTITUTIONAL
     purposeOfUse: 'Household',
     estimatedMonthlyUsage: '',
     numberOfOccupants: '',
@@ -105,27 +105,45 @@ export default function WaterConnectionPage() {
     setLoading(true)
 
     try {
+      // Find selected barangay name
+      const selectedBarangay = barangays.find(b => b.id === parseInt(formData.barangayId))
+      
+      // Split full name into parts (simple split by space)
+      const nameParts = formData.fullName.trim().split(' ')
+      const firstName = nameParts[0] || ''
+      const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : nameParts[0]
+      const middleName = nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : undefined
+      
       const response = await fetch('/api/water-connections', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...formData,
-          barangayId: parseInt(formData.barangayId),
-          estimatedMonthlyUsage: formData.estimatedMonthlyUsage ? parseFloat(formData.estimatedMonthlyUsage) : null,
+          applicantFirstName: firstName,
+          applicantLastName: lastName,
+          applicantMiddleName: middleName,
+          contactNumber: formData.contactNumber,
+          email: formData.contactEmail,
+          propertyAddress: formData.propertyAddress,
+          barangay: selectedBarangay?.name || 'Unknown',
+          propertyType: formData.propertyType, // Already in correct format: OWNED, RENTED, LEASED
+          connectionType: formData.connectionType, // Already in correct format: RESIDENTIAL, COMMERCIAL, etc.
           numberOfOccupants: formData.numberOfOccupants ? parseInt(formData.numberOfOccupants) : null,
+          validIdUrl: 'pending-upload', // Placeholder - file upload not implemented yet
+          connectionFee: 0, // Will be calculated by backend/admin
         }),
       })
 
       if (!response.ok) {
-        throw new Error('Failed to submit water connection application')
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to submit water connection application')
       }
 
       const data = await response.json()
-      setTrackingNumber(data.application.trackingNumber)
+      setTrackingNumber(data.data?.applicationNumber || 'N/A')
       setShowSuccessModal(true)
     } catch (error) {
       console.error('Submission error:', error)
-      alert('Failed to submit application. Please try again.')
+      alert(error instanceof Error ? error.message : 'Failed to submit application. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -299,7 +317,28 @@ export default function WaterConnectionPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Property Type <span className="text-red-500">*</span>
+                    Connection Type <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    name="connectionType"
+                    value={formData.connectionType}
+                    onChange={handleInputChange}
+                    required
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="RESIDENTIAL">Residential</option>
+                    <option value="COMMERCIAL">Commercial</option>
+                    <option value="INDUSTRIAL">Industrial</option>
+                    <option value="INSTITUTIONAL">Institutional (Schools, Churches, etc.)</option>
+                  </select>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Select the type of property where water connection will be installed
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Property Ownership <span className="text-red-500">*</span>
                   </label>
                   <select
                     name="propertyType"
@@ -308,28 +347,13 @@ export default function WaterConnectionPage() {
                     required
                     className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                   >
-                    <option value="Residential">Residential</option>
-                    <option value="Commercial">Commercial</option>
-                    <option value="Industrial">Industrial</option>
-                    <option value="Institutional">Institutional</option>
+                    <option value="OWNED">Property Owner</option>
+                    <option value="RENTED">Renter</option>
+                    <option value="LEASED">Lessee</option>
                   </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Ownership Type <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    name="ownershipType"
-                    value={formData.ownershipType}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="Owner">Property Owner</option>
-                    <option value="Renter">Renter/Lessee</option>
-                    <option value="Authorized">Authorized Representative</option>
-                  </select>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Indicate your relationship to the property
+                  </p>
                 </div>
               </div>
             )}
@@ -341,7 +365,7 @@ export default function WaterConnectionPage() {
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Connection Type <span className="text-red-500">*</span>
+                    Purpose of Use <span className="text-red-500">*</span>
                   </label>
                   <select
                     name="connectionType"
@@ -355,24 +379,9 @@ export default function WaterConnectionPage() {
                     <option value="Upgrade">Service Upgrade</option>
                     <option value="Transfer">Transfer of Ownership</option>
                   </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Purpose of Use <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    name="purposeOfUse"
-                    value={formData.purposeOfUse}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="Household">Household Use</option>
-                    <option value="Business">Business/Commercial</option>
-                    <option value="Agricultural">Agricultural</option>
-                    <option value="Mixed">Mixed Use</option>
-                  </select>
+                  <p className="mt-1 text-sm text-gray-500">
+                    This is already set based on Connection Type in Step 2
+                  </p>
                 </div>
 
                 <div>

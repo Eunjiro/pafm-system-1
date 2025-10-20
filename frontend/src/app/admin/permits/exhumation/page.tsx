@@ -170,69 +170,6 @@ export default function ExhumationPermitsPage() {
           </div>
         )}
 
-        {/* Exhumation Permit Requirements */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100">
-          <div className="p-6">
-            <div className="flex items-start space-x-4">
-              <div className="w-16 h-16 rounded-2xl flex items-center justify-center bg-red-500">
-                <div className="text-white">
-                  <FiXCircle size={24} />
-                </div>
-              </div>
-              <div className="flex-1">
-                <h3 className="text-xl font-bold text-gray-900">Exhumation Permit Requirements</h3>
-                <p className="text-gray-600 mt-1">Authorization for cemetery exhumation services</p>
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-sm font-semibold text-gray-700">Required Documents:</p>
-                    <ul className="text-xs text-gray-600 mt-1 space-y-1">
-                      <li className="flex items-center space-x-1">
-                        <span className="w-1 h-1 bg-red-400 rounded-full"></span>
-                        <span>Court Order for Exhumation</span>
-                      </li>
-                      <li className="flex items-center space-x-1">
-                        <span className="w-1 h-1 bg-red-400 rounded-full"></span>
-                        <span>Certified Death Certificate</span>
-                      </li>
-                      <li className="flex items-center space-x-1">
-                        <span className="w-1 h-1 bg-red-400 rounded-full"></span>
-                        <span>Valid ID of Applicant</span>
-                      </li>
-                      <li className="flex items-center space-x-1">
-                        <span className="w-1 h-1 bg-red-400 rounded-full"></span>
-                        <span>Burial Permit (Original)</span>
-                      </li>
-                      <li className="flex items-center space-x-1">
-                        <span className="w-1 h-1 bg-yellow-400 rounded-full"></span>
-                        <span>Clearance from DOH (if required)</span>
-                      </li>
-                      <li className="flex items-center space-x-1">
-                        <span className="w-1 h-1 bg-yellow-400 rounded-full"></span>
-                        <span>Consent from next of kin</span>
-                      </li>
-                    </ul>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-700">Fees:</p>
-                    <ul className="text-xs text-gray-600 mt-1 space-y-1">
-                      <li>Exhumation Permit: ₱500</li>
-                      <li>Processing Fee: ₱250</li>
-                      <li>Site Inspection: ₱300</li>
-                      <li>Additional Services: ₱950</li>
-                    </ul>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-700">Processing:</p>
-                    <p className="text-xs text-gray-600 mt-1">5-7 working days</p>
-                    <p className="text-xs text-gray-600">Requires site inspection</p>
-                    <p className="text-xs text-gray-600">Court order verification</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">

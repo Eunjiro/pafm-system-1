@@ -1,0 +1,573 @@
+// Asset Inventory & Warehouse Management Schema
+// PAFM System - Government Asset Tracking
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum DeliveryStatus {
+  PENDING_VERIFICATION
+  VERIFIED
+  STORED
+  REJECTED
+}
+
+enum StockStatus {
+  IN_STOCK
+  RESERVED
+  ISSUED
+  LOW_STOCK
+  OUT_OF_STOCK
+}
+
+enum RISStatus {
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  NO_STOCK
+  PARTIALLY_FULFILLED
+  ISSUED
+  COMPLETED
+}
+
+enum PhysicalCountStatus {
+  SCHEDULED
+  IN_PROGRESS
+  BALANCED
+  DISCREPANCY_FOUND
+  COMPLETED
+}
+
+enum MovementType {
+  RECEIVED
+  ISSUED
+  ADJUSTED
+  TRANSFERRED
+  RETURNED
+}
+
+enum ItemCategory {
+  OFFICE_SUPPLIES
+  FURNITURE
+  EQUIPMENT
+  ELECTRONICS
+  TOOLS
+  CONSUMABLES
+  MAINTENANCE
+  OTHER
+}
+
+enum UnitOfMeasure {
+  PIECE
+  BOX
+  REAM
+  SET
+  UNIT
+  PACK
+  ROLL
+  BOTTLE
+  KILOGRAM
+  LITER
+  METER
+}
+
+// ============================================
+// SUPPLIERS
+// ============================================
+
+model Supplier {
+  id              Int       @id @default(autoincrement())
+  name            String
+  contactPerson   String?
+  contactNumber   String?
+  email           String?
+  address         String?   @db.Text
+  tinNumber       String?   @unique
+  isActive        Boolean   @default(true)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  purchaseOrders  PurchaseOrder[]
+  deliveryReceipts DeliveryReceipt[]
+  
+  @@index([name])
+}
+
+// ============================================
+// PURCHASE ORDERS
+// ============================================
+
+model PurchaseOrder {
+  id              Int       @id @default(autoincrement())
+  poNumber        String    @unique
+  supplierId      Int
+  supplier        Supplier  @relation(fields: [supplierId], references: [id])
+  
+  poDate          DateTime
+  expectedDelivery DateTime?
+  totalAmount     Decimal   @db.Decimal(15, 2)
+  
+  poDocumentUrl   String?   // Uploaded PO file
+  remarks         String?   @db.Text
+  
+  createdBy       String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  items           POItem[]
+  deliveryReceipts DeliveryReceipt[]
+  
+  @@index([poNumber])
+  @@index([supplierId])
+}
+
+model POItem {
+  id              Int       @id @default(autoincrement())
+  poId            Int
+  purchaseOrder   PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+  
+  itemId          Int
+  item            Item      @relation(fields: [itemId], references: [id])
+  
+  description     String
+  quantity        Int
+  unitPrice       Decimal   @db.Decimal(10, 2)
+  totalPrice      Decimal   @db.Decimal(15, 2)
+  
+  @@index([poId])
+  @@index([itemId])
+}
+
+// ============================================
+// DELIVERY RECEIPTS & RECEIVING
+// ============================================
+
+model DeliveryReceipt {
+  id              Int       @id @default(autoincrement())
+  drNumber        String    @unique
+  
+  poId            Int?
+  purchaseOrder   PurchaseOrder? @relation(fields: [poId], references: [id])
+  
+  supplierId      Int
+  supplier        Supplier  @relation(fields: [supplierId], references: [id])
+  
+  deliveryDate    DateTime
+  receivedBy      String
+  receivedDate    DateTime  @default(now())
+  
+  status          DeliveryStatus @default(PENDING_VERIFICATION)
+  
+  drDocumentUrl   String?   // Uploaded DR file
+  noticeOfDeliveryUrl String?
+  
+  verifiedBy      String?
+  verifiedAt      DateTime?
+  
+  remarks         String?   @db.Text
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  items           DeliveryItem[]
+  
+  @@index([drNumber])
+  @@index([status])
+  @@index([deliveryDate])
+}
+
+model DeliveryItem {
+  id              Int       @id @default(autoincrement())
+  drId            Int
+  deliveryReceipt DeliveryReceipt @relation(fields: [drId], references: [id], onDelete: Cascade)
+  
+  itemId          Int
+  item            Item      @relation(fields: [itemId], references: [id])
+  
+  quantityOrdered Int
+  quantityDelivered Int
+  quantityAccepted Int
+  quantityRejected Int       @default(0)
+  
+  remarks         String?
+  
+  @@index([drId])
+  @@index([itemId])
+}
+
+// ============================================
+// ITEMS & INVENTORY
+// ============================================
+
+model Item {
+  id              Int       @id @default(autoincrement())
+  itemCode        String    @unique
+  itemName        String
+  description     String?   @db.Text
+  category        ItemCategory
+  unitOfMeasure   UnitOfMeasure
+  
+  reorderLevel    Int       @default(10)
+  unitCost        Decimal?  @db.Decimal(10, 2)
+  
+  isActive        Boolean   @default(true)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  poItems         POItem[]
+  deliveryItems   DeliveryItem[]
+  stockLocations  StockLocation[]
+  stockMovements  StockMovement[]
+  risItems        RISItem[]
+  physicalCountItems PhysicalCountItem[]
+  issuanceItems   IssuanceItem[]
+  
+  @@index([itemCode])
+  @@index([category])
+}
+
+// ============================================
+// STORAGE & LOCATIONS
+// ============================================
+
+model StorageZone {
+  id              Int       @id @default(autoincrement())
+  zoneName        String    @unique
+  description     String?
+  capacity        Int?
+  
+  isActive        Boolean   @default(true)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  racks           StorageRack[]
+}
+
+model StorageRack {
+  id              Int       @id @default(autoincrement())
+  rackCode        String    @unique
+  
+  zoneId          Int
+  zone            StorageZone @relation(fields: [zoneId], references: [id])
+  
+  level           Int?
+  position        String?
+  capacity        Int?
+  
+  isActive        Boolean   @default(true)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  stockLocations  StockLocation[]
+  
+  @@index([zoneId])
+}
+
+model StockLocation {
+  id              Int       @id @default(autoincrement())
+  
+  itemId          Int
+  item            Item      @relation(fields: [itemId], references: [id])
+  
+  rackId          Int
+  rack            StorageRack @relation(fields: [rackId], references: [id])
+  
+  quantity        Int
+  status          StockStatus @default(IN_STOCK)
+  
+  batchNumber     String?
+  expiryDate      DateTime?
+  tagCode         String?   @unique // QR/Barcode
+  
+  lastUpdated     DateTime  @updatedAt
+  
+  @@index([itemId])
+  @@index([rackId])
+  @@index([status])
+}
+
+// ============================================
+// RIS (Requisition & Issue Slip)
+// ============================================
+
+model RISRequest {
+  id              Int       @id @default(autoincrement())
+  risNumber       String    @unique @default(cuid())
+  
+  departmentId    Int?
+  departmentName  String
+  requestedBy     String
+  requestedByEmail String?
+  
+  purpose         String    @db.Text
+  dateNeeded      DateTime?
+  
+  status          RISStatus @default(PENDING_APPROVAL)
+  
+  approvedBy      String?
+  approvedAt      DateTime?
+  
+  rejectedBy      String?
+  rejectedAt      DateTime?
+  rejectionReason String?   @db.Text
+  
+  preparedBy      String?   // Warehouse staff who prepared
+  issuedBy        String?   // Warehouse officer who released
+  issuedAt        DateTime?
+  
+  acknowledgedBy  String?   // Department receiver
+  acknowledgedAt  DateTime?
+  
+  remarks         String?   @db.Text
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  items           RISItem[]
+  issuances       Issuance[]
+  
+  @@index([risNumber])
+  @@index([status])
+  @@index([departmentName])
+}
+
+model RISItem {
+  id              Int       @id @default(autoincrement())
+  risId           Int
+  risRequest      RISRequest @relation(fields: [risId], references: [id], onDelete: Cascade)
+  
+  itemId          Int
+  item            Item      @relation(fields: [itemId], references: [id])
+  
+  quantityRequested Int
+  quantityApproved  Int?
+  quantityIssued    Int       @default(0)
+  
+  justification   String?   @db.Text
+  remarks         String?
+  
+  @@index([risId])
+  @@index([itemId])
+}
+
+// ============================================
+// ISSUANCE
+// ============================================
+
+model Issuance {
+  id              Int       @id @default(autoincrement())
+  issuanceNumber  String    @unique @default(cuid())
+  
+  risId           Int
+  risRequest      RISRequest @relation(fields: [risId], references: [id])
+  
+  issuedTo        String
+  issuedBy        String
+  issuedDate      DateTime  @default(now())
+  
+  acknowledgedBy  String?
+  acknowledgedDate DateTime?
+  
+  remarks         String?   @db.Text
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  items           IssuanceItem[]
+  stockMovements  StockMovement[]
+  
+  @@index([risId])
+  @@index([issuedDate])
+}
+
+model IssuanceItem {
+  id              Int       @id @default(autoincrement())
+  issuanceId      Int
+  issuance        Issuance  @relation(fields: [issuanceId], references: [id], onDelete: Cascade)
+  
+  itemId          Int
+  item            Item      @relation(fields: [itemId], references: [id])
+  quantity        Int
+  
+  fromRackId      Int?
+  
+  @@index([issuanceId])
+  @@index([itemId])
+}
+
+// ============================================
+// STOCK MOVEMENTS (LEDGER)
+// ============================================
+
+model StockMovement {
+  id              Int       @id @default(autoincrement())
+  referenceNumber String
+  
+  itemId          Int
+  item            Item      @relation(fields: [itemId], references: [id])
+  
+  movementType    MovementType
+  
+  quantityIn      Int       @default(0)
+  quantityOut     Int       @default(0)
+  balanceAfter    Int
+  
+  fromLocation    String?
+  toLocation      String?
+  
+  drId            Int?      // Reference to delivery
+  risId           Int?      // Reference to RIS
+  issuanceId      Int?
+  issuance        Issuance? @relation(fields: [issuanceId], references: [id])
+  
+  performedBy     String
+  remarks         String?   @db.Text
+  
+  createdAt       DateTime  @default(now())
+  
+  @@index([itemId])
+  @@index([movementType])
+  @@index([createdAt])
+}
+
+// ============================================
+// PHYSICAL INVENTORY
+// ============================================
+
+model PhysicalCount {
+  id              Int       @id @default(autoincrement())
+  countNumber     String    @unique @default(cuid())
+  
+  scheduledDate   DateTime
+  startedDate     DateTime?
+  completedDate   DateTime?
+  
+  status          PhysicalCountStatus @default(SCHEDULED)
+  
+  conductedBy     String
+  verifiedBy      String?
+  
+  totalItems      Int       @default(0)
+  itemsCounted    Int       @default(0)
+  discrepancies   Int       @default(0)
+  
+  remarks         String?   @db.Text
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  items           PhysicalCountItem[]
+  
+  @@index([status])
+  @@index([scheduledDate])
+}
+
+model PhysicalCountItem {
+  id              Int       @id @default(autoincrement())
+  countId         Int
+  physicalCount   PhysicalCount @relation(fields: [countId], references: [id], onDelete: Cascade)
+  
+  itemId          Int
+  item            Item      @relation(fields: [itemId], references: [id])
+  
+  systemQuantity  Int
+  actualQuantity  Int?
+  variance        Int?
+  
+  remarks         String?
+  adjustmentMade  Boolean   @default(false)
+  
+  @@index([countId])
+  @@index([itemId])
+}
+
+// ============================================
+// REPORTS
+// ============================================
+
+model InventoryReport {
+  id              Int       @id @default(autoincrement())
+  reportNumber    String    @unique @default(cuid())
+  
+  reportType      String    // WEEKLY, MONTHLY, QUARTERLY, ANNUAL
+  periodStart     DateTime
+  periodEnd       DateTime
+  
+  generatedBy     String
+  generatedAt     DateTime  @default(now())
+  
+  totalReceived   Int
+  totalIssued     Int
+  totalAdjustments Int
+  currentStock    Int
+  
+  reportFileUrl   String?   // PDF/Excel file
+  
+  submittedToCAO  Boolean   @default(false)
+  submittedToCOA  Boolean   @default(false)
+  
+  remarks         String?   @db.Text
+  
+  createdAt       DateTime  @default(now())
+  
+  @@index([reportType])
+  @@index([periodStart])
+}
+
+// ============================================
+// VIEWS (for reporting)
+// ============================================
+// These would be created as database views:
+// 
+// CREATE VIEW vw_current_stock AS
+// SELECT 
+//   i.id,
+//   i.itemCode,
+//   i.itemName,
+//   i.category,
+//   SUM(sl.quantity) as totalQuantity,
+//   i.reorderLevel,
+//   CASE 
+//     WHEN SUM(sl.quantity) = 0 THEN 'OUT_OF_STOCK'
+//     WHEN SUM(sl.quantity) <= i.reorderLevel THEN 'LOW_STOCK'
+//     ELSE 'IN_STOCK'
+//   END as stockStatus
+// FROM Item i
+// LEFT JOIN StockLocation sl ON i.id = sl.itemId
+// GROUP BY i.id;
+//
+// CREATE VIEW vw_location_stock AS
+// SELECT 
+//   sl.id,
+//   i.itemCode,
+//   i.itemName,
+//   sz.zoneName,
+//   sr.rackCode,
+//   sl.quantity,
+//   sl.status
+// FROM StockLocation sl
+// JOIN Item i ON sl.itemId = i.id
+// JOIN StorageRack sr ON sl.rackId = sr.id
+// JOIN StorageZone sz ON sr.zoneId = sz.id;
