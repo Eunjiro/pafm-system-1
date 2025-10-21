@@ -62,6 +62,10 @@ JWT_SECRET=${JWT_SECRET}
 NEXTAUTH_URL=http://$(curl -s ifconfig.me):3000
 NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
 
+# Google OAuth (IMPORTANT: Replace with your own credentials!)
+GOOGLE_CLIENT_ID=YOUR_GOOGLE_CLIENT_ID_HERE
+GOOGLE_CLIENT_SECRET=YOUR_GOOGLE_CLIENT_SECRET_HERE
+
 # Service URLs (for frontend)
 NEXT_PUBLIC_API_URL=http://$(curl -s ifconfig.me):3001
 NEXT_PUBLIC_ASSET_API_URL=http://$(curl -s ifconfig.me):3003

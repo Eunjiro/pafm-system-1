@@ -170,6 +170,9 @@ services:
       FACILITY_MANAGEMENT_URL: http://facility-management:3005
       PARKS_RECREATION_URL: http://parks-recreation:3004
       WATER_DRAINAGE_URL: http://water-drainage:3006
+      # Google OAuth
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-your-google-client-id}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-your-google-client-secret}
     ports:
       - "3000:3000"
     depends_on:
