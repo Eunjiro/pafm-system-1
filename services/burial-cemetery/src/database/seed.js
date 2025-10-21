@@ -70,7 +70,7 @@ async function main() {
         city: 'Quezon City',
         postalCode: '1100',
         establishedDate: new Date('1950-01-01'),
-        totalArea: 50000.0, // 50,000 square meters
+        totalArea: '50000', // 50,000 square meters
         standardPrice: 5000.00,
         largePrice: 8000.00,
         familyPrice: 15000.00,
