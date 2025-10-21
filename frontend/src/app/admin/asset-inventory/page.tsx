@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import {
-  FiPackage, FiTruck, FiFileText, FiShoppingCart,
+  FiPackage, FiTruck, FiFileText,
   FiAlertCircle, FiTrendingUp, FiTrendingDown,
-  FiCheckCircle, FiClock, FiBox, FiDatabase
+  FiCheckCircle, FiBox, FiDatabase
 } from "react-icons/fi"
 
 interface DashboardStats {

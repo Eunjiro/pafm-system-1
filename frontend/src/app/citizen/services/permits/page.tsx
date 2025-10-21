@@ -2,7 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { FiShield, FiFileText, FiUser, FiAlertTriangle, FiCheckCircle, FiUpload, FiCalendar, FiDollarSign, FiArrowRight, FiInfo } from "react-icons/fi";
 
 interface PermitRequest {
@@ -39,7 +39,7 @@ interface DocumentRequirement {
 
 type PermitType = 'burial' | 'exhumation' | 'cremation';
 
-export default function CitizenPermitRequests() {
+function CitizenPermitRequestsContent() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -602,5 +602,17 @@ export default function CitizenPermitRequests() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function CitizenPermitRequests() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-green-600"></div>
+      </div>
+    }>
+      <CitizenPermitRequestsContent />
+    </Suspense>
   );
 }

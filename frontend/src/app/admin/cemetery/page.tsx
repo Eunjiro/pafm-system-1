@@ -9,7 +9,7 @@
  * Data Flow: Backend Database → API → Both Cemetery Management & Plot Management
  */
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, Suspense } from 'react'
 import { useSession } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
@@ -144,7 +144,7 @@ const CemeteryMapComponent = dynamic(() => import("../cemetery-map/CemeteryMapCo
   )
 })
 
-export default function CemeteryManagementPage() {
+function CemeteryManagementPageContent() {
   const { data: session } = useSession()
   const searchParams = useSearchParams()
   const cemeteryId = searchParams.get('id')
@@ -3806,5 +3806,17 @@ export default function CemeteryManagementPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function CemeteryManagementPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-green-600"></div>
+      </div>
+    }>
+      <CemeteryManagementPageContent />
+    </Suspense>
   )
 }

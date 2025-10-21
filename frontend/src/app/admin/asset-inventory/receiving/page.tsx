@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import {
   FiUpload, FiPackage, FiCheckCircle, FiXCircle,
   FiClock, FiTruck, FiFileText, FiAlertCircle,
-  FiPlus, FiEdit2, FiTrash2, FiEye, FiDownload
+  FiPlus, FiTrash2, FiEye,
 } from "react-icons/fi"
 
 interface Supplier {

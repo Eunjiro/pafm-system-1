@@ -2,10 +2,8 @@
 
 import { useEffect, useState } from "react"
 import {
-  FiDatabase, FiGrid, FiPackage, FiMapPin,
-  FiPlus, FiEdit2, FiTrash2, FiSearch,
-  FiBox, FiLayers, FiTag, FiBarChart2,
-  FiCheckCircle, FiAlertCircle
+  FiDatabase, FiGrid, FiMapPin,
+  FiPlus, FiEdit2, FiTrash2, FiSearch, FiLayers, FiBarChart2, FiAlertCircle
 } from "react-icons/fi"
 
 interface StorageZone {
@@ -70,8 +68,6 @@ export default function StoragePage() {
   const [loading, setLoading] = useState(true)
   
   const [activeTab, setActiveTab] = useState<'zones' | 'racks' | 'locations'>('zones')
-  const [selectedZone, setSelectedZone] = useState<StorageZone | null>(null)
-  const [selectedRack, setSelectedRack] = useState<StorageRack | null>(null)
   
   const [showZoneModal, setShowZoneModal] = useState(false)
   const [showRackModal, setShowRackModal] = useState(false)

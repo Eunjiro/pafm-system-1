@@ -12,14 +12,14 @@ datasource db {
 
 // User Model (Staff/Admin)
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  password  String
-  firstName String
-  lastName  String
-  role      UserRole @default(STAFF)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  passwordHash String?
+  firstName    String
+  lastName     String
+  role         UserRole @default(STAFF)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   handledRequests FacilityRequest[] @relation("HandledBy")
   inspections     Inspection[]

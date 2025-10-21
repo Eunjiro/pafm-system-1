@@ -1,0 +1,218 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: pafm-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pafm_user
+      POSTGRES_PASSWORD: pafm_password
+      POSTGRES_DB: pafm_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pafm_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pafm-network
+
+  # Burial & Cemetery Service
+  burial-cemetery:
+    build:
+      context: ./services/burial-cemetery
+      dockerfile: Dockerfile
+    container_name: pafm-burial-cemetery
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgresql://pafm_user:pafm_password@postgres:5432/pafm_db
+      JWT_SECRET: your-super-secret-jwt-key-change-this-in-production
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - burial_uploads:/app/uploads
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - pafm-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Asset Inventory Service
+  asset-inventory:
+    build:
+      context: ./services/asset-inventory
+      dockerfile: Dockerfile
+    container_name: pafm-asset-inventory
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3003
+      DATABASE_URL: postgresql://pafm_user:pafm_password@postgres:5432/pafm_db
+      JWT_SECRET: your-super-secret-jwt-key-change-this-in-production
+    ports:
+      - "3003:3003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - pafm-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Facility Management Service
+  facility-management:
+    build:
+      context: ./services/facility-management
+      dockerfile: Dockerfile
+    container_name: pafm-facility-management
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3005
+      DATABASE_URL: postgresql://pafm_user:pafm_password@postgres:5432/pafm_db
+      JWT_SECRET: your-super-secret-jwt-key-change-this-in-production
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - facility_uploads:/app/uploads
+    ports:
+      - "3005:3005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - pafm-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Parks & Recreation Service
+  parks-recreation:
+    build:
+      context: ./services/parks-recreation
+      dockerfile: Dockerfile
+    container_name: pafm-parks-recreation
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3004
+      DATABASE_URL: postgresql://pafm_user:pafm_password@postgres:5432/pafm_db
+      JWT_SECRET: your-super-secret-jwt-key-change-this-in-production
+    ports:
+      - "3004:3004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - pafm-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Water & Drainage Service
+  water-drainage:
+    build:
+      context: ./services/water-drainage
+      dockerfile: Dockerfile
+    container_name: pafm-water-drainage
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3006
+      DATABASE_URL: postgresql://pafm_user:pafm_password@postgres:5432/pafm_db
+      JWT_SECRET: your-super-secret-jwt-key-change-this-in-production
+    ports:
+      - "3006:3006"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - pafm-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3006/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend (Next.js)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:3000
+    container_name: pafm-frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: your-super-secret-nextauth-key-change-this-in-production
+      BACKEND_URL: http://burial-cemetery:3001
+      ASSET_INVENTORY_URL: http://asset-inventory:3003
+      FACILITY_MANAGEMENT_URL: http://facility-management:3005
+      PARKS_RECREATION_URL: http://parks-recreation:3004
+      WATER_DRAINAGE_URL: http://water-drainage:3006
+    ports:
+      - "3000:3000"
+    depends_on:
+      - burial-cemetery
+      - asset-inventory
+      - facility-management
+      - parks-recreation
+      - water-drainage
+    networks:
+      - pafm-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Database Seeder (runs once then exits)
+  db-seed:
+    build:
+      context: ./services/burial-cemetery
+      dockerfile: Dockerfile
+    container_name: pafm-db-seed
+    restart: "no"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://pafm_user:pafm_password@postgres:5432/pafm_db
+    depends_on:
+      burial-cemetery:
+        condition: service_healthy
+    networks:
+      - pafm-network
+    command: npx prisma db seed
+    profiles:
+      - seed
+
+volumes:
+  postgres_data:
+    driver: local
+  burial_uploads:
+    driver: local
+  facility_uploads:
+    driver: local
+
+networks:
+  pafm-network:
+    driver: bridge

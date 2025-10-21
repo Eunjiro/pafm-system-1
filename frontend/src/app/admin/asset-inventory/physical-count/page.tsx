@@ -2,17 +2,13 @@
 
 import { useState, useEffect } from "react"
 import { 
-  FiPlus, 
-  FiEdit, 
+  FiPlus,  
   FiTrash2, 
-  FiCheck, 
   FiX, 
   FiAlertTriangle,
   FiCheckCircle,
-  FiClock,
   FiPackage,
   FiBarChart2,
-  FiSave,
   FiRefreshCw
 } from "react-icons/fi"
 
@@ -70,7 +66,6 @@ export default function PhysicalInventoryPage() {
   const [loading, setLoading] = useState(false)
   const [showNewSessionModal, setShowNewSessionModal] = useState(false)
   const [showCountModal, setShowCountModal] = useState(false)
-  const [showDiscrepancyModal, setShowDiscrepancyModal] = useState(false)
   const [activeTab, setActiveTab] = useState<"sessions" | "counting" | "discrepancies">("sessions")
 
   const [newSession, setNewSession] = useState<NewSession>({

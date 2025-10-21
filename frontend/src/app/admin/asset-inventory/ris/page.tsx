@@ -3,9 +3,9 @@
 import { useEffect, useState, useRef } from "react"
 import {
   FiFileText, FiPlus, FiCheckCircle, FiXCircle,
-  FiClock, FiAlertCircle, FiEdit2, FiTrash2,
-  FiEye, FiDownload, FiPrinter, FiSearch,
-  FiPackage, FiUser, FiCalendar, FiTag
+  FiClock, FiAlertCircle, FiTrash2,
+  FiEye, FiPrinter, FiSearch,
+  FiPackage,
 } from "react-icons/fi"
 import QRCode from 'qrcode'
 

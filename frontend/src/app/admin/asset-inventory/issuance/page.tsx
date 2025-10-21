@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { FiSearch, FiEye, FiCheck, FiPackage, FiUsers, FiCalendar, FiBarChart2 } from "react-icons/fi";
+import { FiSearch, FiEye, FiCheck, FiPackage, FiCalendar, FiBarChart2 } from "react-icons/fi";
 
 interface IssuanceItem {
   id: number;
