@@ -47,10 +47,10 @@ export default function AdminDeathRegistrationIndex() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [selectedRegistration, setSelectedRegistration] = useState<Registration | null>(null);
-  const [showOverrideModal, setShowOverrideModal] = useState(false);
-  const [overrideAction, setOverrideAction] = useState('approve');
-  const [overrideReason, setOverrideReason] = useState('');
-  const [overrideLoading, setOverrideLoading] = useState(false);
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [newStatus, setNewStatus] = useState('');
+  const [statusComment, setStatusComment] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
     if (status === "loading") return;
@@ -90,41 +90,81 @@ export default function AdminDeathRegistrationIndex() {
     }
   };
 
-  const handleOverride = async () => {
-    if (!selectedRegistration || !overrideReason.trim()) return;
+  const getStatusBadge = (status: string) => {
+    const statusConfig = {
+      PENDING: { bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200', label: 'Pending' },
+      UNDER_REVIEW: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', label: 'Under Review' },
+      APPROVED: { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200', label: 'Approved' },
+      REJECTED: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', label: 'Rejected' },
+      COMPLETED: { bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-200', label: 'Completed' }
+    }
+    
+    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.PENDING
+    
+    return (
+      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${config.bg} ${config.text} border ${config.border}`}>
+        {config.label}
+      </span>
+    )
+  }
 
-    setOverrideLoading(true);
+  const canUpdateStatus = (currentStatus: string) => {
+    const allowedTransitions: Record<string, string[]> = {
+      PENDING: ['UNDER_REVIEW', 'REJECTED'],
+      UNDER_REVIEW: ['APPROVED', 'REJECTED'],
+      APPROVED: ['COMPLETED'],
+      REJECTED: [],
+      COMPLETED: []
+    }
+    return allowedTransitions[currentStatus]?.length > 0
+  }
+
+  const getNextStatuses = (currentStatus: string) => {
+    const transitions: Record<string, string[]> = {
+      PENDING: ['UNDER_REVIEW', 'REJECTED'],
+      UNDER_REVIEW: ['APPROVED', 'REJECTED'],
+      APPROVED: ['COMPLETED'],
+      REJECTED: [],
+      COMPLETED: []
+    }
+    return transitions[currentStatus] || []
+  }
+
+  const handleStatusUpdate = async () => {
+    if (!newStatus || !selectedRegistration) return;
+
+    setIsUpdating(true);
     try {
-      console.log(`Executing admin override: ${overrideAction} on registration ${selectedRegistration.id}`);
-      
-      const response = await fetch(`/api/death-registrations/${selectedRegistration.id}/override`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch(`/api/death-registrations/${selectedRegistration.id}`, {
+        method: 'PATCH',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(session as any)?.accessToken}`
+        },
         body: JSON.stringify({
-          action: overrideAction,
-          reason: overrideReason,
-          adminId: session?.user?.id
+          status: newStatus,
+          comment: statusComment
         })
       });
 
-      const result = await response.json();
-
       if (response.ok) {
-        console.log('Override successful:', result);
-        alert(`Override "${overrideAction}" executed successfully`);
+        console.log('Status update successful');
+        alert('Status updated successfully');
         fetchRegistrations();
-        setShowOverrideModal(false);
+        setShowStatusModal(false);
         setSelectedRegistration(null);
-        setOverrideReason('');
+        setNewStatus('');
+        setStatusComment('');
       } else {
-        console.error('Override failed:', result);
-        alert(`Override failed: ${result.error || 'Unknown error'}`);
+        const result = await response.json();
+        console.error('Status update failed:', result);
+        alert(`Status update failed: ${result.error || 'Unknown error'}`);
       }
     } catch (error) {
-      console.error('Override error:', error);
-      alert('Override failed due to connection error. Please try again.');
+      console.error('Status update error:', error);
+      alert('Status update failed due to connection error. Please try again.');
     } finally {
-      setOverrideLoading(false);
+      setIsUpdating(false);
     }
   };
 
@@ -501,17 +541,34 @@ export default function AdminDeathRegistrationIndex() {
                       </div>
                     </td>
                     <td className="px-6 py-5">
-                      <button
-                        onClick={() => {
-                          setSelectedRegistration(reg);
-                          setShowOverrideModal(true);
-                        }}
-                      className="px-4 py-2 rounded-lg font-bold text-white transition-all duration-200 hover:shadow-lg transform hover:scale-105 flex items-center space-x-2"
-                      style={{backgroundColor: '#FDA811'}}
-                      >
-                        <FiLock size={16} />
-                        <span>Override</span>
-                      </button>
+                      <div className="flex items-center space-x-2">
+                        <a
+                          href={`/admin/death-registration/${reg.id}`}
+                          className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+                        >
+                          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                          View
+                        </a>
+                        
+                        {canUpdateStatus(reg.status) && (
+                          <button
+                            onClick={() => {
+                              setSelectedRegistration(reg);
+                              setShowStatusModal(true);
+                            }}
+                            className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                            style={{ backgroundColor: '#FDA811', color: 'white' }}
+                          >
+                            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            Update
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -520,94 +577,83 @@ export default function AdminDeathRegistrationIndex() {
           </div>
         </div>
 
-        {/* Enhanced Admin Override Modal */}
-        {showOverrideModal && (
-          <div className="fixed inset-0 flex items-center justify-center z-[9999] animate-fadeIn">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-slideUp">
-              {/* Modal Header */}
-              <div className="px-8 py-6 border-b border-gray-200">
-                <div className="flex items-center space-x-3">
-                  <div 
-                    className="w-12 h-12 rounded-full flex items-center justify-center"
-                    style={{backgroundColor: '#FFF3E0'}}
+        {/* Modern Status Update Modal */}
+        {showStatusModal && selectedRegistration && (
+          <div className="fixed inset-0 flex items-center justify-center z-50 animate-fadeIn">
+            <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 animate-slideUp">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-semibold text-gray-900">Update Registration Status</h3>
+                  <button
+                    onClick={() => setShowStatusModal(false)}
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
                   >
-                    <FiShield size={24} color="#FDA811" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-gray-900">Administrative Override</h3>
-                    <p className="text-sm text-gray-600">
-                      Registration #{selectedRegistration?.id} - {selectedRegistration?.registrationType}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Modal Body */}
-              <div className="px-8 py-6 space-y-6">
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-3">
-                    Override Action
-                  </label>
-                  <select 
-                    value={overrideAction} 
-                    onChange={(e) => setOverrideAction(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
-                  >
-                    <option value="approve">Force Approve Registration</option>
-                    <option value="reject">Force Reject Registration</option>
-                    <option value="edit">Mark for Editing</option>
-                    <option value="waive_fee">Waive Processing Fee</option>
-                    <option value="reset_status">Reset Status to Submitted</option>
-                  </select>
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
                 </div>
                 
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-3">
-                    Justification for Override <span className="text-red-500">*</span>
-                  </label>
-                  <textarea
-                    value={overrideReason}
-                    onChange={(e) => setOverrideReason(e.target.value)}
-                    placeholder="Provide detailed reasoning for this administrative override. This will be logged for audit purposes..."
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all resize-none"
-                    rows={4}
-                    required
-                  />
-                  <div className="flex justify-between mt-2">
-                    <span className="text-xs text-gray-500">
-                      This action will be recorded in the audit log
-                    </span>
-                    <span className="text-xs text-gray-400">
-                      {overrideReason.length}/500
-                    </span>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Current Status
+                    </label>
+                    <div className="flex">
+                      {getStatusBadge(selectedRegistration.status)}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      New Status
+                    </label>
+                    <select
+                      value={newStatus}
+                      onChange={(e) => setNewStatus(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50"
+                    >
+                      <option value="">Select new status...</option>
+                      {getNextStatuses(selectedRegistration.status).map((status: string) => (
+                        <option key={status} value={status}>
+                          {status.charAt(0) + status.slice(1).toLowerCase().replace('_', ' ')}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Comments (Optional)
+                    </label>
+                    <textarea
+                      value={statusComment}
+                      onChange={(e) => setStatusComment(e.target.value)}
+                      placeholder="Add any comments about this status change..."
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50"
+                    />
                   </div>
                 </div>
-              </div>
 
-              {/* Modal Footer */}
-              <div className="px-8 py-6 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
-                <div className="flex justify-end space-x-3">
+                <div className="flex justify-end space-x-3 mt-6">
                   <button
-                    onClick={() => {
-                      setShowOverrideModal(false);
-                      setSelectedRegistration(null);
-                      setOverrideReason('');
-                    }}
-                    disabled={overrideLoading}
-                    className="px-6 py-3 text-gray-700 bg-white border-2 border-gray-300 rounded-xl hover:bg-gray-50 disabled:opacity-50 font-medium transition-all"
+                    onClick={() => setShowStatusModal(false)}
+                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
                   >
                     Cancel
                   </button>
                   <button
-                    onClick={handleOverride}
-                    disabled={!overrideReason.trim() || overrideLoading}
-                    className="px-8 py-3 text-white rounded-xl font-bold disabled:opacity-50 flex items-center gap-3 transition-all duration-200 hover:shadow-lg transform hover:scale-105"
-                    style={{backgroundColor: '#FDA811'}}
+                    onClick={handleStatusUpdate}
+                    disabled={!newStatus || isUpdating}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      !newStatus || isUpdating
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'text-white hover:opacity-90'
+                    }`}
+                    style={!newStatus || isUpdating ? {} : { backgroundColor: '#4CAF50' }}
                   >
-                    {overrideLoading && (
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                    )}
-                    {overrideLoading ? 'Processing Override...' : 'Execute Override'}
+                    {isUpdating ? 'Updating...' : 'Update Status'}
                   </button>
                 </div>
               </div>

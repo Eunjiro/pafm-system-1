@@ -11,7 +11,7 @@ router.get('/', async (req, res) => {
 
     const where = status ? { status } : {}
 
-    const requests = await prisma.risRequest.findMany({
+    const requests = await prisma.rISRequest.findMany({
       where,
       include: {
         items: {
@@ -44,7 +44,7 @@ router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params
 
-    const request = await prisma.risRequest.findUnique({
+    const request = await prisma.rISRequest.findUnique({
       where: { id: parseInt(id) },
       include: {
         items: {
@@ -97,11 +97,11 @@ router.post('/', async (req, res) => {
 
     // Generate RIS number
     const year = new Date().getFullYear()
-    const count = await prisma.risRequest.count()
+    const count = await prisma.rISRequest.count()
     const risNumber = `RIS-${year}-${String(count + 1).padStart(5, '0')}`
 
     // Create RIS request with items
-    const request = await prisma.risRequest.create({
+    const request = await prisma.rISRequest.create({
       data: {
         risNumber,
         departmentName,
@@ -158,7 +158,7 @@ router.post('/:id/approve', async (req, res) => {
       })
     }
 
-    const risRequest = await prisma.risRequest.findUnique({
+    const risRequest = await prisma.rISRequest.findUnique({
       where: { id: parseInt(id) },
       include: {
         items: {
@@ -216,7 +216,7 @@ router.post('/:id/approve', async (req, res) => {
     }
 
     // Update RIS status
-    const updatedRequest = await prisma.risRequest.update({
+    const updatedRequest = await prisma.rISRequest.update({
       where: { id: parseInt(id) },
       data: {
         status: hasNoStock ? 'NO_STOCK' : 'APPROVED',
@@ -253,7 +253,7 @@ router.post('/:id/reject', async (req, res) => {
     const { id } = req.params
     const { rejectedBy, rejectionReason } = req.body
 
-    const request = await prisma.risRequest.update({
+    const request = await prisma.rISRequest.update({
       where: { id: parseInt(id) },
       data: {
         status: 'REJECTED',
@@ -291,7 +291,7 @@ router.post('/:id/issue', async (req, res) => {
       })
     }
 
-    const risRequest = await prisma.risRequest.findUnique({
+    const risRequest = await prisma.rISRequest.findUnique({
       where: { id: parseInt(id) },
       include: {
         items: {
@@ -371,7 +371,7 @@ router.post('/:id/issue', async (req, res) => {
     }
 
     // Update RIS status
-    await prisma.risRequest.update({
+    await prisma.rISRequest.update({
       where: { id: parseInt(id) },
       data: {
         status: 'ISSUED',
@@ -400,7 +400,7 @@ router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params
 
-    const request = await prisma.risRequest.findUnique({
+    const request = await prisma.rISRequest.findUnique({
       where: { id: parseInt(id) }
     })
 
@@ -424,7 +424,7 @@ router.delete('/:id', async (req, res) => {
     })
 
     // Delete request
-    await prisma.risRequest.delete({
+    await prisma.rISRequest.delete({
       where: { id: parseInt(id) }
     })
 

@@ -110,85 +110,30 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="relative bg-gradient-to-br from-green-600 to-green-700 text-white overflow-hidden">
-        <div className="absolute inset-0 bg-black opacity-10"></div>
-        <div className="absolute inset-0" style={{
-          backgroundImage: 'url("data:image/svg+xml,%3Csvg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"%3E%3Cg fill="none" fill-rule="evenodd"%3E%3Cg fill="%23ffffff" fill-opacity="0.05"%3E%3Cpath d="M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z"/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")',
-        }}></div>
+      {/* Hero Section with Background Image */}
+      <section className="relative h-[500px] overflow-hidden">
+        {/* Background Image */}
+        <div 
+          className="absolute inset-0 bg-cover bg-center"
+          style={{
+            backgroundImage: 'url("@/public/quezon-city-background.jpg")',
+          }}
+        >
+          {/* Green Overlay */}
+          <div className="absolute inset-0 bg-green-600 opacity-80"></div>
+        </div>
         
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 md:py-32">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <div className="text-center md:text-left">
-              <div className="inline-flex items-center space-x-2 bg-green-500 bg-opacity-30 rounded-full px-4 py-2 mb-6">
-                <span className="w-2 h-2 bg-green-200 rounded-full animate-pulse"></span>
-                <span className="text-sm font-medium">Government Digital Services</span>
-              </div>
-              
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
-                Cemetery & Burial Management System
-              </h1>
-              
-              <p className="text-xl md:text-2xl text-green-50 mb-8 leading-relaxed">
-                Serbisyong Publiko, Abot-Kamay Mo
-              </p>
-              
-              <p className="text-lg text-green-100 mb-10 max-w-xl">
-                Streamlined digital services for death registration, permit requests, 
-                certificate issuance, and cemetery plot management.
-              </p>
-              
-              <div className="flex flex-col sm:flex-row gap-4">
-                {!session ? (
-                  <>
-                    <Link
-                      href="/auth/signup"
-                      className="px-8 py-4 text-lg font-bold text-green-600 bg-white rounded-lg hover:bg-green-50 transition-all shadow-xl hover:shadow-2xl transform hover:-translate-y-1"
-                    >
-                      Get Started →
-                    </Link>
-                    <Link
-                      href="/auth/signin"
-                      className="px-8 py-4 text-lg font-bold text-white bg-green-800 bg-opacity-40 rounded-lg hover:bg-opacity-60 transition-all border-2 border-green-300"
-                    >
-                      Sign In
-                    </Link>
-                  </>
-                ) : (
-                  <Link
-                    href={session.user?.role === 'ADMIN' ? '/admin' : session.user?.role === 'EMPLOYEE' ? '/employee' : '/citizen'}
-                    className="px-8 py-4 text-lg font-bold text-green-600 bg-white rounded-lg hover:bg-green-50 transition-all shadow-xl"
-                  >
-                    Go to Dashboard →
-                  </Link>
-                )}
-              </div>
-            </div>
+        {/* Content */}
+        <div className="relative h-full flex items-center justify-center">
+          <div className="text-center text-white px-4">
 
-            {/* Logo Showcase */}
-            <div className="hidden md:flex justify-center items-center">
-              <div className="relative">
-                <div className="absolute inset-0 bg-white opacity-10 blur-3xl rounded-full"></div>
-                <svg viewBox="0 0 300 300" className="w-80 h-80 relative">
-                  {/* Government Building */}
-                  <rect x="105" y="60" width="90" height="15" fill="white"/>
-                  <rect x="90" y="75" width="120" height="150" fill="white"/>
-                  <rect x="112" y="90" width="15" height="45" fill="#4CAF50"/>
-                  <rect x="135" y="90" width="15" height="45" fill="#4CAF50"/>
-                  <rect x="158" y="90" width="15" height="45" fill="#4CAF50"/>
-                  <rect x="181" y="90" width="15" height="45" fill="#4CAF50"/>
-                  {/* V-shaped hands */}
-                  <path d="M 60 180 L 120 120 L 150 150 Z" fill="#2E7D32" opacity="0.8"/>
-                  <path d="M 240 180 L 180 120 L 150 150 Z" fill="#2E7D32" opacity="0.8"/>
-                  {/* Stars */}
-                  <circle cx="75" cy="45" r="5" fill="#FFC107"/>
-                  <circle cx="150" cy="30" r="5" fill="#FFC107"/>
-                  <circle cx="225" cy="45" r="5" fill="#FFC107"/>
-                  <circle cx="105" cy="37" r="5" fill="#FFC107"/>
-                  <circle cx="195" cy="37" r="5" fill="#FFC107"/>
-                </svg>
-              </div>
-            </div>
+            {/* Title and Tagline */}
+            <h1 className="text-5xl md:text-6xl font-bold mb-4">
+              <span className="text-blue-400">Go</span><span className="text-green-300">Serve</span><span className="text-blue-300">PH</span>
+            </h1>
+            <p className="text-2xl md:text-3xl font-semibold text-white">
+              Serbisyong Publiko, Abot-Kamay mo
+            </p>
           </div>
         </div>
       </section>
@@ -214,13 +159,13 @@ export default function Home() {
                 </svg>
               </div>
               <h3 className="text-2xl font-bold text-gray-900 mb-3">
-                Death Registration
+                Burial & Cemetery
               </h3>
               <p className="text-gray-600 leading-relaxed">
-                Register deaths online with regular or delayed registration options. 
-                Upload required documents and track your application status.
+                Register deaths, request burial permits, exhumation permits, cremation permits, 
+                and death certificates with online document submission.
               </p>
-              <Link href="/citizen/services/death-registration" className="inline-flex items-center mt-4 text-blue-600 font-semibold hover:text-blue-700">
+              <Link href="/citizen" className="inline-flex items-center mt-4 text-blue-600 font-semibold hover:text-blue-700">
                 Learn more →
               </Link>
             </div>
@@ -228,17 +173,17 @@ export default function Home() {
             <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl shadow-lg p-8 hover:shadow-xl transition-all transform hover:-translate-y-2">
               <div className="w-20 h-20 bg-green-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
                 <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                 </svg>
               </div>
               <h3 className="text-2xl font-bold text-gray-900 mb-3">
-                Permits & Certificates
+                Facility Management
               </h3>
               <p className="text-gray-600 leading-relaxed">
-                Request burial permits, exhumation permits, cremation permits, 
-                and death certificates with online document submission.
+                Reserve and manage public facilities including gymnasiums, halls, and community centers. 
+                Submit applications and track reservation status online.
               </p>
-              <Link href="/citizen/services/permits" className="inline-flex items-center mt-4 text-green-600 font-semibold hover:text-green-700">
+              <Link href="/citizen" className="inline-flex items-center mt-4 text-green-600 font-semibold hover:text-green-700">
                 Learn more →
               </Link>
             </div>
@@ -246,18 +191,35 @@ export default function Home() {
             <div className="bg-gradient-to-br from-yellow-50 to-orange-100 rounded-2xl shadow-lg p-8 hover:shadow-xl transition-all transform hover:-translate-y-2">
               <div className="w-20 h-20 bg-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
                 <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
               <h3 className="text-2xl font-bold text-gray-900 mb-3">
-                Cemetery Mapping
+                Parks & Recreation
               </h3>
               <p className="text-gray-600 leading-relaxed">
-                Find cemetery plots with AI-powered search and interactive 
-                digital mapping for easy navigation and plot assignment.
+                Book parks, sports facilities, and recreational areas. 
+                View schedules, submit event permits, and manage park reservations.
               </p>
-              <Link href="/citizen/cemetery-search" className="inline-flex items-center mt-4 text-orange-600 font-semibold hover:text-orange-700">
+              <Link href="/citizen" className="inline-flex items-center mt-4 text-orange-600 font-semibold hover:text-orange-700">
+                Learn more →
+              </Link>
+            </div>
+
+            <div className="bg-gradient-to-br from-cyan-50 to-cyan-100 rounded-2xl shadow-lg p-8 hover:shadow-xl transition-all transform hover:-translate-y-2">
+              <div className="w-20 h-20 bg-cyan-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+                <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+                </svg>
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-3">
+                Water & Drainage
+              </h3>
+              <p className="text-gray-600 leading-relaxed">
+                Report water and drainage issues, request maintenance services, 
+                and track infrastructure repairs in your area.
+              </p>
+              <Link href="/citizen" className="inline-flex items-center mt-4 text-cyan-600 font-semibold hover:text-cyan-700">
                 Learn more →
               </Link>
             </div>

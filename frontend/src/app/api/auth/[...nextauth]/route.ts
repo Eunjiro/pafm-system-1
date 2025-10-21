@@ -106,11 +106,18 @@ export const authOptions: NextAuthOptions = {
 
           if (response.ok && data.user) {
             token.accessToken = data.token
-            token.role = data.user.role
+            token.role = data.user.role || 'CITIZEN'
             token.userId = data.user.id
+            console.log('Social login successful:', { role: token.role, email: user.email })
+          } else {
+            console.error('Social login failed:', data)
+            // Default to CITIZEN if backend fails
+            token.role = 'CITIZEN'
           }
         } catch (error) {
           console.error('Social login error:', error)
+          // Default to CITIZEN if there's an error
+          token.role = 'CITIZEN'
         }
       }
 
@@ -126,8 +133,9 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }: { session: any; token: JWT }) {
       if (token) {
         session.accessToken = token.accessToken as string
-        session.user.role = token.role as string
+        session.user.role = (token.role as string) || 'CITIZEN'
         session.user.id = token.userId as string
+        console.log('Session created:', { role: session.user.role, email: session.user.email })
       }
       return session
     },

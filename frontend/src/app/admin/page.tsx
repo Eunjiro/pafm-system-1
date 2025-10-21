@@ -130,7 +130,7 @@ export default function AdminDashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">System Dashboard</h1>
-          <p className="text-gray-600 mt-1">Philippine AFPSLAI Marikina Municipal System</p>
+          <p className="text-gray-600 mt-1">Public Assets & Facilities Management</p>
           <div className="flex items-center space-x-4 mt-2">
             <div className="flex items-center space-x-2">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
