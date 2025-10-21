@@ -123,7 +123,6 @@ async function main() {
         for (let lot = 1; lot <= 20; lot++) {
           plots.push({
             cemeteryId: cemetery.id,
-            sectionId: sectionRecord.id,
             blockId: blockRecord.id,
             plotNumber: `LOT${lot.toString().padStart(2, '0')}`,
             section: `Section ${section}`, // Keep for backward compatibility
