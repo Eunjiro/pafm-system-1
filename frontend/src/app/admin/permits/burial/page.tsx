@@ -334,6 +334,218 @@ export default function BurialPermitsPage() {
           </div>
         </div>
       </div>
+
+      {/* Detail Modal */}
+      {showDetailModal && selectedPermit && (
+        <div className="fixed inset-0 flex items-center justify-center z-[9999] animate-fadeIn">
+          <div className="bg-white rounded-2xl shadow-xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-blue-500">
+                    <FiFileText className="text-white" size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900">Burial Permit Details</h3>
+                    <p className="text-sm text-gray-500">Permit #{selectedPermit.id}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowDetailModal(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              {/* Status and Progress */}
+              <div className="bg-gray-50 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm font-medium text-gray-700">Permit Status</span>
+                  <span className={`px-3 py-1 text-xs font-medium rounded-full ${getStatusBadge(selectedPermit.status)}`}>
+                    {selectedPermit.status.replace('_', ' ').toUpperCase()}
+                  </span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-3">
+                  <div 
+                    className="bg-blue-500 h-3 rounded-full transition-all duration-300" 
+                    style={{ width: `${getWorkflowProgress(selectedPermit.status)}%` }}
+                  ></div>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">{Math.round(getWorkflowProgress(selectedPermit.status))}% Complete</p>
+              </div>
+
+              {/* Deceased Information */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center">
+                  <FiUser className="mr-2" size={16} />
+                  Deceased Information
+                </h4>
+                <div className="bg-white border border-gray-200 rounded-xl p-4 grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-gray-500">Full Name</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      {selectedPermit.deceased 
+                        ? `${selectedPermit.deceased.firstName} ${selectedPermit.deceased.middleName || ''} ${selectedPermit.deceased.lastName} ${selectedPermit.deceased.suffix || ''}`.trim()
+                        : 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Date of Death</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      {selectedPermit.deceased?.dateOfDeath 
+                        ? new Date(selectedPermit.deceased.dateOfDeath).toLocaleDateString('en-US', { 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric' 
+                          })
+                        : 'N/A'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Requester Information */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center">
+                  <FiUser className="mr-2" size={16} />
+                  Requester Information
+                </h4>
+                <div className="bg-white border border-gray-200 rounded-xl p-4 grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-gray-500">Name</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      {selectedPermit.requester 
+                        ? `${selectedPermit.requester.fullNameFirst} ${selectedPermit.requester.fullNameLast}`
+                        : 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Email</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      {selectedPermit.requester?.email || 'N/A'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Information */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center">
+                  <FiDollarSign className="mr-2" size={16} />
+                  Payment Information
+                </h4>
+                <div className="bg-white border border-gray-200 rounded-xl p-4 grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-gray-500">Amount Due</p>
+                    <p className="text-sm font-medium text-gray-900">₱{selectedPermit.amountDue || 0}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">OR Number</p>
+                    <p className="text-sm font-medium text-gray-900">{selectedPermit.orNumber || 'N/A'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Timeline Information */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center">
+                  <FiFileText className="mr-2" size={16} />
+                  Timeline
+                </h4>
+                <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-gray-500">Submitted</p>
+                      <p className="text-sm font-medium text-gray-900">
+                        {new Date(selectedPermit.createdAt).toLocaleDateString('en-US', { 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </p>
+                    </div>
+                    <FiCheckCircle className="text-green-500" size={20} />
+                  </div>
+                  {selectedPermit.issuedAt && (
+                    <div className="flex items-center justify-between pt-3 border-t border-gray-200">
+                      <div>
+                        <p className="text-xs text-gray-500">Issued</p>
+                        <p className="text-sm font-medium text-gray-900">
+                          {new Date(selectedPermit.issuedAt).toLocaleDateString('en-US', { 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </p>
+                      </div>
+                      <FiCheckCircle className="text-green-500" size={20} />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Pickup Status */}
+              {selectedPermit.pickupStatus && (
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center">
+                    <FiShield className="mr-2" size={16} />
+                    Pickup Status
+                  </h4>
+                  <div className="bg-white border border-gray-200 rounded-xl p-4">
+                    <span className={`px-3 py-1 text-xs font-medium rounded-full ${
+                      selectedPermit.pickupStatus === 'claimed' ? 'bg-green-100 text-green-800' :
+                      selectedPermit.pickupStatus === 'ready_for_pickup' ? 'bg-blue-100 text-blue-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {selectedPermit.pickupStatus.replace('_', ' ').toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Remarks */}
+              {selectedPermit.remarks && (
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center">
+                    <FiAlertTriangle className="mr-2" size={16} />
+                    Remarks
+                  </h4>
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+                    <p className="text-sm text-gray-700">{selectedPermit.remarks}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 border-t border-gray-200 bg-gray-50 sticky bottom-0">
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => setShowDetailModal(false)}
+                  className="px-6 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                >
+                  Close
+                </button>
+                <Link
+                  href={`/admin/permits/burial/${selectedPermit.id}`}
+                  className="px-6 py-2.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium flex items-center space-x-2"
+                >
+                  <FiEye size={16} />
+                  <span>Full Details</span>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

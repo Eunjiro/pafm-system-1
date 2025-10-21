@@ -1,9 +1,66 @@
 const express = require('express');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const { PrismaClient } = require('@prisma/client');
 const { requireCitizen, requireEmployee, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 const prisma = new PrismaClient();
+
+// Helper function to convert BigInt to Number for JSON serialization
+const convertBigIntToNumber = (obj) => {
+  if (obj === null || obj === undefined) return obj;
+  
+  if (typeof obj === 'bigint') {
+    return Number(obj);
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj.map(item => convertBigIntToNumber(item));
+  }
+  
+  if (typeof obj === 'object') {
+    const converted = {};
+    for (const key in obj) {
+      converted[key] = convertBigIntToNumber(obj[key]);
+    }
+    return converted;
+  }
+  
+  return obj;
+};
+
+// Configure multer for document uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadPath = path.join(__dirname, '../../uploads/documents');
+    // Create directory if it doesn't exist
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
+    cb(null, uploadPath);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'doc-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit
+  },
+  fileFilter: function (req, file, cb) {
+    // Accept images and PDFs
+    if (file.mimetype.startsWith('image/') || file.mimetype === 'application/pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only images and PDF files are allowed'));
+    }
+  }
+});
 
 // Get all death registrations (admin/employee)
 router.get('/', requireEmployee, async (req, res) => {
@@ -47,7 +104,7 @@ router.get('/', requireEmployee, async (req, res) => {
     const total = await prisma.deathRegistration.count({ where });
 
     res.json({
-      registrations,
+      registrations: convertBigIntToNumber(registrations),
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -135,7 +192,7 @@ router.get('/citizen/my-applications', requireCitizen, async (req, res) => {
     });
 
     res.json({
-      registrations,
+      registrations: convertBigIntToNumber(registrations),
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -147,6 +204,68 @@ router.get('/citizen/my-applications', requireCitizen, async (req, res) => {
   } catch (error) {
     console.error('Error fetching citizen applications:', error);
     res.status(500).json({ error: 'Failed to fetch applications' });
+  }
+});
+
+// Get deceased records for certificate requests (citizen access)
+router.get('/deceased', requireCitizen, async (req, res) => {
+  try {
+    console.log('[DEBUG] Fetching deceased records for user:', req.user.id);
+    
+    // First, check all registrations by this user
+    const allRegistrations = await prisma.deathRegistration.findMany({
+      where: { 
+        submittedBy: req.user.id
+      },
+      select: {
+        id: true,
+        status: true
+      }
+    });
+    
+    console.log('[DEBUG] Total registrations by user:', allRegistrations.length);
+    console.log('[DEBUG] Registration statuses:', allRegistrations.map(r => ({ id: r.id, status: r.status })));
+    
+    // Get all death registrations submitted by this citizen with eligible statuses
+    const registrations = await prisma.deathRegistration.findMany({
+      where: { 
+        submittedBy: req.user.id,
+        status: {
+          in: ['REGISTERED', 'FOR_PICKUP', 'CLAIMED'] // Only registered/completed registrations
+        }
+      },
+      include: {
+        deceased: true
+      }
+    });
+
+    console.log('[DEBUG] Eligible registrations:', registrations.length);
+
+    // Extract unique deceased records
+    const deceased = registrations
+      .filter(reg => reg.deceased)
+      .map(reg => ({
+        id: reg.deceased.id,
+        firstName: reg.deceased.firstName,
+        middleName: reg.deceased.middleName,
+        lastName: reg.deceased.lastName,
+        suffix: reg.deceased.suffix,
+        dateOfDeath: reg.deceased.dateOfDeath
+      }));
+
+    // Remove duplicates based on deceased id
+    const uniqueDeceased = Array.from(
+      new Map(deceased.map(item => [item.id, item])).values()
+    );
+
+    console.log('[DEBUG] Unique deceased records:', uniqueDeceased.length);
+
+    res.json({
+      deceased: convertBigIntToNumber(uniqueDeceased)
+    });
+  } catch (error) {
+    console.error('Error fetching deceased records:', error);
+    res.status(500).json({ error: 'Failed to fetch deceased records' });
   }
 });
 
@@ -183,7 +302,7 @@ router.get('/citizen/:id', requireCitizen, async (req, res) => {
       return res.status(404).json({ error: 'Death registration not found or access denied' });
     }
 
-    res.json(registration);
+    res.json(convertBigIntToNumber(registration));
   } catch (error) {
     console.error('Error fetching citizen death registration:', error);
     res.status(500).json({ error: 'Failed to fetch death registration' });
@@ -221,7 +340,7 @@ router.get('/:id', requireEmployee, async (req, res) => {
       return res.status(404).json({ error: 'Death registration not found' });
     }
 
-    res.json(registration);
+    res.json(convertBigIntToNumber(registration));
   } catch (error) {
     console.error('Error fetching death registration:', error);
     res.status(500).json({ error: 'Failed to fetch death registration' });
@@ -451,7 +570,7 @@ router.put('/:id/status', requireEmployee, async (req, res) => {
     });
 
     console.log('Registration updated successfully:', registration.id, registration.status);
-    res.json(registration);
+    res.json(convertBigIntToNumber(registration));
   } catch (error) {
     console.error('Error updating death registration status:', error);
     
@@ -554,7 +673,7 @@ router.put('/:id', requireEmployee, async (req, res) => {
       }
     });
 
-    res.json(updatedRegistration);
+    res.json(convertBigIntToNumber(updatedRegistration));
   } catch (error) {
     console.error('Error updating death registration:', error);
     res.status(500).json({ error: 'Failed to update death registration' });
@@ -743,6 +862,167 @@ router.post('/deceased', requireEmployee, async (req, res) => {
     res.status(500).json({ 
       success: false,
       error: 'Failed to create deceased record',
+      details: error.message
+    });
+  }
+});
+
+// Upload document for a death registration
+router.post('/:id/documents', requireCitizen, upload.single('file'), async (req, res) => {
+  try {
+    const registrationId = parseInt(req.params.id);
+    const { docType } = req.body;
+    
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+    
+    if (!docType) {
+      return res.status(400).json({ error: 'Document type is required' });
+    }
+    
+    console.log('Uploading document:', {
+      registrationId,
+      docType,
+      fileName: req.file.filename,
+      filePath: req.file.path
+    });
+    
+    // Check if registration exists
+    const registration = await prisma.deathRegistration.findUnique({
+      where: { id: registrationId }
+    });
+    
+    if (!registration) {
+      return res.status(404).json({ error: 'Death registration not found' });
+    }
+    
+    // Create document record
+    const document = await prisma.document.create({
+      data: {
+        uploadedBy: req.user.id,
+        fileName: req.file.originalname,
+        filePath: `/uploads/documents/${req.file.filename}`,
+        mimeType: req.file.mimetype,
+        fileSizeBytes: BigInt(req.file.size)
+      }
+    });
+    
+    // Link document to registration
+    const registrationDoc = await prisma.deathRegistrationDocument.create({
+      data: {
+        registrationId: registrationId,
+        documentId: document.id,
+        docType: docType
+      },
+      include: {
+        document: true
+      }
+    });
+    
+    console.log('Document uploaded successfully:', registrationDoc);
+    
+    res.json({
+      success: true,
+      document: convertBigIntToNumber(registrationDoc),
+      message: 'Document uploaded successfully'
+    });
+    
+  } catch (error) {
+    console.error('Error uploading document:', error);
+    res.status(500).json({ 
+      error: 'Failed to upload document',
+      details: error.message
+    });
+  }
+});
+
+// Delete death registration (Admin only)
+router.delete('/:id', requireAdmin, async (req, res) => {
+  try {
+    const registrationId = parseInt(req.params.id);
+    
+    console.log(`Admin ${req.user.id} attempting to delete death registration ${registrationId}`);
+
+    // Check if registration exists
+    const registration = await prisma.deathRegistration.findUnique({
+      where: { id: registrationId },
+      include: {
+        documents: {
+          include: {
+            document: true
+          }
+        },
+        deceased: true
+      }
+    });
+
+    if (!registration) {
+      return res.status(404).json({ error: 'Death registration not found' });
+    }
+
+    // Delete associated documents from filesystem
+    if (registration.documents && registration.documents.length > 0) {
+      for (const doc of registration.documents) {
+        const filePath = path.join(__dirname, '../../', doc.document.filePath);
+        if (fs.existsSync(filePath)) {
+          try {
+            fs.unlinkSync(filePath);
+            console.log(`Deleted file: ${filePath}`);
+          } catch (fileError) {
+            console.error(`Error deleting file ${filePath}:`, fileError);
+          }
+        }
+      }
+    }
+
+    // Delete in order: 
+    // 1. DeathRegistrationDocument links
+    await prisma.deathRegistrationDocument.deleteMany({
+      where: { registrationId: registrationId }
+    });
+
+    // 2. Document records
+    const documentIds = registration.documents.map(d => d.document.id);
+    if (documentIds.length > 0) {
+      await prisma.document.deleteMany({
+        where: { id: { in: documentIds } }
+      });
+    }
+
+    // 3. Death registration
+    await prisma.deathRegistration.delete({
+      where: { id: registrationId }
+    });
+
+    // 4. Deceased record (if not used by other registrations)
+    if (registration.deceasedId) {
+      const otherRegistrations = await prisma.deathRegistration.count({
+        where: { 
+          deceasedId: registration.deceasedId,
+          id: { not: registrationId }
+        }
+      });
+
+      if (otherRegistrations === 0) {
+        await prisma.deceasedRecord.delete({
+          where: { id: registration.deceasedId }
+        });
+        console.log(`Deleted deceased record ${registration.deceasedId}`);
+      }
+    }
+
+    console.log(`Death registration ${registrationId} deleted successfully`);
+    
+    res.json({
+      success: true,
+      message: 'Death registration deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('Error deleting death registration:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete death registration',
       details: error.message
     });
   }

@@ -11,6 +11,7 @@ interface DeceasedData {
   middleName?: string
   lastName: string
   suffix?: string
+  dateOfDeath?: string
   burialDate?: string
   burialLocation?: string
   plotNumber?: string
@@ -47,6 +48,7 @@ export default function ExhumationPermit() {
       middleName: "",
       lastName: "",
       suffix: "",
+      dateOfDeath: "",
       burialDate: "",
       burialLocation: "",
       plotNumber: ""
@@ -136,6 +138,11 @@ export default function ExhumationPermit() {
       return false
     }
 
+    if (!formData.deceased.dateOfDeath) {
+      setError('Date of death is required')
+      return false
+    }
+
     if (!formData.requestedDate) {
       setError('Requested exhumation date is required')
       return false
@@ -171,21 +178,56 @@ export default function ExhumationPermit() {
     setSuccess("")
 
     try {
+      // First, create or get the deceased record
+      const deceasedPayload = {
+        firstName: formData.deceased.firstName,
+        middleName: formData.deceased.middleName,
+        lastName: formData.deceased.lastName,
+        suffix: formData.deceased.suffix,
+        dateOfDeath: formData.deceased.dateOfDeath,
+      }
+
+      const deceasedResponse = await fetch('/api/deceased', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(deceasedPayload)
+      })
+
+      if (!deceasedResponse.ok) {
+        const errorData = await deceasedResponse.json()
+        throw new Error(errorData.error || 'Failed to create deceased record')
+      }
+
+      const deceasedRecord = await deceasedResponse.json()
+
       // Create FormData for permit submission
       const submitData = new FormData()
       submitData.append('permitType', 'EXHUMATION')
-      submitData.append('deceasedFirstName', formData.deceased.firstName)
-      submitData.append('deceasedMiddleName', formData.deceased.middleName || '')
-      submitData.append('deceasedLastName', formData.deceased.lastName)
-      submitData.append('deceasedSuffix', formData.deceased.suffix || '')
-      submitData.append('burialDate', formData.deceased.burialDate || '')
-      submitData.append('burialLocation', formData.deceased.burialLocation || '')
-      submitData.append('plotNumber', formData.deceased.plotNumber || '')
+      submitData.append('deceasedId', deceasedRecord.data.id.toString())
       submitData.append('requestedDate', formData.requestedDate)
       submitData.append('requestedTime', formData.requestedTime)
-      submitData.append('reason', formData.reason)
-      submitData.append('newDestination', formData.newDestination || '')
-      submitData.append('specialRequests', formData.specialRequests || '')
+      
+      // Add exhumation-specific details to special requests
+      let specialRequestsText = formData.specialRequests || ''
+      if (formData.reason) {
+        specialRequestsText = `Reason: ${formData.reason}\n${specialRequestsText}`
+      }
+      if (formData.newDestination) {
+        specialRequestsText += `\nNew Destination: ${formData.newDestination}`
+      }
+      if (formData.deceased.burialDate) {
+        specialRequestsText += `\nBurial Date: ${formData.deceased.burialDate}`
+      }
+      if (formData.deceased.burialLocation) {
+        specialRequestsText += `\nBurial Location: ${formData.deceased.burialLocation}`
+      }
+      if (formData.deceased.plotNumber) {
+        specialRequestsText += `\nPlot Number: ${formData.deceased.plotNumber}`
+      }
+      
+      submitData.append('specialRequests', specialRequestsText)
       submitData.append('contactPerson', formData.contactPerson)
       submitData.append('contactNumber', formData.contactNumber)
       submitData.append('submittedBy', session?.user?.id?.toString() || '')
@@ -358,6 +400,16 @@ export default function ExhumationPermit() {
                       type="text" 
                       value={formData.deceased.lastName}
                       onChange={(e) => handleDeceasedChange('lastName', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" 
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Date of Death <span className="text-red-500">*</span></label>
+                    <input 
+                      type="date" 
+                      value={formData.deceased.dateOfDeath || ''}
+                      onChange={(e) => handleDeceasedChange('dateOfDeath', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" 
                       required
                     />

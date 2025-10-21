@@ -2,12 +2,33 @@
 
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
+
+interface DeceasedRecord {
+  id: number;
+  firstName: string;
+  middleName?: string;
+  lastName: string;
+  dateOfDeath?: string;
+}
 
 export default function DeathCertificateRequest() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [deceasedRecords, setDeceasedRecords] = useState<DeceasedRecord[]>([])
+  const [loadingRecords, setLoadingRecords] = useState(true)
+  
+  // Form state
+  const [formData, setFormData] = useState({
+    deathId: '',
+    copies: '1',
+    purpose: '',
+    specificPurpose: '',
+    relationshipToDeceased: '',
+    contactNumber: '',
+  })
 
   useEffect(() => {
     if (status === "loading") return
@@ -21,7 +42,90 @@ export default function DeathCertificateRequest() {
       router.push('/unauthorized')
       return
     }
+    
+    // Fetch deceased records from death registrations
+    fetchDeceasedRecords()
   }, [session, status, router])
+  
+  const fetchDeceasedRecords = async () => {
+    try {
+      const response = await fetch('/api/death-registrations/deceased')
+      if (response.ok) {
+        const data = await response.json()
+        setDeceasedRecords(data.deceased || [])
+      }
+    } catch (error) {
+      console.error('Error fetching deceased records:', error)
+    } finally {
+      setLoadingRecords(false)
+    }
+  }
+  
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!formData.deathId) {
+      alert('Please select a deceased person')
+      return
+    }
+    
+    if (!formData.relationshipToDeceased) {
+      alert('Please specify your relationship to the deceased')
+      return
+    }
+    
+    if (!formData.purpose) {
+      alert('Please select a purpose for the certificate request')
+      return
+    }
+    
+    setIsSubmitting(true)
+    
+    try {
+      const purposeText = formData.specificPurpose || formData.purpose
+      
+      const response = await fetch('/api/certificates', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          certRequestType: 'DEATH',
+          deathId: parseInt(formData.deathId),
+          relationshipToDeceased: formData.relationshipToDeceased,
+          purpose: purposeText,
+          copies: parseInt(formData.copies),
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        alert('Certificate request submitted successfully!')
+        router.push('/citizen/applications')
+      } else {
+        alert(`Failed to submit request: ${data.error || data.message || 'Unknown error'}`)
+      }
+    } catch (error) {
+      console.error('Error submitting certificate request:', error)
+      alert('Failed to submit certificate request. Please try again.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+  
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }))
+  }
+  
+  const calculateAmount = () => {
+    const baseAmount = 50
+    return baseAmount * parseInt(formData.copies || '1')
+  }
 
   if (status === "loading") {
     return (
@@ -117,26 +221,43 @@ export default function DeathCertificateRequest() {
           <div className="bg-white shadow rounded-lg p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-6">Certificate Request Form</h3>
             
-            <form className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-6">
               {/* Deceased Information */}
               <div>
                 <h4 className="text-md font-medium text-gray-900 mb-4">Deceased Information</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
-                    <input type="text" className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
-                    <input type="text" className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Date of Death</label>
-                    <input type="date" className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Place of Death</label>
-                    <input type="text" className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Select Deceased Person <span className="text-red-500">*</span>
+                    </label>
+                    {loadingRecords ? (
+                      <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500">
+                        Loading deceased records...
+                      </div>
+                    ) : deceasedRecords.length > 0 ? (
+                      <select 
+                        name="deathId"
+                        value={formData.deathId}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      >
+                        <option value="">Select a deceased person</option>
+                        {deceasedRecords.map((deceased) => (
+                          <option key={deceased.id} value={deceased.id}>
+                            {deceased.firstName} {deceased.middleName || ''} {deceased.lastName}
+                            {deceased.dateOfDeath && ` - ${new Date(deceased.dateOfDeath).toLocaleDateString()}`}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-yellow-50 text-yellow-700">
+                        No deceased records found. Please submit a death registration first.
+                      </div>
+                    )}
+                    <p className="text-xs text-gray-500 mt-1">
+                      Select from your previously registered death records
+                    </p>
                   </div>
                 </div>
               </div>
@@ -146,8 +267,16 @@ export default function DeathCertificateRequest() {
                 <h4 className="text-md font-medium text-gray-900 mb-4">Request Details</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Number of Copies</label>
-                    <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Number of Copies <span className="text-red-500">*</span>
+                    </label>
+                    <select 
+                      name="copies"
+                      value={formData.copies}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    >
                       <option value="1">1 copy (₱50.00)</option>
                       <option value="2">2 copies (₱100.00)</option>
                       <option value="3">3 copies (₱150.00)</option>
@@ -156,21 +285,42 @@ export default function DeathCertificateRequest() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Purpose</label>
-                    <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Purpose <span className="text-red-500">*</span>
+                    </label>
+                    <select 
+                      name="purpose"
+                      value={formData.purpose}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    >
                       <option value="">Select Purpose</option>
-                      <option value="insurance">Insurance Claims</option>
-                      <option value="legal">Legal Proceedings</option>
-                      <option value="bank">Bank Requirements</option>
-                      <option value="property">Property Transfer</option>
-                      <option value="pension">Pension/Benefits</option>
-                      <option value="burial">Burial Services</option>
-                      <option value="other">Other</option>
+                      <option value="Insurance Claims">Insurance Claims</option>
+                      <option value="Legal Proceedings">Legal Proceedings</option>
+                      <option value="Bank Requirements">Bank Requirements</option>
+                      <option value="Property Transfer">Property Transfer</option>
+                      <option value="Pension/Benefits">Pension/Benefits</option>
+                      <option value="Burial Services">Burial Services</option>
+                      <option value="Other">Other</option>
                     </select>
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Specific Purpose (Optional)</label>
-                    <textarea rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Please specify the purpose for requesting the death certificate"></textarea>
+                    <textarea 
+                      name="specificPurpose"
+                      value={formData.specificPurpose}
+                      onChange={handleInputChange}
+                      rows={3} 
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                      placeholder="Please specify the purpose for requesting the death certificate"
+                    />
+                  </div>
+                  <div className="md:col-span-2 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-gray-700">Total Amount Due:</span>
+                      <span className="text-2xl font-bold text-blue-600">₱{calculateAmount()}.00</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -181,48 +331,72 @@ export default function DeathCertificateRequest() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-                    <input type="text" defaultValue={session.user?.name || ""} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <input 
+                      type="text" 
+                      defaultValue={session.user?.name || ""} 
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
+                      disabled 
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Your registered name</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Relationship to Deceased</label>
-                    <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Relationship to Deceased <span className="text-red-500">*</span>
+                    </label>
+                    <select 
+                      name="relationshipToDeceased"
+                      value={formData.relationshipToDeceased}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    >
                       <option value="">Select Relationship</option>
-                      <option value="spouse">Spouse</option>
-                      <option value="child">Child</option>
-                      <option value="parent">Parent</option>
-                      <option value="sibling">Sibling</option>
-                      <option value="grandchild">Grandchild</option>
-                      <option value="grandparent">Grandparent</option>
-                      <option value="authorized_representative">Authorized Representative</option>
-                      <option value="other">Other</option>
+                      <option value="Spouse">Spouse</option>
+                      <option value="Child">Child</option>
+                      <option value="Parent">Parent</option>
+                      <option value="Sibling">Sibling</option>
+                      <option value="Grandchild">Grandchild</option>
+                      <option value="Grandparent">Grandparent</option>
+                      <option value="Authorized Representative">Authorized Representative</option>
+                      <option value="Other">Other</option>
                     </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Contact Number</label>
-                    <input type="tel" className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <input 
+                      type="tel" 
+                      name="contactNumber"
+                      value={formData.contactNumber}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="09XX XXX XXXX" 
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-                    <input type="email" defaultValue={session.user?.email || ""} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <input 
+                      type="email" 
+                      defaultValue={session.user?.email || ""} 
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
+                      disabled 
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Your registered email</p>
                   </div>
                 </div>
               </div>
 
-              {/* Document Upload */}
-              <div>
-                <h4 className="text-md font-medium text-gray-900 mb-4">Document Upload</h4>
-                <div className="space-y-4">
+              {/* Document Upload Note */}
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div className="flex">
+                  <svg className="w-5 h-5 text-yellow-500 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Valid ID</label>
-                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Authorization Letter (if not next of kin)</label>
-                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Supporting ID of family member (if applicable)</label>
-                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <h4 className="text-sm font-medium text-yellow-800 mb-1">Document Requirements</h4>
+                    <p className="text-sm text-yellow-700">
+                      Required documents (Valid ID, Authorization Letter if applicable) will be collected during the pickup process at the municipal office. 
+                      Please bring the original copies when you claim your certificate.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -232,8 +406,22 @@ export default function DeathCertificateRequest() {
                 <Link href="/citizen" className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
                   Cancel
                 </Link>
-                <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                  Submit Request
+                <button 
+                  type="submit" 
+                  disabled={isSubmitting || loadingRecords || deceasedRecords.length === 0}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center space-x-2"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>Submitting...</span>
+                    </>
+                  ) : (
+                    <span>Submit Request</span>
+                  )}
                 </button>
               </div>
             </form>

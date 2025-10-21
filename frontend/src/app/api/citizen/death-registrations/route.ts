@@ -59,36 +59,49 @@ export async function POST(request: NextRequest) {
 
     const registration = await response.json()
 
-    // TODO: Handle document uploads here
-    // For now, we'll just return the registration
-    // In the future, this should:
-    // 1. Upload documents to file storage
-    // 2. Create document records in the database
-    // 3. Link documents to the registration
-
-    const documents = []
+    // Handle document uploads
+    console.log('Starting document upload process...')
+    const uploadedDocuments = []
     const documentTypes = ['form_103', 'valid_id', 'covid_swab']
     
     for (const docType of documentTypes) {
       const file = formData.get(`document_${docType}`) as File
       if (file) {
-        // Placeholder for document handling
-        // In a real implementation, you would:
-        // 1. Upload to file storage (S3, local filesystem, etc.)
-        // 2. Create document record in database
-        documents.push({
-          type: docType,
-          fileName: file.name,
-          size: file.size,
-          // filePath: uploadedFilePath,
-          status: 'uploaded'
-        })
+        try {
+          console.log(`Uploading document: ${docType}, file: ${file.name}`)
+          
+          // Create FormData for this specific document
+          const docFormData = new FormData()
+          docFormData.append('file', file)
+          docFormData.append('registrationId', registration.id.toString())
+          docFormData.append('docType', docType)
+          
+          // Upload to backend
+          const uploadResponse = await fetch(`${BACKEND_URL}/api/death-registrations/${registration.id}/documents`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${session.accessToken}`,
+            },
+            body: docFormData
+          })
+          
+          if (uploadResponse.ok) {
+            const docResult = await uploadResponse.json()
+            uploadedDocuments.push(docResult)
+            console.log(`Document uploaded successfully: ${docType}`)
+          } else {
+            const errorText = await uploadResponse.text()
+            console.error(`Failed to upload document ${docType}:`, errorText)
+          }
+        } catch (error) {
+          console.error(`Error uploading document ${docType}:`, error)
+        }
       }
     }
 
     return NextResponse.json({
       ...registration,
-      documents,
+      documents: uploadedDocuments,
       message: 'Death registration submitted successfully. You will receive payment instructions via email.'
     })
 

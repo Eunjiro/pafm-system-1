@@ -10,7 +10,6 @@ import {
   FiFileText, 
   FiRefreshCw,
   FiShield,
-  FiLock
 } from 'react-icons/fi';
 
 interface Registration {
@@ -38,6 +37,17 @@ interface Registration {
     fullNameLast: string;
     email: string;
   };
+  documents?: Array<{
+    id: number;
+    docType: string;
+    uploadedAt: string;
+    document: {
+      id: number;
+      fileName: string;
+      filePath: string;
+      mimeType?: string;
+    };
+  }>;
 }
 
 export default function AdminDeathRegistrationIndex() {
@@ -51,6 +61,18 @@ export default function AdminDeathRegistrationIndex() {
   const [newStatus, setNewStatus] = useState('');
   const [statusComment, setStatusComment] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
+  const [showDocumentsModal, setShowDocumentsModal] = useState(false);
+  const [selectedDocuments, setSelectedDocuments] = useState<Array<{
+    id: number;
+    docType: string;
+    fileName: string;
+    filePath: string;
+    uploadedAt: string;
+    mimeType?: string;
+  }>>([]);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [registrationToDelete, setRegistrationToDelete] = useState<Registration | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (status === "loading") return;
@@ -80,8 +102,19 @@ export default function AdminDeathRegistrationIndex() {
       }
       
       const data = await response.json();
-      setRegistrations(data.registrations || data.data || []);
-      console.log('Successfully fetched registrations:', data.registrations?.length || 0);
+      const registrations = data.registrations || data.data || [];
+      
+      // Log to see the structure of documents
+      if (registrations.length > 0) {
+        console.log('Sample registration with documents:', {
+          id: registrations[0].id,
+          documents: registrations[0].documents,
+          documentsCount: registrations[0].documents?.length
+        });
+      }
+      
+      setRegistrations(registrations);
+      console.log('Successfully fetched registrations:', registrations.length);
     } catch (error) {
       console.error('Error fetching registrations:', error);
       setRegistrations([]);
@@ -130,6 +163,29 @@ export default function AdminDeathRegistrationIndex() {
     return transitions[currentStatus] || []
   }
 
+  const handleViewDocuments = (registration: Registration) => {
+    console.log('handleViewDocuments called', {
+      registrationId: registration.id,
+      documentsCount: registration.documents?.length,
+      documents: registration.documents
+    });
+    
+    // Map the nested structure to flat structure for display
+    const mappedDocs = (registration.documents || []).map(doc => ({
+      id: doc.document.id,
+      docType: doc.docType,
+      fileName: doc.document.fileName,
+      filePath: doc.document.filePath,
+      uploadedAt: doc.uploadedAt,
+      mimeType: doc.document.mimeType
+    }));
+    
+    console.log('Mapped documents:', mappedDocs);
+    setSelectedDocuments(mappedDocs);
+    setShowDocumentsModal(true);
+    console.log('Modal should be open now');
+  };
+
   const handleStatusUpdate = async () => {
     if (!newStatus || !selectedRegistration) return;
 
@@ -165,6 +221,37 @@ export default function AdminDeathRegistrationIndex() {
       alert('Status update failed due to connection error. Please try again.');
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!registrationToDelete) return;
+
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`/api/death-registrations/${registrationToDelete.id}`, {
+        method: 'DELETE',
+        headers: { 
+          'Authorization': `Bearer ${(session as any)?.accessToken}`
+        }
+      });
+
+      if (response.ok) {
+        console.log('Delete successful');
+        alert('Death registration deleted successfully');
+        fetchRegistrations();
+        setShowDeleteModal(false);
+        setRegistrationToDelete(null);
+      } else {
+        const result = await response.json();
+        console.error('Delete failed:', result);
+        alert(`Delete failed: ${result.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Delete error:', error);
+      alert('Delete failed due to connection error. Please try again.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -428,6 +515,9 @@ export default function AdminDeathRegistrationIndex() {
                     Financial Details
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                    Documents
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
                     Admin Actions
                   </th>
                 </tr>
@@ -541,6 +631,29 @@ export default function AdminDeathRegistrationIndex() {
                       </div>
                     </td>
                     <td className="px-6 py-5">
+                      <button
+                        onClick={() => handleViewDocuments(reg)}
+                        className={`inline-flex items-center px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${
+                          reg.documents && reg.documents.length > 0 
+                            ? 'hover:shadow-md cursor-pointer' 
+                            : 'cursor-not-allowed opacity-50'
+                        }`}
+                        style={{ 
+                          backgroundColor: reg.documents && reg.documents.length > 0 ? '#4A90E2' : '#E0E0E0',
+                          color: reg.documents && reg.documents.length > 0 ? 'white' : '#757575'
+                        }}
+                        disabled={!reg.documents || reg.documents.length === 0}
+                      >
+                        <FiFileText className="mr-2" size={14} />
+                        <span>View Files</span>
+                        {reg.documents && reg.documents.length > 0 && (
+                          <span className="ml-2 px-2 py-0.5 rounded-full text-xs font-bold bg-white bg-opacity-30">
+                            {reg.documents.length}
+                          </span>
+                        )}
+                      </button>
+                    </td>
+                    <td className="px-6 py-5">
                       <div className="flex items-center space-x-2">
                         <a
                           href={`/admin/death-registration/${reg.id}`}
@@ -568,6 +681,19 @@ export default function AdminDeathRegistrationIndex() {
                             Update
                           </button>
                         )}
+
+                        <button
+                          onClick={() => {
+                            setRegistrationToDelete(reg);
+                            setShowDeleteModal(true);
+                          }}
+                          className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500 text-white hover:bg-red-600 transition-colors"
+                        >
+                          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          Delete
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -579,7 +705,7 @@ export default function AdminDeathRegistrationIndex() {
 
         {/* Modern Status Update Modal */}
         {showStatusModal && selectedRegistration && (
-          <div className="fixed inset-0 flex items-center justify-center z-50 animate-fadeIn">
+          <div className="fixed inset-0 flex items-center justify-center z-[9999] animate-fadeIn">
             <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 animate-slideUp">
               <div className="p-6">
                 <div className="flex items-center justify-between mb-6">
@@ -654,6 +780,197 @@ export default function AdminDeathRegistrationIndex() {
                     style={!newStatus || isUpdating ? {} : { backgroundColor: '#4CAF50' }}
                   >
                     {isUpdating ? 'Updating...' : 'Update Status'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Documents Review Modal */}
+        {showDocumentsModal && (
+          <div className="fixed inset-0 flex items-center justify-center z-[9999] animate-fadeIn">
+            <div className="bg-white rounded-2xl shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden">
+              <div className="p-6 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{backgroundColor: '#E3F2FD'}}>
+                      <FiFileText size={24} color="#4A90E2" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-semibold text-gray-900">Uploaded Documents</h3>
+                      <p className="text-sm text-gray-600">{selectedDocuments.length} document(s) uploaded by citizen</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowDocumentsModal(false)}
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              
+              <div className="p-6 overflow-y-auto max-h-[calc(90vh-180px)]">
+                {selectedDocuments.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {selectedDocuments.map((doc) => (
+                      <div key={doc.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-2 mb-2">
+                              <FiFileText size={20} color="#4A90E2" />
+                              <h4 className="text-sm font-semibold text-gray-900">{doc.docType}</h4>
+                            </div>
+                            <p className="text-xs text-gray-600 mb-1">{doc.fileName}</p>
+                            <p className="text-xs text-gray-400">
+                              Uploaded: {new Date(doc.uploadedAt).toLocaleDateString('en-US', { 
+                                year: 'numeric', 
+                                month: 'short', 
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex space-x-2">
+                          <a
+                            href={`http://localhost:3001${doc.filePath}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex-1 px-3 py-2 text-center text-xs font-medium text-white rounded-lg transition-colors"
+                            style={{backgroundColor: '#4A90E2'}}
+                          >
+                            View Document
+                          </a>
+                          <a
+                            href={`http://localhost:3001${doc.filePath}`}
+                            download
+                            className="flex-1 px-3 py-2 text-center text-xs font-medium bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                          >
+                            Download
+                          </a>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{backgroundColor: '#F5F5F5'}}>
+                      <FiFileText size={32} color="#9E9E9E" />
+                    </div>
+                    <h4 className="text-lg font-medium text-gray-900 mb-2">No Documents Uploaded</h4>
+                    <p className="text-sm text-gray-600">This registration does not have any documents yet.</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-6 border-t border-gray-200 bg-gray-50">
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => setShowDocumentsModal(false)}
+                    className="px-6 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {showDeleteModal && registrationToDelete && (
+          <div className="fixed inset-0 flex items-center justify-center z-[9999] animate-fadeIn">
+            <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 animate-slideUp relative">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+                      <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                    </div>
+                    <h3 className="text-xl font-semibold text-gray-900">Delete Death Registration</h3>
+                  </div>
+                  <button
+                    onClick={() => !isDeleting && setShowDeleteModal(false)}
+                    disabled={isDeleting}
+                    className="text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                
+                <div className="mb-6">
+                  <p className="text-gray-700 mb-4">
+                    Are you sure you want to delete this death registration? This action cannot be undone.
+                  </p>
+                  
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-2">
+                    <p className="text-sm font-medium text-red-900">
+                      Registration #{registrationToDelete.id}
+                    </p>
+                    {registrationToDelete.deceased && (
+                      <p className="text-sm text-red-700">
+                        Deceased: {registrationToDelete.deceased.firstName} {registrationToDelete.deceased.lastName}
+                      </p>
+                    )}
+                    <p className="text-sm text-red-700">
+                      Type: {registrationToDelete.registrationType}
+                    </p>
+                    <p className="text-sm text-red-700">
+                      Status: {registrationToDelete.status}
+                    </p>
+                  </div>
+
+                  <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                    <p className="text-xs text-yellow-800">
+                      <strong>Warning:</strong> This will permanently delete:
+                    </p>
+                    <ul className="text-xs text-yellow-700 list-disc list-inside mt-2 space-y-1">
+                      <li>The death registration record</li>
+                      <li>Associated deceased information</li>
+                      <li>All uploaded documents ({registrationToDelete.documents?.length || 0} files)</li>
+                      <li>All related database records</li>
+                    </ul>
+                  </div>
+                </div>
+                
+                <div className="flex space-x-3">
+                  <button
+                    onClick={() => setShowDeleteModal(false)}
+                    disabled={isDeleting}
+                    className="flex-1 px-4 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleDelete}
+                    disabled={isDeleting}
+                    className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                  >
+                    {isDeleting ? (
+                      <>
+                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                        Delete Permanently
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
