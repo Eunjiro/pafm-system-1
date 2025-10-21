@@ -141,7 +141,6 @@ async function main() {
             orientation: ['NORTH', 'SOUTH', 'EAST', 'WEST'][lot % 4],
             accessibility: true,
             maxLayers: 3,
-            notes: `Plot in ${sectionRecord.name}, ${blockRecord.name}`,
           });
         }
       }
